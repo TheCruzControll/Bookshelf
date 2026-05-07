@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Bookshelf",
+    "slug": "bookshelf",
+    "scheme": "bookshelf",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "platforms": ["ios", "android"],
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F2EA"
+      }
+    }
+  }
+}
