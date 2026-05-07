@@ -19,8 +19,8 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@bookshelf/domain": ["packages/domain/src/index.ts"],
-      "@bookshelf/db": ["packages/db/src/index.ts"]
+      "@hone/domain": ["packages/domain/src/index.ts"],
+      "@hone/db": ["packages/db/src/index.ts"]
     }
   }
 }

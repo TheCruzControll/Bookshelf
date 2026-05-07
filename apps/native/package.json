@@ -1,5 +1,5 @@
 {
-  "name": "@bookshelf/native",
+  "name": "@hone/native",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "test": "tsc --noEmit"
   },
   "dependencies": {
-    "@bookshelf/domain": "workspace:*",
+    "@hone/domain": "workspace:*",
     "expo": "^53.0.0",
     "expo-router": "^5.0.0",
     "react": "^19.0.0",

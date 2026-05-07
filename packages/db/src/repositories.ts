@@ -10,8 +10,8 @@ import type {
   RecommendationRepository,
   ReviewRepository,
   ShelfRepository
-} from "@bookshelf/domain";
-import type { BookshelfDb } from "./client";
+} from "@hone/domain";
+import type { HoneDb } from "./client";
 import {
   activityEvents,
   books,
@@ -34,7 +34,7 @@ import {
 } from "./mappers";
 
 export class DrizzleProfileRepository implements ProfileRepository {
-  constructor(private readonly db: BookshelfDb) {}
+  constructor(private readonly db: HoneDb) {}
 
   async findById(id: EntityId) {
     const row = await this.db.query.profiles.findFirst({
@@ -60,7 +60,7 @@ export class DrizzleProfileRepository implements ProfileRepository {
 }
 
 export class DrizzleBookRepository implements BookRepository {
-  constructor(private readonly db: BookshelfDb) {}
+  constructor(private readonly db: HoneDb) {}
 
   async findBookById(id: EntityId) {
     const row = await this.db.query.books.findFirst({
@@ -88,7 +88,7 @@ export class DrizzleBookRepository implements BookRepository {
 }
 
 export class DrizzleShelfRepository implements ShelfRepository {
-  constructor(private readonly db: BookshelfDb) {}
+  constructor(private readonly db: HoneDb) {}
 
   async listShelves(ownerId: EntityId, viewerId?: EntityId) {
     const isOwner = viewerId === ownerId;
@@ -136,7 +136,7 @@ export class DrizzleShelfRepository implements ShelfRepository {
 }
 
 export class DrizzleReviewRepository implements ReviewRepository {
-  constructor(private readonly db: BookshelfDb) {}
+  constructor(private readonly db: HoneDb) {}
 
   async create(input: Parameters<ReviewRepository["create"]>[0]) {
     const [row] = await this.db.insert(reviews).values(input).returning();
@@ -148,7 +148,7 @@ export class DrizzleReviewRepository implements ReviewRepository {
 }
 
 export class DrizzleActivityRepository implements ActivityRepository {
-  constructor(private readonly db: BookshelfDb) {}
+  constructor(private readonly db: HoneDb) {}
 
   async append(event: Parameters<ActivityRepository["append"]>[0]) {
     const [row] = await this.db.insert(activityEvents).values(event).returning();
@@ -212,7 +212,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
 export class DrizzleRecommendationRepository
   implements RecommendationRepository
 {
-  constructor(private readonly db: BookshelfDb) {}
+  constructor(private readonly db: HoneDb) {}
 
   async getForUser(userId: EntityId, limit: number): Promise<Recommendation[]> {
     const rows = await this.db
@@ -235,7 +235,7 @@ export class DrizzleRecommendationRepository
   }
 }
 
-export function createDrizzleRepositories(db: BookshelfDb): AppRepositories {
+export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
     books: new DrizzleBookRepository(db),

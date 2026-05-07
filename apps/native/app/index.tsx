@@ -10,7 +10,7 @@ export default function HomeScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Bookshelf</Text>
+        <Text style={styles.eyebrow}>Hone</Text>
         <Text style={styles.title}>Your friends' reading, ranked.</Text>
         <Text style={styles.lede}>
           Build shelves, rank books, and discover what to read through people

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Bookshelf",
-    "slug": "bookshelf",
-    "scheme": "bookshelf",
+    "name": "Hone",
+    "slug": "hone",
+    "scheme": "hone",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",

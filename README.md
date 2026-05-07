@@ -1,6 +1,6 @@
-# Bookshelf
+# Hone
 
-Bookshelf is a social reading app inspired by Beli's ranked-list and friend-activity mechanics, built for iOS, Android, and web.
+Hone is a social reading app inspired by Beli's ranked-list and friend-activity mechanics, built for iOS, Android, and web.
 
 ## Product Direction
 

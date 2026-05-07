@@ -8,7 +8,7 @@ export default function HomePage() {
   return (
     <main className="shell">
       <section className="panel">
-        <p className="eyebrow">Bookshelf</p>
+        <p className="eyebrow">Hone</p>
         <h1>See what your friends are actually reading.</h1>
         <p className="lede">
           Rank books on shelves, follow trusted readers, and turn library

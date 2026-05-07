@@ -8,5 +8,5 @@ serve({
   port
 });
 
-console.log(`Bookshelf API listening on http://localhost:${port}`);
+console.log(`Hone API listening on http://localhost:${port}`);
 

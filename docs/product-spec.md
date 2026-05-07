@@ -1,8 +1,8 @@
-# Bookshelf Product Requirements
+# Hone Product Requirements
 
 ## Summary
 
-Bookshelf is a Beli-like app for books. Users build ranked shelves, follow friends, and discover books through activity from people they trust.
+Hone is a Beli-like app for books. Users build ranked shelves, follow friends, and discover books through activity from people they trust.
 
 ## V1 Audience
 

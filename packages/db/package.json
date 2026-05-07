@@ -1,5 +1,5 @@
 {
-  "name": "@bookshelf/db",
+  "name": "@hone/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@bookshelf/domain": "workspace:*",
+    "@hone/domain": "workspace:*",
     "drizzle-orm": "^0.44.0",
     "pg": "^8.15.0"
   },

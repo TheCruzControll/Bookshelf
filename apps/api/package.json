@@ -1,5 +1,5 @@
 {
-  "name": "@bookshelf/api",
+  "name": "@hone/api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "test": "tsc --noEmit"
   },
   "dependencies": {
-    "@bookshelf/db": "workspace:*",
-    "@bookshelf/domain": "workspace:*",
+    "@hone/db": "workspace:*",
+    "@hone/domain": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "hono": "^4.8.0",
     "zod": "^3.25.0"

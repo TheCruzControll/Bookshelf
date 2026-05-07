@@ -6,7 +6,7 @@ import type {
   Review,
   Shelf,
   ShelfItem
-} from "@bookshelf/domain";
+} from "@hone/domain";
 import type {
   activityEvents,
   books,

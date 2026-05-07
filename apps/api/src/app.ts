@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { AppRepositories, AuthProvider } from "@bookshelf/domain";
-import { AppServices } from "@bookshelf/domain";
+import type { AppRepositories, AuthProvider } from "@hone/domain";
+import { AppServices } from "@hone/domain";
 
 export interface ApiDependencies {
   repositories?: AppRepositories;
@@ -21,7 +21,7 @@ export function createApi(dependencies: ApiDependencies = {}) {
   app.get("/health", (c) =>
     c.json({
       ok: true,
-      service: "bookshelf-api"
+      service: "hone-api"
     })
   );
 
@@ -43,5 +43,5 @@ export function createApi(dependencies: ApiDependencies = {}) {
   return app;
 }
 
-export type BookshelfApi = ReturnType<typeof createApi>;
+export type HoneApi = ReturnType<typeof createApi>;
 
