@@ -4,6 +4,8 @@
 
 Hone is a Beli-like app for books. Users build ranked shelves, follow friends, and discover books through activity from people they trust.
 
+The name comes from `hon`, the Japanese word for book, and the English verb "hone": to sharpen. The product promise is to help readers hone their taste through books and trusted social signals.
+
 ## V1 Audience
 
 The first audience is trusted friend circles. Power-reader workflows and public creator growth are supported by the data model, but the first product experience should feel social and personal before it feels like a publishing platform.
@@ -36,4 +38,3 @@ V1 recommendations are SQL-based and explainable: friend overlap, shelf rankings
 - No graph projection/read model.
 - No launch-time AI recommendation engine.
 - No direct Supabase business-data calls from UI screens.
-

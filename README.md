@@ -2,6 +2,8 @@
 
 Hone is a social reading app inspired by Beli's ranked-list and friend-activity mechanics, built for iOS, Android, and web.
 
+The name comes from `hon`, the Japanese word for book, and the English verb "hone": to sharpen. Hone is about books, and about sharpening your taste through trusted readers.
+
 ## Product Direction
 
 - V1 focuses on trusted friend circles.
@@ -26,4 +28,3 @@ pnpm dev
 ```
 
 Copy `.env.example` to `.env.local` or app-specific env files before connecting real infrastructure.
-
