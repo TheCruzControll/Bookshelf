@@ -12,9 +12,9 @@ The first audience is trusted friend circles. Power-reader workflows and public 
 
 ## Core Loop
 
-1. Add books through search, ISBN scanning, or Goodreads CSV import.
+1. Add books through search, ISBN scanning, or Goodreads CSV import. See `docs/search-add-flow-spec.md`.
 2. Place books on shelves such as Want to Read, Reading, Finished, Dropped, Favorites, or custom shelves.
-3. Rank books within shelves.
+3. Rank finished books through the Beli-like taste comparison flow. See `docs/ranking-flow-spec.md`.
 4. See friends' reading and ranking activity in a feed.
 5. Use friend taste signals to discover what to read next.
 

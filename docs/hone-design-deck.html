@@ -5,18 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Hone Design Direction</title>
     <style>
+      @import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700;800&family=Noto+Serif+JP:wght@500;600;700&display=swap");
+
       :root {
-        --paper: #f4e8cf;
-        --paper-deep: #ebd3a2;
-        --ink: #1e1814;
-        --soft-ink: #55483b;
-        --sienna: #bb7125;
-        --red: #d96629;
-        --green: #437742;
-        --mineral: #a2b0ad;
-        --indigo: #12354e;
-        --lavender: #b5b1d8;
-        --shadow: rgb(83 54 25 / 16%);
+        --paper: #f7f4ed;
+        --paper-line: #e5dfd3;
+        --panel: #fbfaf6;
+        --ink: #171411;
+        --soft-ink: #676158;
+        --vermilion: #b9472d;
+        --ai: #253f5b;
+        --shadow: transparent;
       }
 
       * {
@@ -31,13 +30,12 @@
         margin: 0;
         color: var(--ink);
         background:
-          radial-gradient(circle at 18% 22%, rgb(187 113 37 / 12%) 0 1px, transparent 2px),
-          radial-gradient(circle at 76% 42%, rgb(67 119 66 / 10%) 0 1px, transparent 2px),
-          linear-gradient(108deg, rgb(255 255 255 / 14%), transparent 30%),
+          linear-gradient(90deg, transparent 0 calc(100% - 1px), rgb(23 20 17 / 4%) calc(100% - 1px)),
+          linear-gradient(180deg, transparent 0 calc(100% - 1px), rgb(23 20 17 / 4%) calc(100% - 1px)),
           var(--paper);
-        background-size: 34px 34px, 48px 48px, auto, auto;
+        background-size: 64px 64px, 64px 64px, auto;
         font-family:
-          "Avenir Next", "Trebuchet MS", ui-sans-serif, system-ui, -apple-system,
+          "Noto Sans", ui-sans-serif, system-ui, -apple-system,
           BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
@@ -73,7 +71,7 @@
 
       .eyebrow {
         margin: 0;
-        color: var(--sienna);
+        color: var(--ai);
         font-size: 14px;
         font-weight: 800;
         letter-spacing: 0.12em;
@@ -84,8 +82,9 @@
       h2 {
         max-width: 920px;
         margin: 0;
-        font-family: Georgia, "Times New Roman", serif;
-        font-weight: 700;
+        font-family:
+          "Noto Serif JP", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
+        font-weight: 650;
         letter-spacing: 0;
       }
 
@@ -112,7 +111,7 @@
       }
 
       a {
-        color: var(--indigo);
+        color: var(--ai);
         font-weight: 800;
       }
 
@@ -132,7 +131,7 @@
       .mark span {
         position: absolute;
         display: block;
-        border: 4px solid var(--ink);
+        border: 3px solid var(--ink);
         transform: rotate(-4deg);
       }
 
@@ -142,7 +141,7 @@
         width: 58px;
         height: 76px;
         border-radius: 21px 14px 18px 12px;
-        background: var(--red);
+        background: var(--vermilion);
       }
 
       .mark span:nth-child(2) {
@@ -151,7 +150,7 @@
         width: 54px;
         height: 94px;
         border-radius: 13px 21px 14px 19px;
-        background: var(--green);
+        background: var(--ai);
         transform: rotate(3deg);
       }
 
@@ -161,21 +160,22 @@
         width: 48px;
         height: 68px;
         border-radius: 16px 12px 22px 13px;
-        background: var(--mineral);
+        background: var(--vermilion);
         transform: rotate(8deg);
       }
 
       .card {
-        border: 3px solid var(--ink);
+        border: 2px solid var(--ink);
         border-radius: 28px 22px 31px 20px;
-        background: rgb(248 237 219 / 92%);
+        background: rgb(250 247 239 / 94%);
         padding: 26px;
-        box-shadow: 10px 12px 0 var(--shadow);
+        box-shadow: none;
       }
 
       .card h3 {
         margin: 0 0 12px;
-        font-family: Georgia, "Times New Roman", serif;
+        font-family:
+          "Noto Serif JP", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
         font-size: 30px;
       }
 
@@ -213,10 +213,10 @@
         min-height: 172px;
         display: flex;
         align-items: end;
-        border: 3px solid var(--ink);
+        border: 2px solid var(--ink);
         border-radius: 24px 17px 28px 16px;
         padding: 12px;
-        box-shadow: 5px 7px 0 var(--shadow);
+        box-shadow: none;
         color: var(--ink);
         font-size: 13px;
         font-weight: 900;
@@ -226,19 +226,19 @@
       .paperPanel {
         position: relative;
         min-height: 500px;
-        border: 4px solid var(--ink);
+        border: 2px solid var(--ink);
         border-radius: 34px 25px 40px 22px;
         background:
           linear-gradient(135deg, rgb(255 255 255 / 18%), transparent 34%),
-          var(--paper-deep);
-        box-shadow: 14px 18px 0 rgb(18 53 78 / 16%);
+          var(--panel);
+        box-shadow: none;
         overflow: hidden;
       }
 
       .shape {
         position: absolute;
         display: block;
-        border: 4px solid var(--ink);
+        border: 2px solid var(--ink);
       }
 
       .sun {
@@ -247,7 +247,7 @@
         left: 34px;
         top: 34px;
         border-radius: 44% 56% 48% 52%;
-        background: var(--red);
+        background: var(--vermilion);
       }
 
       .leaf {
@@ -256,7 +256,7 @@
         right: 44px;
         top: 58px;
         border-radius: 72% 28% 64% 36%;
-        background: var(--green);
+        background: var(--paper-line);
         transform: rotate(-13deg);
       }
 
@@ -267,7 +267,7 @@
         top: 214px;
         border-radius: 50%;
         background: var(--paper);
-        box-shadow: inset 24px -6px 0 var(--indigo);
+        box-shadow: none;
       }
 
       .bar {
@@ -276,7 +276,7 @@
         right: 70px;
         bottom: 96px;
         border-radius: 19px 12px 22px 11px;
-        background: var(--mineral);
+        background: var(--paper-line);
         transform: rotate(4deg);
       }
 
@@ -300,10 +300,11 @@
 
       .note {
         max-width: 980px;
-        border-left: 8px solid var(--red);
+        border-left: 8px solid var(--vermilion);
         padding-left: 20px;
         color: var(--ink);
-        font-family: Georgia, "Times New Roman", serif;
+        font-family:
+          "Noto Serif JP", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
         font-size: clamp(34px, 5vw, 62px);
         line-height: 1.05;
       }
@@ -340,7 +341,7 @@
         <h1>Warm, hand drawn, wabi-sabi, never cold.</h1>
         <p>
           A tactile social reading app for books and taste. The interface should
-          feel like paper, ink, folk textile, and a friend's shelf.
+          feel like paper, ink, quiet shoji rhythm, and a friend's shelf.
         </p>
       </section>
 
@@ -372,23 +373,23 @@
           accents rather than bright app-primary color.
         </p>
         <div class="palette" aria-label="Hone palette">
-          <div class="swatch" style="background: #f4e8cf">paper<br />#f4e8cf</div>
-          <div class="swatch" style="background: #ebd3a2">ivory buff<br />#ebd3a2</div>
-          <div class="swatch" style="background: #bb7125">raw sienna<br />#bb7125</div>
-          <div class="swatch" style="background: #d96629">english red<br />#d96629</div>
-          <div class="swatch" style="background: #437742">cossack green<br />#437742</div>
-          <div class="swatch" style="background: #12354e; color: #f4e8cf">dark blue<br />#12354e</div>
+          <div class="swatch" style="background: #f7f4ed">rice paper<br />#f7f4ed</div>
+          <div class="swatch" style="background: #fbfaf6">paper fiber<br />#fbfaf6</div>
+          <div class="swatch" style="background: #253f5b; color: #f7f4ed">ai indigo<br />#253f5b</div>
+          <div class="swatch" style="background: #b9472d">vermilion seal<br />#b9472d</div>
+          <div class="swatch" style="background: #171411; color: #f7f4ed">sumi ink<br />#171411</div>
+          <div class="swatch" style="background: #e5dfd3">paper rule<br />#e5dfd3</div>
         </div>
       </section>
 
       <section class="slide twoCol" data-count="04 / 08">
         <div>
           <p class="eyebrow">Visual inspiration</p>
-          <h2>Japanese folk art, not generic beige.</h2>
+          <h2>Japanese minimalism, not generic decoration.</h2>
           <p>
-            The influence from Samiro Yunoki points toward stencil-like
-            repetition, bold simplified shapes, imperfect geometry, and color
-            that feels dyed rather than backlit.
+            The influence should be quieter now: negative space, fine rules,
+            restrained color, shoji-like structure, and rhythm that feels
+            considered rather than decorative.
           </p>
         </div>
         <div class="paperPanel" aria-hidden="true">
@@ -408,12 +409,12 @@
             <p>No white backgrounds. Cream and ivory bases mimic washi paper.</p>
           </article>
           <article class="card">
-            <h3>Imperfect edges</h3>
-            <p>Uneven radii, ink borders, and small rotations keep the UI human.</p>
+            <h3>Fine structure</h3>
+            <p>Use thin ink rules, columns, and quiet tables instead of heavy cards.</p>
           </article>
           <article class="card">
             <h3>Accent with restraint</h3>
-            <p>Red, green, indigo, and mineral blue appear as folk-art accents.</p>
+            <p>Vermilion and ai indigo create hierarchy without decoration.</p>
           </article>
         </div>
       </section>
@@ -423,9 +424,9 @@
           <p class="eyebrow">Prototype pass</p>
           <h2>The first screen now has a point of view.</h2>
           <ul>
-            <li>Added a hand-drawn book mark.</li>
+            <li>Reduced the brand mark to a simple 本 seal.</li>
             <li>Reworked the hero copy around honing taste.</li>
-            <li>Added a folk-art activity board.</li>
+            <li>Added a minimal activity board.</li>
             <li>Matched web and native visual language.</li>
           </ul>
         </div>
@@ -451,7 +452,7 @@
         <h2>Make the product screens feel native to the brand.</h2>
         <ul>
           <li>Design the core feed, shelf, profile, and book-detail screens.</li>
-          <li>Create reusable tokens for paper, ink, folk accents, borders, and shadows.</li>
+          <li>Create reusable tokens for paper, ink, rules, spacing, and restrained accents.</li>
           <li>Build a small illustration/pattern system from books, leaves, moons, and shelf marks.</li>
           <li>Choose typefaces for web and native that preserve warmth without harming readability.</li>
         </ul>

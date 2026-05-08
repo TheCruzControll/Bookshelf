@@ -3,63 +3,50 @@ const feedItems = [
     name: "Maya",
     action: "finished",
     book: "Tomorrow, and Tomorrow, and Tomorrow",
-    shelf: "modern favorites"
+    score: "?"
   },
   {
     name: "Andre",
-    action: "ranked",
+    action: "updated",
     book: "The Fifth Season",
-    shelf: "#1 on sci-fi"
+    score: "9.12"
   },
   {
     name: "Sam",
     action: "dropped",
     book: "a dense biography",
-    shelf: "and saved three essays"
+    score: ""
   }
-];
-
-const shelves = [
-  "quiet favorites",
-  "sharp little novels",
-  "books friends keep pressing into my hands"
 ];
 
 export default function HomePage() {
   return (
     <main className="shell">
       <section className="hero">
-        <div className="mark" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
+        <p className="brandMark" aria-label="Hone">
+          本 <span>Hone</span>
+        </p>
         <p className="eyebrow">Hone</p>
         <h1>Hone your taste through trusted readers.</h1>
         <p className="lede">
-          A warm social shelf for ranking books, following friends, and finding
-          the next thing worth carrying around.
+          A quiet reading profile built from finished books, close comparisons,
+          and the people whose judgment you trust.
         </p>
-        <div className="shelves" aria-label="Sample shelves">
-          {shelves.map((shelf) => (
-            <span key={shelf}>{shelf}</span>
-          ))}
-        </div>
       </section>
       <section className="board" aria-label="Sample friend activity">
-        <div className="folkPattern" aria-hidden="true">
-          <span className="sun" />
-          <span className="leaf" />
-          <span className="moon" />
-          <span className="bar" />
+        <div className="boardHeader">
+          <p>Friend activity</p>
+          <span>Today</span>
         </div>
         <div className="feed">
           {feedItems.map((item) => (
             <article className="feedItem" key={`${item.name}-${item.book}`}>
-              <p>{item.name}</p>
-              <strong>{item.action}</strong>
-              <span>{item.book}</span>
-              <small>{item.shelf}</small>
+              <div>
+                <p>{item.name}</p>
+                <strong>{item.action}</strong>
+                <span>{item.book}</span>
+              </div>
+              {item.score ? <small>{item.score}</small> : null}
             </article>
           ))}
         </div>
