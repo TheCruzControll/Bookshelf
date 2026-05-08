@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hone Design Direction</title>
+    <style>
+      :root {
+        --paper: #f4e8cf;
+        --paper-deep: #ebd3a2;
+        --ink: #1e1814;
+        --soft-ink: #55483b;
+        --sienna: #bb7125;
+        --red: #d96629;
+        --green: #437742;
+        --mineral: #a2b0ad;
+        --indigo: #12354e;
+        --lavender: #b5b1d8;
+        --shadow: rgb(83 54 25 / 16%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-snap-type: x mandatory;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 18% 22%, rgb(187 113 37 / 12%) 0 1px, transparent 2px),
+          radial-gradient(circle at 76% 42%, rgb(67 119 66 / 10%) 0 1px, transparent 2px),
+          linear-gradient(108deg, rgb(255 255 255 / 14%), transparent 30%),
+          var(--paper);
+        background-size: 34px 34px, 48px 48px, auto, auto;
+        font-family:
+          "Avenir Next", "Trebuchet MS", ui-sans-serif, system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .deck {
+        display: flex;
+        min-height: 100vh;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+      }
+
+      .slide {
+        position: relative;
+        min-width: 100vw;
+        min-height: 100vh;
+        display: grid;
+        align-content: center;
+        gap: 32px;
+        padding: 56px;
+        scroll-snap-align: start;
+        overflow: hidden;
+      }
+
+      .slide::after {
+        content: attr(data-count);
+        position: absolute;
+        right: 28px;
+        bottom: 22px;
+        color: var(--soft-ink);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--sienna);
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2 {
+        max-width: 920px;
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      h1 {
+        font-size: clamp(58px, 10vw, 132px);
+        line-height: 0.92;
+      }
+
+      h2 {
+        font-size: clamp(44px, 7vw, 86px);
+        line-height: 0.98;
+      }
+
+      p {
+        max-width: 760px;
+        margin: 0;
+        color: var(--soft-ink);
+        font-size: 22px;
+        line-height: 1.48;
+      }
+
+      strong {
+        color: var(--ink);
+      }
+
+      a {
+        color: var(--indigo);
+        font-weight: 800;
+      }
+
+      .twoCol {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.7fr);
+        gap: 52px;
+        align-items: center;
+      }
+
+      .mark {
+        position: relative;
+        width: 148px;
+        height: 116px;
+      }
+
+      .mark span {
+        position: absolute;
+        display: block;
+        border: 4px solid var(--ink);
+        transform: rotate(-4deg);
+      }
+
+      .mark span:nth-child(1) {
+        left: 0;
+        top: 22px;
+        width: 58px;
+        height: 76px;
+        border-radius: 21px 14px 18px 12px;
+        background: var(--red);
+      }
+
+      .mark span:nth-child(2) {
+        left: 47px;
+        top: 6px;
+        width: 54px;
+        height: 94px;
+        border-radius: 13px 21px 14px 19px;
+        background: var(--green);
+        transform: rotate(3deg);
+      }
+
+      .mark span:nth-child(3) {
+        left: 94px;
+        top: 27px;
+        width: 48px;
+        height: 68px;
+        border-radius: 16px 12px 22px 13px;
+        background: var(--mineral);
+        transform: rotate(8deg);
+      }
+
+      .card {
+        border: 3px solid var(--ink);
+        border-radius: 28px 22px 31px 20px;
+        background: rgb(248 237 219 / 92%);
+        padding: 26px;
+        box-shadow: 10px 12px 0 var(--shadow);
+      }
+
+      .card h3 {
+        margin: 0 0 12px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 30px;
+      }
+
+      .card p,
+      .card li {
+        font-size: 18px;
+        line-height: 1.45;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      ul {
+        display: grid;
+        gap: 14px;
+        max-width: 860px;
+        margin: 0;
+        padding-left: 1.2em;
+        color: var(--soft-ink);
+        font-size: 22px;
+        line-height: 1.4;
+      }
+
+      .palette {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(70px, 1fr));
+        gap: 10px;
+        width: min(860px, 100%);
+      }
+
+      .swatch {
+        min-height: 172px;
+        display: flex;
+        align-items: end;
+        border: 3px solid var(--ink);
+        border-radius: 24px 17px 28px 16px;
+        padding: 12px;
+        box-shadow: 5px 7px 0 var(--shadow);
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 900;
+        word-break: break-word;
+      }
+
+      .paperPanel {
+        position: relative;
+        min-height: 500px;
+        border: 4px solid var(--ink);
+        border-radius: 34px 25px 40px 22px;
+        background:
+          linear-gradient(135deg, rgb(255 255 255 / 18%), transparent 34%),
+          var(--paper-deep);
+        box-shadow: 14px 18px 0 rgb(18 53 78 / 16%);
+        overflow: hidden;
+      }
+
+      .shape {
+        position: absolute;
+        display: block;
+        border: 4px solid var(--ink);
+      }
+
+      .sun {
+        width: 150px;
+        height: 150px;
+        left: 34px;
+        top: 34px;
+        border-radius: 44% 56% 48% 52%;
+        background: var(--red);
+      }
+
+      .leaf {
+        width: 170px;
+        height: 104px;
+        right: 44px;
+        top: 58px;
+        border-radius: 72% 28% 64% 36%;
+        background: var(--green);
+        transform: rotate(-13deg);
+      }
+
+      .moon {
+        width: 104px;
+        height: 104px;
+        left: 168px;
+        top: 214px;
+        border-radius: 50%;
+        background: var(--paper);
+        box-shadow: inset 24px -6px 0 var(--indigo);
+      }
+
+      .bar {
+        width: 210px;
+        height: 42px;
+        right: 70px;
+        bottom: 96px;
+        border-radius: 19px 12px 22px 11px;
+        background: var(--mineral);
+        transform: rotate(4deg);
+      }
+
+      .feedDemo {
+        position: absolute;
+        left: 28px;
+        right: 28px;
+        bottom: 28px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .feedDemo .card {
+        padding: 16px;
+        transform: rotate(-1deg);
+      }
+
+      .feedDemo .card:nth-child(2) {
+        transform: rotate(1.2deg);
+      }
+
+      .note {
+        max-width: 980px;
+        border-left: 8px solid var(--red);
+        padding-left: 20px;
+        color: var(--ink);
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(34px, 5vw, 62px);
+        line-height: 1.05;
+      }
+
+      .sourceList {
+        font-size: 17px;
+      }
+
+      @media (max-width: 800px) {
+        .slide {
+          padding: 32px 20px;
+        }
+
+        .twoCol,
+        .cards {
+          grid-template-columns: 1fr;
+        }
+
+        .palette {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="deck" aria-label="Hone design direction slide deck">
+      <section class="slide" data-count="01 / 08">
+        <div class="mark" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <p class="eyebrow">Hone design direction</p>
+        <h1>Warm, hand drawn, wabi-sabi, never cold.</h1>
+        <p>
+          A tactile social reading app for books and taste. The interface should
+          feel like paper, ink, folk textile, and a friend's shelf.
+        </p>
+      </section>
+
+      <section class="slide twoCol" data-count="02 / 08">
+        <div>
+          <p class="eyebrow">Naming idea</p>
+          <h2>Hon + hone</h2>
+          <p>
+            <strong>Hon</strong> nods to the Japanese word for book.
+            <strong>Hone</strong> means to sharpen. The product promise is
+            simple: use books and trusted readers to sharpen your taste.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Brand sentence</h3>
+          <p>
+            Hone is a social shelf where friends rank what they read, so your
+            next book comes from taste you trust.
+          </p>
+        </div>
+      </section>
+
+      <section class="slide" data-count="03 / 08">
+        <p class="eyebrow">Color source</p>
+        <h2>Sanzo Wada as the palette spine.</h2>
+        <p>
+          The palette borrows the spirit of <em>A Dictionary of Color
+          Combinations</em>: muted harmony, warm material colors, and deliberate
+          accents rather than bright app-primary color.
+        </p>
+        <div class="palette" aria-label="Hone palette">
+          <div class="swatch" style="background: #f4e8cf">paper<br />#f4e8cf</div>
+          <div class="swatch" style="background: #ebd3a2">ivory buff<br />#ebd3a2</div>
+          <div class="swatch" style="background: #bb7125">raw sienna<br />#bb7125</div>
+          <div class="swatch" style="background: #d96629">english red<br />#d96629</div>
+          <div class="swatch" style="background: #437742">cossack green<br />#437742</div>
+          <div class="swatch" style="background: #12354e; color: #f4e8cf">dark blue<br />#12354e</div>
+        </div>
+      </section>
+
+      <section class="slide twoCol" data-count="04 / 08">
+        <div>
+          <p class="eyebrow">Visual inspiration</p>
+          <h2>Japanese folk art, not generic beige.</h2>
+          <p>
+            The influence from Samiro Yunoki points toward stencil-like
+            repetition, bold simplified shapes, imperfect geometry, and color
+            that feels dyed rather than backlit.
+          </p>
+        </div>
+        <div class="paperPanel" aria-hidden="true">
+          <span class="shape sun"></span>
+          <span class="shape leaf"></span>
+          <span class="shape moon"></span>
+          <span class="shape bar"></span>
+        </div>
+      </section>
+
+      <section class="slide" data-count="05 / 08">
+        <p class="eyebrow">Interface rules</p>
+        <h2>Minimal, but with fingerprints.</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Paper first</h3>
+            <p>No white backgrounds. Cream and ivory bases mimic washi paper.</p>
+          </article>
+          <article class="card">
+            <h3>Imperfect edges</h3>
+            <p>Uneven radii, ink borders, and small rotations keep the UI human.</p>
+          </article>
+          <article class="card">
+            <h3>Accent with restraint</h3>
+            <p>Red, green, indigo, and mineral blue appear as folk-art accents.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="slide twoCol" data-count="06 / 08">
+        <div>
+          <p class="eyebrow">Prototype pass</p>
+          <h2>The first screen now has a point of view.</h2>
+          <ul>
+            <li>Added a hand-drawn book mark.</li>
+            <li>Reworked the hero copy around honing taste.</li>
+            <li>Added a folk-art activity board.</li>
+            <li>Matched web and native visual language.</li>
+          </ul>
+        </div>
+        <div class="paperPanel">
+          <span class="shape sun"></span>
+          <span class="shape leaf"></span>
+          <span class="shape moon"></span>
+          <div class="feedDemo">
+            <article class="card">
+              <h3>Maya finished</h3>
+              <p>Tomorrow, and Tomorrow, and Tomorrow</p>
+            </article>
+            <article class="card">
+              <h3>Andre ranked</h3>
+              <p>The Fifth Season #1 on sci-fi</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-count="07 / 08">
+        <p class="eyebrow">Next design pass</p>
+        <h2>Make the product screens feel native to the brand.</h2>
+        <ul>
+          <li>Design the core feed, shelf, profile, and book-detail screens.</li>
+          <li>Create reusable tokens for paper, ink, folk accents, borders, and shadows.</li>
+          <li>Build a small illustration/pattern system from books, leaves, moons, and shelf marks.</li>
+          <li>Choose typefaces for web and native that preserve warmth without harming readability.</li>
+        </ul>
+      </section>
+
+      <section class="slide" data-count="08 / 08">
+        <p class="eyebrow">References</p>
+        <p class="note">
+          Hone should feel like a carefully kept shelf: quiet paper, vivid
+          textile color, and small traces of the human hand.
+        </p>
+        <ul class="sourceList">
+          <li>
+            <a href="https://colors.elwyn.co/">A Dictionary of Color Combinations color browser</a>
+          </li>
+          <li>
+            <a href="https://hexpot.com/blog/sanzo-wada-color-combinations">Sanzo Wada palette overview</a>
+          </li>
+          <li>
+            <a href="https://www.shift.jp.org/en/archives/2025/11/yunoki-samiro-the-eternal-now.html">Samiro Yunoki exhibition overview</a>
+          </li>
+          <li>
+            <a href="https://www.japantimes.co.jp/culture/2018/03/27/arts/openings-in-tokyo/dyeing-textiles-samiro-yunoki-patterns-colors/">Samiro Yunoki patterns and colors</a>
+          </li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

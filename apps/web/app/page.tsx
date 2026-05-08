@@ -1,28 +1,69 @@
 const feedItems = [
-  "Maya finished Tomorrow, and Tomorrow, and Tomorrow",
-  "Andre ranked The Fifth Season #1 on Sci-Fi",
-  "Sam dropped a dense biography and added three essays to Want to Read"
+  {
+    name: "Maya",
+    action: "finished",
+    book: "Tomorrow, and Tomorrow, and Tomorrow",
+    shelf: "modern favorites"
+  },
+  {
+    name: "Andre",
+    action: "ranked",
+    book: "The Fifth Season",
+    shelf: "#1 on sci-fi"
+  },
+  {
+    name: "Sam",
+    action: "dropped",
+    book: "a dense biography",
+    shelf: "and saved three essays"
+  }
+];
+
+const shelves = [
+  "quiet favorites",
+  "sharp little novels",
+  "books friends keep pressing into my hands"
 ];
 
 export default function HomePage() {
   return (
     <main className="shell">
-      <section className="panel">
+      <section className="hero">
+        <div className="mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
         <p className="eyebrow">Hone</p>
-        <h1>See what your friends are actually reading.</h1>
+        <h1>Hone your taste through trusted readers.</h1>
         <p className="lede">
-          Rank books on shelves, follow trusted readers, and turn library
-          activity into a social discovery feed.
+          A warm social shelf for ranking books, following friends, and finding
+          the next thing worth carrying around.
         </p>
+        <div className="shelves" aria-label="Sample shelves">
+          {shelves.map((shelf) => (
+            <span key={shelf}>{shelf}</span>
+          ))}
+        </div>
       </section>
-      <section className="feed" aria-label="Sample friend activity">
-        {feedItems.map((item) => (
-          <article className="feedItem" key={item}>
-            {item}
-          </article>
-        ))}
+      <section className="board" aria-label="Sample friend activity">
+        <div className="folkPattern" aria-hidden="true">
+          <span className="sun" />
+          <span className="leaf" />
+          <span className="moon" />
+          <span className="bar" />
+        </div>
+        <div className="feed">
+          {feedItems.map((item) => (
+            <article className="feedItem" key={`${item.name}-${item.book}`}>
+              <p>{item.name}</p>
+              <strong>{item.action}</strong>
+              <span>{item.book}</span>
+              <small>{item.shelf}</small>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );
 }
-
