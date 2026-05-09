@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { ShelfService, HandleService, AppServices, ProfileService, SYSTEM_SHELVES } from "./services";
 import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository } from "./ports";
 import type { Profile, Shelf, ShelfItem } from "./types";
+import { POSTURE_C_DEFAULTS } from "./types";
 
 function makeShelfItem(overrides?: Partial<ShelfItem>): ShelfItem {
   const now = new Date();
@@ -22,7 +23,7 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     id: "00000000-0000-0000-0000-000000000001",
     handle: "testuser",
     displayName: "Test User",
-    defaultVisibility: "public",
+    defaultVisibility: { ...POSTURE_C_DEFAULTS },
     createdAt: now,
     updatedAt: now,
     ...overrides

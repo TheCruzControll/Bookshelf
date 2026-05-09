@@ -6,7 +6,8 @@ import type {
   RankingRepository,
   ShelfRepository
 } from "./ports";
-import type { EntityId, Profile, Ranking, Shelf, ShelfItem, Visibility } from "./types";
+import type { ContentType, EntityId, Profile, Ranking, Shelf, ShelfItem, Visibility } from "./types";
+import { POSTURE_C_DEFAULTS } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -158,9 +159,12 @@ export class ProfileService {
     id: EntityId;
     handle: string;
     displayName: string;
-    defaultVisibility: Visibility;
+    defaultVisibility?: Record<ContentType, Visibility>;
   }): Promise<{ profile: Profile; shelves: Shelf[] }> {
-    const profile = await this.profiles.create(input);
+    const profile = await this.profiles.create({
+      ...input,
+      defaultVisibility: input.defaultVisibility ?? { ...POSTURE_C_DEFAULTS },
+    });
     const systemShelves = await this.shelves.createSystemShelves(profile.id);
     return { profile, shelves: systemShelves };
   }

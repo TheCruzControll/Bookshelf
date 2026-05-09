@@ -3,6 +3,7 @@ import fc from "fast-check";
 import { HandleService, RESERVED_HANDLES } from "./services";
 import type { ProfileRepository } from "./ports";
 import type { Profile } from "./types";
+import { POSTURE_C_DEFAULTS } from "./types";
 
 function makeProfile(overrides?: Partial<Profile>): Profile {
   const now = new Date();
@@ -10,7 +11,7 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     id: "00000000-0000-0000-0000-000000000001",
     handle: "testuser",
     displayName: "Test User",
-    defaultVisibility: "public",
+    defaultVisibility: { ...POSTURE_C_DEFAULTS },
     createdAt: now,
     updatedAt: now,
     ...overrides,

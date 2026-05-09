@@ -13,6 +13,7 @@ import {
   makeRanking,
   resetCounter,
 } from "./factories.js";
+import { POSTURE_C_DEFAULTS } from "@hone/domain";
 import {
   seedFollowGraph,
   seedCatalog,
@@ -41,7 +42,9 @@ describe("makeProfile", () => {
     const profile = makeProfile();
     expect(profile.id).toBeDefined();
     expect(profile.handle).toMatch(/^user_/);
-    expect(profile.defaultVisibility).toBe("public");
+    expect(profile.defaultVisibility).toEqual(POSTURE_C_DEFAULTS);
+    expect(profile.defaultVisibility.review).toBe("public");
+    expect(profile.defaultVisibility.reading_shelf).toBe("followers");
     expect(profile.createdAt).toBeInstanceOf(Date);
   });
 

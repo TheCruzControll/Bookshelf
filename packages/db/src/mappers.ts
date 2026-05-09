@@ -2,14 +2,17 @@ import type {
   AccountDeletion,
   ActivityEvent,
   Book,
+  ContentType,
   Edition,
   Import,
   Profile,
   Ranking,
   Review,
   Shelf,
-  ShelfItem
+  ShelfItem,
+  Visibility
 } from "@hone/domain";
+import { POSTURE_C_DEFAULTS } from "@hone/domain";
 import type {
   accountDeletions,
   activityEvents,
@@ -50,7 +53,7 @@ export function toProfile(row: ProfileRow): Profile {
     displayName: row.displayName,
     bio: row.bio ?? undefined,
     avatarUrl: row.avatarUrl ?? undefined,
-    defaultVisibility: row.defaultVisibility,
+    defaultVisibility: (row.defaultVisibility as Record<ContentType, Visibility>) ?? { ...POSTURE_C_DEFAULTS },
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };

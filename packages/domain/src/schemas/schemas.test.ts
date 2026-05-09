@@ -89,16 +89,31 @@ describe("profiles schemas", () => {
       id: UUID,
       handle: "maya",
       displayName: "Maya",
-      defaultVisibility: "public",
+      defaultVisibility: {
+        identity: "public",
+        follower_list: "public",
+        review: "public",
+        score: "public",
+        finished_shelf: "public",
+        custom_shelf: "public",
+        want_to_read_shelf: "followers",
+        reading_shelf: "followers",
+        dropped_shelf: "followers",
+        reading_status: "followers",
+        activity_stream: "followers",
+      },
       createdAt: NOW,
       updatedAt: NOW,
     });
     expect(result.handle).toBe("maya");
+    expect(result.defaultVisibility.review).toBe("public");
   });
 
-  it("CreateProfileInputSchema applies default visibility of public", () => {
+  it("CreateProfileInputSchema applies Posture C defaults when defaultVisibility is omitted", () => {
     const result = CreateProfileInputSchema.parse({ handle: "maya", displayName: "Maya" });
-    expect(result.defaultVisibility).toBe("public");
+    expect(result.defaultVisibility.review).toBe("public");
+    expect(result.defaultVisibility.reading_shelf).toBe("followers");
+    expect(result.defaultVisibility.activity_stream).toBe("followers");
   });
 
   it("FollowSchema parses valid follow", () => {

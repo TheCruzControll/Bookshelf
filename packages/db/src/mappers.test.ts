@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toAccountDeletion, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
+import { POSTURE_C_DEFAULTS } from "@hone/domain";
 import { follows, imports, rankings, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
@@ -54,7 +55,7 @@ describe("db mappers smoke test", () => {
       displayName: "Book Worm",
       bio: null,
       avatarUrl: null,
-      defaultVisibility: "public" as const,
+      defaultVisibility: { ...POSTURE_C_DEFAULTS },
       createdAt: now,
       updatedAt: now
     };
@@ -63,18 +64,20 @@ describe("db mappers smoke test", () => {
     expect(profile.handle).toBe("bookworm");
     expect(profile.bio).toBeUndefined();
     expect(profile.avatarUrl).toBeUndefined();
-    expect(profile.defaultVisibility).toBe("public");
+    expect(profile.defaultVisibility.review).toBe("public");
+    expect(profile.defaultVisibility.reading_shelf).toBe("followers");
   });
 
   it("toProfile maps optional fields when present", () => {
     const now = new Date();
+    const customVisibility = { ...POSTURE_C_DEFAULTS, review: "followers" as const };
     const row = {
       id: "00000000-0000-0000-0000-000000000002",
       handle: "reader",
       displayName: "A Reader",
       bio: "Loves books",
       avatarUrl: "https://example.com/avatar.jpg",
-      defaultVisibility: "followers" as const,
+      defaultVisibility: customVisibility,
       createdAt: now,
       updatedAt: now
     };
@@ -82,7 +85,7 @@ describe("db mappers smoke test", () => {
     const profile = toProfile(row as Parameters<typeof toProfile>[0]);
     expect(profile.bio).toBe("Loves books");
     expect(profile.avatarUrl).toBe("https://example.com/avatar.jpg");
-    expect(profile.defaultVisibility).toBe("followers");
+    expect(profile.defaultVisibility.review).toBe("followers");
   });
 
   it("toShelf maps a row to a Shelf domain object", () => {
@@ -338,20 +341,21 @@ describe("visibility 4-tier enum mapping", () => {
   const visibilityTiers: Visibility[] = ["public", "followers", "mutuals", "private"];
   const now = new Date();
 
-  it("toProfile preserves all four visibility tiers", () => {
+  it("toProfile maps defaultVisibility as a per-content-type record", () => {
     for (const tier of visibilityTiers) {
+      const customVisibility = { ...POSTURE_C_DEFAULTS, review: tier };
       const row = {
         id: "00000000-0000-0000-0000-000000000010",
         handle: "user",
         displayName: "User",
         bio: null,
         avatarUrl: null,
-        defaultVisibility: tier as Visibility,
+        defaultVisibility: customVisibility,
         createdAt: now,
         updatedAt: now
       };
       const profile = toProfile(row as Parameters<typeof toProfile>[0]);
-      expect(profile.defaultVisibility).toBe(tier);
+      expect(profile.defaultVisibility.review).toBe(tier);
     }
   });
 

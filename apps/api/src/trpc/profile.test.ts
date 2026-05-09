@@ -5,6 +5,7 @@ import { createTrpcContext } from "./context";
 import { router } from "./trpc";
 import { profileRouter } from "./profile";
 import type { AppRepositories, AuthIdentity } from "@hone/domain";
+import { POSTURE_C_DEFAULTS } from "@hone/domain";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -20,7 +21,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     id: "00000000-0000-0000-0000-000000000001",
     handle: "bookworm42",
     displayName: "Book Worm",
-    defaultVisibility: "public" as const,
+    defaultVisibility: { ...POSTURE_C_DEFAULTS },
     createdAt: now,
     updatedAt: now,
   };
@@ -228,7 +229,7 @@ describe("profile.createProfile", () => {
     id: "00000000-0000-0000-0000-000000000001",
     handle: "bookworm42",
     displayName: "Book Worm",
-    defaultVisibility: "public" as const,
+    defaultVisibility: { ...POSTURE_C_DEFAULTS },
     createdAt: now,
     updatedAt: now,
   };
@@ -263,7 +264,7 @@ describe("profile.createProfile", () => {
     const res = await app.request("/trpc/profile.createProfile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm", defaultVisibility: "public" }),
+      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm" }),
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -278,7 +279,7 @@ describe("profile.createProfile", () => {
     const res = await app.request("/trpc/profile.createProfile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm", defaultVisibility: "public" }),
+      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm" }),
     });
     expect(res.status).toBe(401);
   });
@@ -303,7 +304,7 @@ describe("profile.createProfile", () => {
     await app.request("/trpc/profile.createProfile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm", defaultVisibility: "public" }),
+      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm" }),
     });
     expect(repos.shelves.createSystemShelves).toHaveBeenCalledWith(baseProfile.id);
   });

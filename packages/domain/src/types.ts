@@ -47,13 +47,27 @@ export type NotificationPlatform = "apns" | "fcm";
 
 export type BlockDirection = "outgoing" | "incoming";
 
+export const POSTURE_C_DEFAULTS: Record<ContentType, Visibility> = {
+  identity: "public",
+  follower_list: "public",
+  review: "public",
+  score: "public",
+  finished_shelf: "public",
+  custom_shelf: "public",
+  want_to_read_shelf: "followers",
+  reading_shelf: "followers",
+  dropped_shelf: "followers",
+  reading_status: "followers",
+  activity_stream: "followers",
+};
+
 export interface Profile {
   id: EntityId;
   handle: string;
   displayName: string;
   bio?: string | undefined;
   avatarUrl?: string | undefined;
-  defaultVisibility: Visibility;
+  defaultVisibility: Record<ContentType, Visibility>;
   createdAt: Date;
   updatedAt: Date;
 }

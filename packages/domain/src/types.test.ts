@@ -18,6 +18,7 @@ import type {
   Session,
   Visibility,
 } from "./types";
+import { POSTURE_C_DEFAULTS } from "./types";
 
 // Compile-time assertions for the Posture C 4-tier model.
 
@@ -45,8 +46,8 @@ type _ContentTypeCoversAllItems = Assert<
   >
 >;
 
-type _ProfileDefaultVisibilityIsVisibility = Assert<
-  IsExact<Profile["defaultVisibility"], Visibility>
+type _ProfileDefaultVisibilityIsRecord = Assert<
+  IsExact<Profile["defaultVisibility"], Record<ContentType, Visibility>>
 >;
 
 type _ImportStatusIsExhaustive = Assert<
@@ -81,7 +82,7 @@ type _BlockHasRequiredFields = Assert<
 export type {
   _VisibilityIsFourTier,
   _ContentTypeCoversAllItems,
-  _ProfileDefaultVisibilityIsVisibility,
+  _ProfileDefaultVisibilityIsRecord,
   _ImportStatusIsExhaustive,
   _ImportSourceIsExhaustive,
   _NotificationPlatformIsExhaustive,
@@ -113,12 +114,44 @@ describe("domain types smoke test", () => {
       id: "00000000-0000-0000-0000-000000000001",
       handle: "tester",
       displayName: "Test User",
-      defaultVisibility: "public",
+      defaultVisibility: { ...POSTURE_C_DEFAULTS },
       createdAt: now,
       updatedAt: now,
     };
     expect(profile.handle).toBe("tester");
-    expect(profile.defaultVisibility).toBe("public");
+    expect(profile.defaultVisibility.review).toBe("public");
+    expect(profile.defaultVisibility.reading_shelf).toBe("followers");
+  });
+
+  it("POSTURE_C_DEFAULTS covers all ContentType keys with Posture C values", () => {
+    const contentTypes: ContentType[] = [
+      "identity",
+      "follower_list",
+      "review",
+      "score",
+      "finished_shelf",
+      "custom_shelf",
+      "want_to_read_shelf",
+      "reading_shelf",
+      "dropped_shelf",
+      "reading_status",
+      "activity_stream",
+    ];
+    expect(Object.keys(POSTURE_C_DEFAULTS)).toHaveLength(contentTypes.length);
+    for (const ct of contentTypes) {
+      expect(POSTURE_C_DEFAULTS[ct]).toMatch(/^(public|followers|mutuals|private)$/);
+    }
+    expect(POSTURE_C_DEFAULTS.identity).toBe("public");
+    expect(POSTURE_C_DEFAULTS.review).toBe("public");
+    expect(POSTURE_C_DEFAULTS.finished_shelf).toBe("public");
+    expect(POSTURE_C_DEFAULTS.custom_shelf).toBe("public");
+    expect(POSTURE_C_DEFAULTS.follower_list).toBe("public");
+    expect(POSTURE_C_DEFAULTS.score).toBe("public");
+    expect(POSTURE_C_DEFAULTS.want_to_read_shelf).toBe("followers");
+    expect(POSTURE_C_DEFAULTS.reading_shelf).toBe("followers");
+    expect(POSTURE_C_DEFAULTS.dropped_shelf).toBe("followers");
+    expect(POSTURE_C_DEFAULTS.reading_status).toBe("followers");
+    expect(POSTURE_C_DEFAULTS.activity_stream).toBe("followers");
   });
 
   it("Book shape is structurally valid", () => {
