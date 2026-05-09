@@ -64,7 +64,8 @@ jobs:
       - uses: anthropics/claude-code-base-action@beta
         with:
           prompt: ${{ steps.prompt.outputs.PROMPT }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          model: claude-sonnet-4-6
           allowed_tools: "Bash,Edit,Write,Read,Glob,Grep"
           timeout_minutes: 50
         env:
