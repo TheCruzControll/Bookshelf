@@ -1,4 +1,5 @@
 export * from "./affiliate";
+export * from "./candidate";
 export * from "./goodreads";
 export * from "./isbn";
 export * from "./lww";

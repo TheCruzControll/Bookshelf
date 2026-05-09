@@ -70,6 +70,7 @@ export interface Book {
   description?: string | undefined;
   coverUrl?: string | undefined;
   firstPublishedYear?: number | undefined;
+  genres?: string[] | undefined;
   createdAt: Date;
   updatedAt: Date;
 }
