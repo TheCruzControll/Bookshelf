@@ -9,6 +9,7 @@ import type {
   NotificationRepository,
   RankingRepository,
   SessionRepository,
+  ShelfRepository,
 } from "./ports";
 
 type HasKey<T, K extends keyof T> = K extends keyof T ? true : false;
@@ -71,6 +72,8 @@ type _SessionRepositoryHasFindById = Assert<HasKey<SessionRepository, "findById"
 type _SessionRepositoryHasDeleteById = Assert<HasKey<SessionRepository, "deleteById">>;
 type _SessionRepositoryHasDeleteAllForUser = Assert<HasKey<SessionRepository, "deleteAllForUser">>;
 
+type _ShelfRepositoryHasCreateSystemShelves = Assert<HasKey<ShelfRepository, "createSystemShelves">>;
+
 export type {
   _AppRepositoriesHasFollows,
   _AppRepositoriesHasBlocks,
@@ -120,6 +123,7 @@ export type {
   _SessionRepositoryHasFindById,
   _SessionRepositoryHasDeleteById,
   _SessionRepositoryHasDeleteAllForUser,
+  _ShelfRepositoryHasCreateSystemShelves,
 };
 
 describe("ports structural smoke tests", () => {

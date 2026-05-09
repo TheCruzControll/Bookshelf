@@ -5,7 +5,20 @@ import type {
   ProfileRepository,
   ShelfRepository
 } from "./ports";
-import type { EntityId, Profile, ShelfItem } from "./types";
+import type { EntityId, Profile, Shelf, ShelfItem, Visibility } from "./types";
+
+export interface SystemShelfDef {
+  name: string;
+  slug: string;
+  visibility: Visibility;
+}
+
+export const SYSTEM_SHELVES: SystemShelfDef[] = [
+  { name: "Reading", slug: "reading", visibility: "followers" },
+  { name: "Want to Read", slug: "want-to-read", visibility: "followers" },
+  { name: "Finished", slug: "finished", visibility: "public" },
+  { name: "Dropped", slug: "dropped", visibility: "followers" },
+];
 
 export class ShelfService {
   constructor(
@@ -134,9 +147,28 @@ export class HandleService {
   }
 }
 
+export class ProfileService {
+  constructor(
+    private readonly profiles: ProfileRepository,
+    private readonly shelves: ShelfRepository
+  ) {}
+
+  async createProfile(input: {
+    id: EntityId;
+    handle: string;
+    displayName: string;
+    defaultVisibility: Visibility;
+  }): Promise<{ profile: Profile; shelves: Shelf[] }> {
+    const profile = await this.profiles.create(input);
+    const systemShelves = await this.shelves.createSystemShelves(profile.id);
+    return { profile, shelves: systemShelves };
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
+  readonly profiles: ProfileService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -147,5 +179,9 @@ export class AppServices {
       repositories.activity
     );
     this.handles = new HandleService(repositories.profiles);
+    this.profiles = new ProfileService(
+      repositories.profiles,
+      repositories.shelves
+    );
   }
 }

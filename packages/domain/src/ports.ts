@@ -75,6 +75,7 @@ export interface ShelfRepository {
     shelfItemId: EntityId;
     rank: number;
   }): Promise<ShelfItem>;
+  createSystemShelves(ownerId: EntityId): Promise<Shelf[]>;
 }
 
 export interface ReviewRepository {
