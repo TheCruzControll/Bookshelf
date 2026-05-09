@@ -16,7 +16,7 @@ function makeShelfItem() {
 
 function makeRepositories(): AppRepositories {
   return {
-    profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn() },
+    profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
     shelves: {
       listShelves: vi.fn(),

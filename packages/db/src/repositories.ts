@@ -65,6 +65,25 @@ export class DrizzleProfileRepository implements ProfileRepository {
     }
     return toProfile(row);
   }
+
+  async isHandleTaken(handle: string) {
+    const row = await this.db.query.profiles.findFirst({
+      where: ilike(profiles.handle, handle),
+    });
+    return row !== undefined;
+  }
+
+  async setHandle(input: { userId: EntityId; handle: string }) {
+    const [row] = await this.db
+      .update(profiles)
+      .set({ handle: input.handle, updatedAt: new Date() })
+      .where(eq(profiles.id, input.userId))
+      .returning();
+    if (!row) {
+      throw new Error("Profile not found");
+    }
+    return toProfile(row);
+  }
 }
 
 export class DrizzleBookRepository implements BookRepository {

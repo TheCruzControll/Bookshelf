@@ -52,6 +52,8 @@ export interface ProfileRepository {
     displayName: string;
     defaultVisibility: Visibility;
   }): Promise<Profile>;
+  isHandleTaken(handle: string): Promise<boolean>;
+  setHandle(input: { userId: EntityId; handle: string }): Promise<Profile>;
 }
 
 export interface BookRepository {
