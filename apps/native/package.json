@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@hone/domain": "workspace:*",
+    "@hone/observability": "workspace:*",
     "expo": "^53.0.0",
     "expo-router": "^5.0.0",
     "react": "^19.0.0",

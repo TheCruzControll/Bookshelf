@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppRepositories, AuthProvider } from "@hone/domain";
 import { AppServices } from "@hone/domain";
+import { clearSentryUser, setSentryUser } from "@hone/observability";
 
 export interface ApiDependencies {
   repositories?: AppRepositories;
@@ -17,6 +18,22 @@ const addBookSchema = z.object({
 
 export function createApi(dependencies: ApiDependencies = {}) {
   const app = new Hono();
+
+  app.use("*", async (c, next) => {
+    if (dependencies.auth) {
+      const identity = await dependencies.auth.getCurrentIdentity();
+      if (identity) {
+        const userCtx: { id: string; email?: string } = { id: identity.userId };
+        if (identity.email !== undefined) {
+          userCtx.email = identity.email;
+        }
+        setSentryUser(userCtx);
+      } else {
+        clearSentryUser();
+      }
+    }
+    await next();
+  });
 
   app.get("/health", (c) =>
     c.json({

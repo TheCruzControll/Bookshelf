@@ -3,6 +3,7 @@ import type { SentryEnv } from "./sentry.js";
 
 vi.mock("@sentry/node", () => ({
   init: vi.fn(),
+  setUser: vi.fn(),
 }));
 
 describe("initSentry", () => {
@@ -79,5 +80,47 @@ describe("initSentry", () => {
         tracesSampleRate: 1.0,
       })
     );
+  });
+});
+
+describe("setSentryUser", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls Sentry.setUser with id and email", async () => {
+    const { setSentryUser } = await import("./sentry.js");
+    const { setUser } = await import("@sentry/node");
+
+    setSentryUser({ id: "user-123", email: "test@example.com" });
+
+    expect(setUser).toHaveBeenCalledOnce();
+    expect(setUser).toHaveBeenCalledWith({ id: "user-123", email: "test@example.com" });
+  });
+
+  it("calls Sentry.setUser with id only when email is omitted", async () => {
+    const { setSentryUser } = await import("./sentry.js");
+    const { setUser } = await import("@sentry/node");
+
+    setSentryUser({ id: "user-456" });
+
+    expect(setUser).toHaveBeenCalledOnce();
+    expect(setUser).toHaveBeenCalledWith({ id: "user-456" });
+  });
+});
+
+describe("clearSentryUser", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls Sentry.setUser with null", async () => {
+    const { clearSentryUser } = await import("./sentry.js");
+    const { setUser } = await import("@sentry/node");
+
+    clearSentryUser();
+
+    expect(setUser).toHaveBeenCalledOnce();
+    expect(setUser).toHaveBeenCalledWith(null);
   });
 });

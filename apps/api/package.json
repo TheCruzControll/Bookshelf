@@ -12,8 +12,10 @@
     "test": "vitest run --coverage"
   },
   "dependencies": {
+    "@hone/config-env": "workspace:*",
     "@hone/db": "workspace:*",
     "@hone/domain": "workspace:*",
+    "@hone/observability": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "hono": "^4.8.0",
     "zod": "^3.25.0"

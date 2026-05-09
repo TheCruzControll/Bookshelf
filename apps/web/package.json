@@ -13,7 +13,9 @@
     "e2e:ci": "playwright test --reporter=github"
   },
   "dependencies": {
+    "@hone/config-env": "workspace:*",
     "@hone/domain": "workspace:*",
+    "@hone/observability": "workspace:*",
     "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
