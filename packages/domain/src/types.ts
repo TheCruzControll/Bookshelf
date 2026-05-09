@@ -140,6 +140,9 @@ export interface ActivityEvent {
   reviewId?: EntityId | undefined;
   visibility: Visibility;
   occurredAt: Date;
+  scoreAtPublish?: number | undefined;
+  scoreLockedAtPublish?: boolean | undefined;
+  groupKey?: string | undefined;
 }
 
 export interface FeedItem {

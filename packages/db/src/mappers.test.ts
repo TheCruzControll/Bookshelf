@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { authIdentities, blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
+import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -1066,5 +1066,80 @@ describe("sessions table schema and mapper", () => {
 
     const session = toSession(row as Parameters<typeof toSession>[0]);
     expect(session.revokedAt).toBeUndefined();
+  });
+});
+
+describe("activity_events score snapshot + group_key fields", () => {
+  const now = new Date();
+
+  it("activityEvents schema includes scoreAtPublish, scoreLockedAtPublish, groupKey columns", () => {
+    const cols = Object.keys(activityEvents);
+    expect(cols).toContain("scoreAtPublish");
+    expect(cols).toContain("scoreLockedAtPublish");
+    expect(cols).toContain("groupKey");
+  });
+
+  it("toActivityEvent maps scoreAtPublish as number when present", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000007",
+      actorId: "00000000-0000-0000-0000-000000000002",
+      verb: "book_ranked" as const,
+      bookId: "00000000-0000-0000-0000-000000000001",
+      shelfId: null,
+      reviewId: null,
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: "8.50",
+      scoreLockedAtPublish: true,
+      groupKey: "actor:00000000-0000-0000-0000-000000000002:book_ranked:1700000000"
+    };
+
+    const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
+    expect(event.scoreAtPublish).toBe(8.5);
+    expect(typeof event.scoreAtPublish).toBe("number");
+    expect(event.scoreLockedAtPublish).toBe(true);
+    expect(event.groupKey).toBe("actor:00000000-0000-0000-0000-000000000002:book_ranked:1700000000");
+  });
+
+  it("toActivityEvent maps scoreAtPublish as undefined when null", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000008",
+      actorId: "00000000-0000-0000-0000-000000000002",
+      verb: "book_finished" as const,
+      bookId: "00000000-0000-0000-0000-000000000001",
+      shelfId: null,
+      reviewId: null,
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: null,
+      scoreLockedAtPublish: null,
+      groupKey: null
+    };
+
+    const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
+    expect(event.scoreAtPublish).toBeUndefined();
+    expect(event.scoreLockedAtPublish).toBeUndefined();
+    expect(event.groupKey).toBeUndefined();
+  });
+
+  it("toActivityEvent maps scoreLockedAtPublish false when false", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000009",
+      actorId: "00000000-0000-0000-0000-000000000002",
+      verb: "book_ranked" as const,
+      bookId: "00000000-0000-0000-0000-000000000001",
+      shelfId: null,
+      reviewId: null,
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: "5.00",
+      scoreLockedAtPublish: false,
+      groupKey: "actor:00000000-0000-0000-0000-000000000002:book_ranked:1700003600"
+    };
+
+    const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
+    expect(event.scoreAtPublish).toBe(5.0);
+    expect(event.scoreLockedAtPublish).toBe(false);
+    expect(event.groupKey).toBe("actor:00000000-0000-0000-0000-000000000002:book_ranked:1700003600");
   });
 });
