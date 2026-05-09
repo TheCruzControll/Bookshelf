@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toAccountDeletion, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, imports, rankings, shelves } from "./schema";
+import { follows, imports, rankings, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -722,5 +722,23 @@ describe("imports table schema and mapper", () => {
 
     const deletion = toAccountDeletion(row as Parameters<typeof toAccountDeletion>[0]);
     expect(deletion.exportedAt).toBe(exportedAt);
+  });
+});
+
+describe("taste_vectors table schema", () => {
+  it("taste_vectors schema includes required columns", () => {
+    const cols = Object.keys(tasteVectors);
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("vector");
+    expect(cols).toContain("updatedAt");
+  });
+
+  it("taste_vectors schema does not have a surrogate id column", () => {
+    const cols = Object.keys(tasteVectors);
+    expect(cols).not.toContain("id");
+  });
+
+  it("taste_vectors profileId column exists", () => {
+    expect(tasteVectors.profileId).toBeDefined();
   });
 });

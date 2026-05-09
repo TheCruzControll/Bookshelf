@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -354,3 +355,18 @@ export const recommendationScores = pgTable(
   })
 );
 
+export const tasteVectors = pgTable(
+  "taste_vectors",
+  {
+    profileId: uuid("profile_id")
+      .primaryKey()
+      .references(() => profiles.id),
+    vector: jsonb("vector").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    profileIdx: index("taste_vectors_profile_idx").on(table.profileId)
+  })
+);
