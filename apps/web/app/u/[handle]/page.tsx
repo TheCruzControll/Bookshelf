@@ -10,16 +10,16 @@ type Props = {
   params: Promise<{ handle: string }>;
 };
 
-async function fetchProfile(handle: string): Promise<Profile | null> {
+async function fetchProfile(_handle: string): Promise<Profile | null> {
   return null;
 }
 
-async function fetchPublicShelves(ownerId: string): Promise<Shelf[]> {
+async function fetchPublicShelves(_ownerId: string): Promise<Shelf[]> {
   const shelves: Shelf[] = [];
   return shelves.filter((s) => isPubliclyVisible(s.visibility));
 }
 
-async function fetchPublicReviews(authorId: string): Promise<Review[]> {
+async function fetchPublicReviews(_authorId: string): Promise<Review[]> {
   const reviews: Review[] = [];
   return reviews.filter((r) => isPubliclyVisible(r.visibility));
 }

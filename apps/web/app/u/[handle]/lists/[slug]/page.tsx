@@ -10,15 +10,15 @@ type Props = {
   params: Promise<{ handle: string; slug: string }>;
 };
 
-async function fetchProfile(handle: string): Promise<Profile | null> {
+async function fetchProfile(_handle: string): Promise<Profile | null> {
   return null;
 }
 
-async function fetchList(listId: string): Promise<List | null> {
+async function fetchList(_listId: string): Promise<List | null> {
   return null;
 }
 
-async function fetchListItems(listId: string): Promise<Array<ListItem & { book?: Book }>> {
+async function fetchListItems(_listId: string): Promise<Array<ListItem & { book?: Book }>> {
   return [];
 }
 
