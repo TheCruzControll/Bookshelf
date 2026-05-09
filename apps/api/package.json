@@ -9,7 +9,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "tsc --noEmit"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "@hone/db": "workspace:*",
