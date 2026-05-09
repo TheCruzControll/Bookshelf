@@ -24,3 +24,7 @@ export function setSentryUser(user: { id: string; email?: string }): void {
 export function clearSentryUser(): void {
   Sentry.setUser(null);
 }
+
+export function captureException(error: unknown): void {
+  Sentry.captureException(error);
+}
