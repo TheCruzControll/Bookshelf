@@ -221,6 +221,7 @@ next Implementer dispatch.
 - Phone verify SMS pumping protection: 5 starts in 1 minute → 429.
 - Handle reservation: collision → 409, suggested alternatives returned.
 - Handle reserved-list (admin, root, etc.) → rejected.
+- Profile creation: `profile.createProfile` auto-seeds four system shelves (Reading `followers`, Want to Read `followers`, Finished `public`, Dropped `followers`) with correct PRD visibility defaults; idempotent on repeated calls.
 - Onboarding skip-all path → home feed renders algorithmic + editorial lists.
 - First-book optional: skip → no `Add a book` blocker; complete → ranking flow follows.
 

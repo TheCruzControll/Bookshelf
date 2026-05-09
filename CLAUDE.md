@@ -1,5 +1,14 @@
 # CLAUDE.md
 
+## API Surface
+
+### tRPC Procedures
+
+**Profile:**
+- `profile.checkHandle(handle)` — validate handle availability
+- `profile.setHandle(handle)` — set a user's handle (idempotent)
+- `profile.createProfile(handle, displayName, defaultVisibility)` — create profile and auto-seed four system shelves (Reading, Want to Read, Finished, Dropped) with PRD-spec visibility defaults
+
 ## Cache usage
 
 Any per-user or per-resource cache **must** use `ctx.cache` from the tRPC context.
