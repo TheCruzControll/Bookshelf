@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type {
   AppRepositories,
   BlockRepository,
+  CatalogProvider,
   ContactsRepository,
   FollowRepository,
   ImportRepository,
@@ -10,6 +11,7 @@ import type {
   RankingRepository,
   SessionRepository,
 } from "./ports";
+import type { BookSearchResult } from "./types";
 
 type HasKey<T, K extends keyof T> = K extends keyof T ? true : false;
 type Assert<T extends true> = T;
@@ -71,6 +73,15 @@ type _SessionRepositoryHasFindById = Assert<HasKey<SessionRepository, "findById"
 type _SessionRepositoryHasDeleteById = Assert<HasKey<SessionRepository, "deleteById">>;
 type _SessionRepositoryHasDeleteAllForUser = Assert<HasKey<SessionRepository, "deleteAllForUser">>;
 
+type _AppRepositoriesHasCatalog = Assert<HasKey<AppRepositories, "catalog">>;
+type _CatalogProviderHasSearch = Assert<HasKey<CatalogProvider, "search">>;
+type _CatalogProviderHasFindByIsbn = Assert<HasKey<CatalogProvider, "findByIsbn">>;
+
+type _BookSearchResultHasSourceKey = Assert<HasKey<BookSearchResult, "sourceKey">>;
+type _BookSearchResultHasSource = Assert<HasKey<BookSearchResult, "source">>;
+type _BookSearchResultHasTitle = Assert<HasKey<BookSearchResult, "title">>;
+type _BookSearchResultHasAuthors = Assert<HasKey<BookSearchResult, "authors">>;
+
 export type {
   _AppRepositoriesHasFollows,
   _AppRepositoriesHasBlocks,
@@ -120,6 +131,13 @@ export type {
   _SessionRepositoryHasFindById,
   _SessionRepositoryHasDeleteById,
   _SessionRepositoryHasDeleteAllForUser,
+  _AppRepositoriesHasCatalog,
+  _CatalogProviderHasSearch,
+  _CatalogProviderHasFindByIsbn,
+  _BookSearchResultHasSourceKey,
+  _BookSearchResultHasSource,
+  _BookSearchResultHasTitle,
+  _BookSearchResultHasAuthors,
 };
 
 describe("ports structural smoke tests", () => {
@@ -147,5 +165,42 @@ describe("ports structural smoke tests", () => {
       "recommendations",
     ];
     expect(keys).toHaveLength(6);
+  });
+
+  it("AppRepositories includes catalog provider", () => {
+    const keys: (keyof AppRepositories)[] = ["catalog"];
+    expect(keys).toHaveLength(1);
+  });
+
+  it("CatalogProvider methods are search and findByIsbn", () => {
+    const methods: (keyof CatalogProvider)[] = ["search", "findByIsbn"];
+    expect(methods).toHaveLength(2);
+  });
+
+  it("BookSearchResult required fields cover OL and GB shapes", () => {
+    const olResult: BookSearchResult = {
+      sourceKey: "/works/OL82563W",
+      source: "open_library",
+      title: "The Great Gatsby",
+      authors: ["F. Scott Fitzgerald"],
+      firstPublishedYear: 1925,
+      coverUrl: "https://covers.openlibrary.org/b/id/12345-L.jpg",
+    };
+    const gbResult: BookSearchResult = {
+      sourceKey: "volumes/abc123",
+      source: "google_books",
+      title: "The Great Gatsby",
+      authors: ["F. Scott Fitzgerald"],
+      isbn13: "9780743273565",
+      isbn10: "0743273567",
+      publisher: "Scribner",
+      publishedDate: "2004-09-30",
+      pageCount: 180,
+      description: "A classic novel.",
+    };
+    expect(olResult.source).toBe("open_library");
+    expect(gbResult.source).toBe("google_books");
+    expect(Array.isArray(olResult.authors)).toBe(true);
+    expect(Array.isArray(gbResult.authors)).toBe(true);
   });
 });

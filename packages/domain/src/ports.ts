@@ -2,6 +2,7 @@ import type {
   ActivityEvent,
   Block,
   Book,
+  BookSearchResult,
   ContactsHash,
   Edition,
   EntityId,
@@ -205,6 +206,11 @@ export interface SessionRepository {
   deleteAllForUser(userId: EntityId): Promise<void>;
 }
 
+export interface CatalogProvider {
+  search(query: string, limit: number): Promise<BookSearchResult[]>;
+  findByIsbn(isbn: string): Promise<BookSearchResult | null>;
+}
+
 export interface AppRepositories {
   profiles: ProfileRepository;
   books: BookRepository;
@@ -220,4 +226,5 @@ export interface AppRepositories {
   contacts: ContactsRepository;
   lists: ListRepository;
   sessions: SessionRepository;
+  catalog: CatalogProvider;
 }

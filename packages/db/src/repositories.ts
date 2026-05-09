@@ -4,6 +4,7 @@ import type {
   AppRepositories,
   BlockRepository,
   BookRepository,
+  CatalogProvider,
   ContactsRepository,
   EntityId,
   FeedItem,
@@ -300,6 +301,11 @@ class DrizzleSessionRepository implements SessionRepository {
   async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
 }
 
+class StubCatalogProvider implements CatalogProvider {
+  async search(): Promise<never[]> { throw new Error("not implemented"); }
+  async findByIsbn(): Promise<null> { throw new Error("not implemented"); }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -316,6 +322,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     contacts: new DrizzleContactsRepository(db),
     lists: new DrizzleListRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    catalog: new StubCatalogProvider(),
   };
 }
 

@@ -216,3 +216,20 @@ export interface Session {
   createdAt: Date;
   expiresAt: Date;
 }
+
+export type CatalogSource = "open_library" | "google_books";
+
+export interface BookSearchResult {
+  sourceKey: string;
+  source: CatalogSource;
+  title: string;
+  authors: string[];
+  isbn10?: string | undefined;
+  isbn13?: string | undefined;
+  coverUrl?: string | undefined;
+  firstPublishedYear?: number | undefined;
+  publisher?: string | undefined;
+  publishedDate?: string | undefined;
+  pageCount?: number | undefined;
+  description?: string | undefined;
+}
