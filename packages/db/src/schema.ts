@@ -468,3 +468,43 @@ export const sessions = pgTable(
     expiresAtIdx: index("sessions_expires_at_idx").on(table.expiresAt)
   })
 );
+
+export const contactsIndex = pgTable(
+  "contacts_index",
+  {
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    contactHash: text("contact_hash").notNull(),
+    saltVersion: integer("salt_version").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    pairIdx: uniqueIndex("contacts_index_profile_hash_idx").on(
+      table.profileId,
+      table.contactHash
+    ),
+    profileIdx: index("contacts_index_profile_idx").on(table.profileId),
+    expiresAtIdx: index("contacts_index_expires_at_idx").on(table.expiresAt)
+  })
+);
+
+export const emailIndex = pgTable(
+  "email_index",
+  {
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    emailHash: text("email_hash").notNull(),
+    saltVersion: integer("salt_version").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    pairIdx: uniqueIndex("email_index_profile_hash_idx").on(
+      table.profileId,
+      table.emailHash
+    ),
+    profileIdx: index("email_index_profile_idx").on(table.profileId),
+    expiresAtIdx: index("email_index_expires_at_idx").on(table.expiresAt)
+  })
+);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
@@ -1141,5 +1141,69 @@ describe("activity_events score snapshot + group_key fields", () => {
     expect(event.scoreAtPublish).toBe(5.0);
     expect(event.scoreLockedAtPublish).toBe(false);
     expect(event.groupKey).toBe("actor:00000000-0000-0000-0000-000000000002:book_ranked:1700003600");
+  });
+});
+
+describe("contacts_index table schema and mapper", () => {
+  it("toContactIndex maps a contacts_index row to a ContactIndex domain object", () => {
+    const expires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      contactHash: "abc123hashedcontact",
+      saltVersion: 1,
+      expiresAt: expires
+    };
+
+    const result = toContactIndex(row as Parameters<typeof toContactIndex>[0]);
+    expect(result.profileId).toBe(row.profileId);
+    expect(result.contactHash).toBe(row.contactHash);
+    expect(result.saltVersion).toBe(1);
+    expect(result.expiresAt).toBe(expires);
+  });
+
+  it("toContactIndex maps different saltVersion values", () => {
+    const expires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000002",
+      contactHash: "newhashvalue",
+      saltVersion: 3,
+      expiresAt: expires
+    };
+
+    const result = toContactIndex(row as Parameters<typeof toContactIndex>[0]);
+    expect(result.saltVersion).toBe(3);
+    expect(result.contactHash).toBe("newhashvalue");
+  });
+});
+
+describe("email_index table schema and mapper", () => {
+  it("toEmailIndex maps an email_index row to an EmailIndex domain object", () => {
+    const expires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000002",
+      emailHash: "def456hashedemail",
+      saltVersion: 2,
+      expiresAt: expires
+    };
+
+    const result = toEmailIndex(row as Parameters<typeof toEmailIndex>[0]);
+    expect(result.profileId).toBe(row.profileId);
+    expect(result.emailHash).toBe(row.emailHash);
+    expect(result.saltVersion).toBe(2);
+    expect(result.expiresAt).toBe(expires);
+  });
+
+  it("toEmailIndex maps different saltVersion values", () => {
+    const expires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000003",
+      emailHash: "emailhashnewsalt",
+      saltVersion: 5,
+      expiresAt: expires
+    };
+
+    const result = toEmailIndex(row as Parameters<typeof toEmailIndex>[0]);
+    expect(result.saltVersion).toBe(5);
+    expect(result.emailHash).toBe("emailhashnewsalt");
   });
 });

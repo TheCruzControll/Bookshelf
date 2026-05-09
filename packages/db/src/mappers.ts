@@ -4,7 +4,9 @@ import type {
   Block,
   BlockAgainstHash,
   Book,
+  ContactIndex,
   Edition,
+  EmailIndex,
   Import,
   OAuthIdentity,
   PhoneNumber,
@@ -23,7 +25,9 @@ import type {
   blocks,
   blocksAgainstHash,
   books,
+  contactsIndex,
   editions,
+  emailIndex,
   imports,
   phoneNumbers,
   phoneVerifications,
@@ -36,6 +40,8 @@ import type {
 } from "./schema";
 
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
+type ContactIndexRow = typeof contactsIndex.$inferSelect;
+type EmailIndexRow = typeof emailIndex.$inferSelect;
 type AuthIdentityRow = typeof authIdentities.$inferSelect;
 type BlockRow = typeof blocks.$inferSelect;
 type BlockAgainstHashRow = typeof blocksAgainstHash.$inferSelect;
@@ -241,5 +247,23 @@ export function toSession(row: SessionRow): Session {
     profileId: row.profileId,
     expiresAt: row.expiresAt,
     revokedAt: row.revokedAt ?? undefined
+  };
+}
+
+export function toContactIndex(row: ContactIndexRow): ContactIndex {
+  return {
+    profileId: row.profileId,
+    contactHash: row.contactHash,
+    saltVersion: row.saltVersion,
+    expiresAt: row.expiresAt
+  };
+}
+
+export function toEmailIndex(row: EmailIndexRow): EmailIndex {
+  return {
+    profileId: row.profileId,
+    emailHash: row.emailHash,
+    saltVersion: row.saltVersion,
+    expiresAt: row.expiresAt
   };
 }
