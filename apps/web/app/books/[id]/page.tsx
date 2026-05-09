@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return buildBookMeta(book);
 }
 
-async function fetchBook(id: string): Promise<{ canonicalTitle: string; description?: string; coverUrl?: string } | null> {
+async function fetchBook(_id: string): Promise<{ canonicalTitle: string; description?: string; coverUrl?: string } | null> {
   return null;
 }
 
