@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { AffiliateLocale } from "@hone/domain";
 import { BookBuySection } from "./BookBuySection";
+import { buildBookMeta } from "../../u/og-meta";
 
 interface BookDetailPageProps {
   params: Promise<{ id: string }>;
@@ -11,10 +12,15 @@ function isAffiliateLocale(value: string | undefined): value is AffiliateLocale 
   return ["US", "UK", "CA", "AU", "DE", "FR"].includes(value ?? "");
 }
 
-export const metadata: Metadata = {
-  title: "Book Detail — Hone",
-  description: "Buy and read this book through your preferred retailer."
-};
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const book = await fetchBook(id);
+  return buildBookMeta(book);
+}
+
+async function fetchBook(id: string): Promise<{ canonicalTitle: string; description?: string; coverUrl?: string } | null> {
+  return null;
+}
 
 export default async function BookDetailPage({ params, searchParams }: BookDetailPageProps) {
   const { id } = await params;

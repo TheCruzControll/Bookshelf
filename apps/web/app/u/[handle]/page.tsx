@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { Profile, Shelf, Review } from "@hone/domain";
 import { isPubliclyVisible } from "../visibility";
+import { buildProfileMeta } from "../og-meta";
 
 export const revalidate = 60;
 
@@ -25,10 +26,8 @@ async function fetchPublicReviews(authorId: string): Promise<Review[]> {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params;
-  return {
-    title: `@${handle} — Hone`,
-    description: `${handle}'s reading profile on Hone.`,
-  };
+  const profile = await fetchProfile(handle);
+  return buildProfileMeta(handle, profile);
 }
 
 export default async function UserProfilePage({ params }: Props) {
