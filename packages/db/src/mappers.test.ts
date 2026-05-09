@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toAccountDeletion } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, imports, rankings, shelves } from "./schema";
+import { accountDeletions, follows, imports, rankings, shelves } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -690,5 +690,46 @@ describe("imports table schema and mapper", () => {
 
     const imp = toImport(row as Parameters<typeof toImport>[0]);
     expect(imp.conflictCount).toBe(7);
+  });
+});
+
+describe("account_deletions table schema and mapper", () => {
+  const now = new Date();
+  const hardDeleteAfter = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  it("accountDeletions schema includes required columns", () => {
+    const cols = Object.keys(accountDeletions);
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("requestedAt");
+    expect(cols).toContain("hardDeleteAfter");
+    expect(cols).toContain("exportedAt");
+  });
+
+  it("toAccountDeletion maps a row to an AccountDeletion domain object", () => {
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      requestedAt: now,
+      hardDeleteAfter,
+      exportedAt: null
+    };
+
+    const deletion = toAccountDeletion(row as Parameters<typeof toAccountDeletion>[0]);
+    expect(deletion.profileId).toBe(row.profileId);
+    expect(deletion.requestedAt).toBe(now);
+    expect(deletion.hardDeleteAfter).toBe(hardDeleteAfter);
+    expect(deletion.exportedAt).toBeUndefined();
+  });
+
+  it("toAccountDeletion maps exportedAt when present", () => {
+    const exportedAt = new Date("2024-06-01T12:00:00Z");
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      requestedAt: now,
+      hardDeleteAfter,
+      exportedAt
+    };
+
+    const deletion = toAccountDeletion(row as Parameters<typeof toAccountDeletion>[0]);
+    expect(deletion.exportedAt).toBe(exportedAt);
   });
 });

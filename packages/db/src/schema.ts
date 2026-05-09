@@ -318,6 +318,17 @@ export const rankings = pgTable(
   })
 );
 
+export const accountDeletions = pgTable("account_deletions", {
+  profileId: uuid("profile_id")
+    .primaryKey()
+    .references(() => profiles.id),
+  requestedAt: timestamp("requested_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  hardDeleteAfter: timestamp("hard_delete_after", { withTimezone: true }).notNull(),
+  exportedAt: timestamp("exported_at", { withTimezone: true })
+});
+
 export const recommendationScores = pgTable(
   "recommendation_scores",
   {
