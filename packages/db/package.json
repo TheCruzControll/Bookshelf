@@ -7,7 +7,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint src",
     "test": "vitest run --coverage",
     "build": "tsc --emitDeclarationOnly",
     "db:generate": "drizzle-kit generate",

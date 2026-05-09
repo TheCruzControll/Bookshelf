@@ -10,7 +10,7 @@
     "ios": "expo start --ios",
     "build": "expo export",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint app",
     "test": "tsc --noEmit"
   },
   "dependencies": {
