@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint app",
     "test": "tsc --noEmit",
     "e2e": "playwright test",
     "e2e:ci": "playwright test --reporter=github"
