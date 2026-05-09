@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -9,6 +10,7 @@ import {
   uniqueIndex,
   uuid
 } from "drizzle-orm/pg-core";
+import type { ContentType, Visibility } from "@hone/domain";
 
 export const visibilityEnum = pgEnum("visibility", [
   "public",
@@ -42,9 +44,9 @@ export const profiles = pgTable(
     displayName: text("display_name").notNull(),
     bio: text("bio"),
     avatarUrl: text("avatar_url"),
-    defaultVisibility: visibilityEnum("default_visibility")
-      .notNull()
-      .default("public"),
+    defaultVisibility: jsonb("default_visibility")
+      .$type<Record<ContentType, Visibility>>()
+      .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

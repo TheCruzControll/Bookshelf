@@ -10,6 +10,7 @@ import {
   CreateProfileInputSchema,
   FollowSchema,
   BlockSchema,
+  POSTURE_C_DEFAULTS,
 } from "./profiles";
 import {
   ReadingStatusSchema,
@@ -92,16 +93,20 @@ describe("profiles schemas", () => {
       id: UUID,
       handle: "maya",
       displayName: "Maya",
-      defaultVisibility: "public",
+      defaultVisibility: POSTURE_C_DEFAULTS,
       createdAt: NOW,
       updatedAt: NOW,
     });
     expect(result.handle).toBe("maya");
+    expect(result.defaultVisibility.identity).toBe("public");
+    expect(result.defaultVisibility.want_to_read_shelf).toBe("followers");
   });
 
-  it("CreateProfileInputSchema applies default visibility of public", () => {
+  it("CreateProfileInputSchema applies Posture C defaults", () => {
     const result = CreateProfileInputSchema.parse({ handle: "maya", displayName: "Maya" });
-    expect(result.defaultVisibility).toBe("public");
+    expect(result.defaultVisibility).toEqual(POSTURE_C_DEFAULTS);
+    expect(result.defaultVisibility.identity).toBe("public");
+    expect(result.defaultVisibility.want_to_read_shelf).toBe("followers");
   });
 
   it("FollowSchema parses valid follow", () => {

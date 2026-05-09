@@ -45,8 +45,8 @@ type _ContentTypeCoversAllItems = Assert<
   >
 >;
 
-type _ProfileDefaultVisibilityIsVisibility = Assert<
-  IsExact<Profile["defaultVisibility"], Visibility>
+type _ProfileDefaultVisibilityIsRecord = Assert<
+  IsExact<Profile["defaultVisibility"], Record<ContentType, Visibility>>
 >;
 
 type _ImportStatusIsExhaustive = Assert<
@@ -81,7 +81,7 @@ type _BlockHasRequiredFields = Assert<
 export type {
   _VisibilityIsFourTier,
   _ContentTypeCoversAllItems,
-  _ProfileDefaultVisibilityIsVisibility,
+  _ProfileDefaultVisibilityIsRecord,
   _ImportStatusIsExhaustive,
   _ImportSourceIsExhaustive,
   _NotificationPlatformIsExhaustive,
@@ -113,12 +113,53 @@ describe("domain types smoke test", () => {
       id: "00000000-0000-0000-0000-000000000001",
       handle: "tester",
       displayName: "Test User",
-      defaultVisibility: "public",
+      defaultVisibility: {
+        identity: "public",
+        follower_list: "public",
+        review: "public",
+        score: "public",
+        finished_shelf: "public",
+        custom_shelf: "public",
+        want_to_read_shelf: "followers",
+        reading_shelf: "followers",
+        dropped_shelf: "followers",
+        reading_status: "followers",
+        activity_stream: "followers",
+      },
       createdAt: now,
       updatedAt: now,
     };
     expect(profile.handle).toBe("tester");
-    expect(profile.defaultVisibility).toBe("public");
+    expect(profile.defaultVisibility.identity).toBe("public");
+    expect(profile.defaultVisibility.want_to_read_shelf).toBe("followers");
+  });
+
+  it("Profile defaultVisibility covers all ContentType keys", () => {
+    const now = new Date();
+    const profile: Profile = {
+      id: "00000000-0000-0000-0000-000000000001",
+      handle: "tester",
+      displayName: "Test User",
+      defaultVisibility: {
+        identity: "public",
+        follower_list: "public",
+        review: "public",
+        score: "public",
+        finished_shelf: "public",
+        custom_shelf: "public",
+        want_to_read_shelf: "followers",
+        reading_shelf: "followers",
+        dropped_shelf: "followers",
+        reading_status: "followers",
+        activity_stream: "followers",
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    const keys = Object.keys(profile.defaultVisibility);
+    expect(keys).toHaveLength(11);
+    expect(keys).toContain("identity");
+    expect(keys).toContain("activity_stream");
   });
 
   it("Book shape is structurally valid", () => {

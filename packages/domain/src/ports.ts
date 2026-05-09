@@ -3,6 +3,7 @@ import type {
   Block,
   Book,
   ContactsHash,
+  ContentType,
   Edition,
   EntityId,
   Follow,
@@ -50,7 +51,7 @@ export interface ProfileRepository {
     id: EntityId;
     handle: string;
     displayName: string;
-    defaultVisibility: Visibility;
+    defaultVisibility: Record<ContentType, Visibility>;
   }): Promise<Profile>;
 }
 

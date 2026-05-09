@@ -14,6 +14,7 @@ import type {
   ReadingStatus,
   ActivityVerb,
 } from "@hone/domain";
+import { POSTURE_C_DEFAULTS } from "@hone/domain";
 
 let _counter = 0;
 function nextId(): EntityId {
@@ -36,7 +37,7 @@ export function makeProfile(overrides: Partial<Profile> = {}): Profile {
     displayName: `Test User ${id}`,
     bio: undefined,
     avatarUrl: undefined,
-    defaultVisibility: "public",
+    defaultVisibility: POSTURE_C_DEFAULTS,
     createdAt: now(),
     updatedAt: now(),
     ...overrides,
