@@ -124,7 +124,10 @@ export function toActivityEvent(row: ActivityRow): ActivityEvent {
     shelfId: row.shelfId ?? undefined,
     reviewId: row.reviewId ?? undefined,
     visibility: row.visibility,
-    occurredAt: row.occurredAt
+    occurredAt: row.occurredAt,
+    scoreAtPublish: row.scoreAtPublish != null ? Number(row.scoreAtPublish) : undefined,
+    scoreLockedAtPublish: row.scoreLockedAtPublish ?? undefined,
+    groupKey: row.groupKey ?? undefined
   };
 }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, rankings, shelves } from "./schema";
+import { activityEvents, follows, rankings, shelves } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -300,7 +300,10 @@ describe("db mappers smoke test", () => {
       shelfId: null,
       reviewId: null,
       visibility: "followers" as const,
-      occurredAt: now
+      occurredAt: now,
+      scoreAtPublish: null,
+      scoreLockedAtPublish: null,
+      groupKey: null
     };
 
     const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
@@ -312,6 +315,9 @@ describe("db mappers smoke test", () => {
     expect(event.reviewId).toBeUndefined();
     expect(event.visibility).toBe("followers");
     expect(event.occurredAt).toBe(now);
+    expect(event.scoreAtPublish).toBeUndefined();
+    expect(event.scoreLockedAtPublish).toBeUndefined();
+    expect(event.groupKey).toBeUndefined();
   });
 
   it("toActivityEvent maps optional fields when present", () => {
@@ -324,13 +330,82 @@ describe("db mappers smoke test", () => {
       shelfId: "00000000-0000-0000-0000-000000000003",
       reviewId: "00000000-0000-0000-0000-000000000006",
       visibility: "public" as const,
-      occurredAt: now
+      occurredAt: now,
+      scoreAtPublish: null,
+      scoreLockedAtPublish: null,
+      groupKey: null
     };
 
     const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
     expect(event.bookId).toBeUndefined();
     expect(event.shelfId).toBe("00000000-0000-0000-0000-000000000003");
     expect(event.reviewId).toBe("00000000-0000-0000-0000-000000000006");
+  });
+
+  it("toActivityEvent maps scoreAtPublish and scoreLockedAtPublish when present", () => {
+    const now = new Date();
+    const row = {
+      id: "00000000-0000-0000-0000-000000000008",
+      actorId: "00000000-0000-0000-0000-000000000002",
+      verb: "book_ranked" as const,
+      bookId: "00000000-0000-0000-0000-000000000001",
+      shelfId: null,
+      reviewId: null,
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: "7.50",
+      scoreLockedAtPublish: true,
+      groupKey: "00000000-0000-0000-0000-000000000002:book_ranked:1700000000000"
+    };
+
+    const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
+    expect(event.scoreAtPublish).toBe(7.5);
+    expect(event.scoreLockedAtPublish).toBe(true);
+    expect(event.groupKey).toBe("00000000-0000-0000-0000-000000000002:book_ranked:1700000000000");
+  });
+
+  it("toActivityEvent maps scoreAtPublish as undefined when null", () => {
+    const now = new Date();
+    const row = {
+      id: "00000000-0000-0000-0000-000000000009",
+      actorId: "00000000-0000-0000-0000-000000000002",
+      verb: "book_finished" as const,
+      bookId: "00000000-0000-0000-0000-000000000001",
+      shelfId: null,
+      reviewId: null,
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: null,
+      scoreLockedAtPublish: null,
+      groupKey: null
+    };
+
+    const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
+    expect(event.scoreAtPublish).toBeUndefined();
+    expect(event.scoreLockedAtPublish).toBeUndefined();
+    expect(event.groupKey).toBeUndefined();
+  });
+
+  it("toActivityEvent converts numeric string scoreAtPublish to number", () => {
+    const now = new Date();
+    const row = {
+      id: "00000000-0000-0000-0000-000000000010",
+      actorId: "00000000-0000-0000-0000-000000000002",
+      verb: "book_ranked" as const,
+      bookId: "00000000-0000-0000-0000-000000000001",
+      shelfId: null,
+      reviewId: null,
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: "9.25",
+      scoreLockedAtPublish: false,
+      groupKey: null
+    };
+
+    const event = toActivityEvent(row as Parameters<typeof toActivityEvent>[0]);
+    expect(typeof event.scoreAtPublish).toBe("number");
+    expect(event.scoreAtPublish).toBe(9.25);
+    expect(event.scoreLockedAtPublish).toBe(false);
   });
 });
 
@@ -599,5 +674,14 @@ describe("rankings table schema and mapper", () => {
     const ranking = toRanking(row as Parameters<typeof toRanking>[0]);
     expect(typeof ranking.score).toBe("number");
     expect(ranking.score).toBe(4.2);
+  });
+});
+
+describe("activity_events score snapshot + group_key schema", () => {
+  it("activityEvents schema includes scoreAtPublish, scoreLockedAtPublish, and groupKey columns", () => {
+    const cols = Object.keys(activityEvents);
+    expect(cols).toContain("scoreAtPublish");
+    expect(cols).toContain("scoreLockedAtPublish");
+    expect(cols).toContain("groupKey");
   });
 });

@@ -178,7 +178,13 @@ export class DrizzleActivityRepository implements ActivityRepository {
   constructor(private readonly db: HoneDb) {}
 
   async append(event: Parameters<ActivityRepository["append"]>[0]) {
-    const [row] = await this.db.insert(activityEvents).values(event).returning();
+    const [row] = await this.db
+      .insert(activityEvents)
+      .values({
+        ...event,
+        scoreAtPublish: event.scoreAtPublish != null ? String(event.scoreAtPublish) : undefined
+      })
+      .returning();
     if (!row) {
       throw new Error("Failed to append activity event");
     }
