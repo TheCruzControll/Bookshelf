@@ -1,12 +1,21 @@
 /**
  * Rebaser — non-Claude.
  *
- * Keeps open agent PRs up to date with main, and auto-resolves the most
- * common conflict (pnpm-lock.yaml) deterministically. Anything beyond the
- * auto-resolvable set gets labeled `merge-conflict` + `needs-human`.
+ * Auto-resolves the most common merge conflict (pnpm-lock.yaml) on agent
+ * PRs. Only fires when a PR's `mergeable_state` is `dirty` (real
+ * conflict). Skips `behind` PRs entirely — squash auto-merge handles
+ * those cleanly at merge time without needing the head branch to be up
+ * to date, and proactively rebasing every behind PR pollutes history
+ * with noisy merge commits and burns CI minutes / Claude quota on each
+ * Tester+Reviewer re-run.
+ *
+ * Conflicts in `AUTO_RESOLVABLE_FILES` (default: pnpm-lock.yaml) are
+ * resolved by taking main's version and re-running `pnpm install`.
+ * Anything else gets `merge-conflict` + `needs-human` labels and a PR
+ * comment listing the conflicting files.
  *
  * Triggers:
- *   - push to main           → walks every open agent PR
+ *   - push to main           → walks every open agent PR (filtered to dirty)
  *   - workflow_dispatch      → either single PR (input) or all
  *   - pull_request opened    → just that PR (catches new PRs on stale base)
  *
@@ -249,14 +258,15 @@ async function rebaseOnePR(num: number): Promise<void> {
   const pr = await getPR(num);
   console.log(`#${pr.number}: state=${pr.mergeableState} mergeable=${pr.mergeable}`);
 
-  if (pr.mergeableState === 'clean' || pr.mergeableState === 'unstable' || pr.mergeableState === 'has_hooks') {
+  // Only act on dirty PRs (real conflict). `clean`, `unstable`,
+  // `has_hooks`, and `behind` are all left alone:
+  //   - clean / unstable / has_hooks: nothing to do.
+  //   - behind: squash auto-merge handles staleness at merge time
+  //     without needing the head to be up to date. Proactively
+  //     rebasing every push-to-main creates noisy merge commits and
+  //     re-fires Tester + Reviewer on each open PR — wasteful.
+  if (pr.mergeableState !== 'dirty') {
     return;
-  }
-
-  if (pr.mergeableState === 'behind') {
-    const ok = await tryUpdateBranch(num);
-    if (ok) return;
-    // Fall through to manual merge if update-branch failed.
   }
 
   await manualMerge(pr);
