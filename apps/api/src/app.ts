@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AppRepositories, AuthProvider } from "@hone/domain";
 import { AppServices } from "@hone/domain";
 import { clearSentryUser, setSentryUser } from "@hone/observability";
+import type { Cache } from "@hone/cache";
 import { createTrpcContext } from "./trpc/context";
 import { appRouter } from "./trpc/router";
 import { requestIdMiddleware, accessLogMiddleware, otelHook } from "./middleware";
@@ -11,6 +12,7 @@ import { requestIdMiddleware, accessLogMiddleware, otelHook } from "./middleware
 export interface ApiDependencies {
   repositories?: AppRepositories;
   auth?: AuthProvider;
+  cache?: Cache;
 }
 
 const addBookSchema = z.object({

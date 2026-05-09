@@ -17,7 +17,6 @@ describe("tRPC error formatter — HTTP transport", () => {
 
   async function buildApp(handler: () => unknown) {
     const { router, publicProcedure } = await import("./router");
-    const { createApi } = await import("../app");
     const testRouter = router({
       test: publicProcedure.query(handler)
     });
