@@ -158,6 +158,17 @@ render, every search result, and every contacts-match surface.
   Month," "Popular in Your Top Genre," "What Your Mutuals Are Reading Right
   Now." Cold-start fallback: "Trending in Your Circle" with no mutuals
   shows "Trending on Hone" instead.
+- **Algorithmic list query semantics (locked):**
+
+  | List | Query | Sort | Fallback |
+  |---|---|---|---|
+  | Trending in Your Circle | Books with the most finished events from the user's mutuals in the last 14 days | mutual count desc, ties by recency | If user has no mutuals: "Trending on Hone" — same query, global scope |
+  | New on Hone | Books added to Hone's catalog in the last 30 days that have ≥1 finished event | recency desc | none |
+  | Highly Ranked This Month | Finished events in the last 30 days with `score_at_publish` ≥ 8.5; deduped by book | avg(score_at_publish) desc, then finisher count desc | If empty (e.g. early launch): drop the time window and show "Highly Ranked" all-time |
+  | Popular in Your Top Genre | Most-finished books all-time within the user's top genre, excluding books the user has saved | total finish count desc | If user has no finished books, the surface is hidden (no list) |
+  | What Your Mutuals Are Reading Right Now | Books currently on the `Reading` shelf of any of the user's mutuals | mutual count desc, max 1 entry per book | If user has no mutuals: surface hidden |
+
+  Refresh cadence: per-list config, default daily.
 - **Discovery parity.** Editorial and algorithmic lists do not auto-rank
   higher than user lists in Discover. Quality + follower counts drive
   ranking.
