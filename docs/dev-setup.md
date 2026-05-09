@@ -6,6 +6,37 @@
 - [Node.js](https://nodejs.org/) 20+
 - [pnpm](https://pnpm.io/) 10+
 
+## Clone
+
+```sh
+git clone https://github.com/TheCruzControll/Bookshelf.git
+cd Bookshelf
+```
+
+## Install dependencies
+
+```sh
+pnpm install
+```
+
+## Environment variables
+
+Copy the example file and fill in values:
+
+```sh
+cp .env.example .env.local
+```
+
+| Variable | Required | Where to get it |
+|---|---|---|
+| `DATABASE_URL` | Yes | Set automatically when using the local Docker Postgres (see below). Format: `postgresql://hone:hone@localhost:5432/hone` |
+| `SUPABASE_URL` | Only if using Supabase Auth/Storage | Project URL from the [Supabase dashboard](https://supabase.com/dashboard) → your project → Settings → API |
+| `SUPABASE_ANON_KEY` | Only if using Supabase Auth/Storage | Anon public key from Supabase dashboard → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Only if using Supabase server-side features | Service role key from Supabase dashboard → Settings → API (keep secret, never expose to clients) |
+| `NEXT_PUBLIC_API_URL` | Yes (web app) | URL of the running API. Defaults to `http://localhost:8787` for local dev |
+| `EXPO_PUBLIC_API_URL` | Yes (native app) | URL of the running API. Use `http://localhost:8787` for local dev or your machine's LAN IP when testing on a physical device |
+| `PORT` | No | Port the API server listens on. Defaults to `8787` |
+
 ## Local Database
 
 Start Postgres 16 and Adminer in the background:
@@ -42,12 +73,6 @@ To stop and wipe the volume (full reset):
 
 ```sh
 docker compose down -v
-```
-
-## Install dependencies
-
-```sh
-pnpm install
 ```
 
 ## Run database migrations
