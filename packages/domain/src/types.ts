@@ -272,3 +272,15 @@ export interface AccountDeletion {
   hardDeleteAfter: Date;
   exportedAt?: Date | undefined;
 }
+
+export interface PhoneVerification {
+  phoneE164: string;
+  codeHash: string;
+  attempts: number;
+  expiresAt: Date;
+}
+
+export interface PhoneNumber {
+  profileId: EntityId;
+  e164Hash: string;
+}

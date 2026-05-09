@@ -6,6 +6,8 @@ import type {
   Book,
   Edition,
   Import,
+  PhoneNumber,
+  PhoneVerification,
   Profile,
   Ranking,
   Review,
@@ -20,6 +22,8 @@ import type {
   books,
   editions,
   imports,
+  phoneNumbers,
+  phoneVerifications,
   profiles,
   rankings,
   reviews,
@@ -30,6 +34,8 @@ import type {
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
 type BlockRow = typeof blocks.$inferSelect;
 type BlockAgainstHashRow = typeof blocksAgainstHash.$inferSelect;
+type PhoneVerificationRow = typeof phoneVerifications.$inferSelect;
+type PhoneNumberRow = typeof phoneNumbers.$inferSelect;
 type ProfileRow = typeof profiles.$inferSelect;
 type BookRow = typeof books.$inferSelect;
 type EditionRow = typeof editions.$inferSelect;
@@ -193,5 +199,21 @@ export function toBlockAgainstHash(row: BlockAgainstHashRow): BlockAgainstHash {
   return {
     hash: row.hash,
     expiresAt: row.expiresAt
+  };
+}
+
+export function toPhoneVerification(row: PhoneVerificationRow): PhoneVerification {
+  return {
+    phoneE164: row.phoneE164,
+    codeHash: row.codeHash,
+    attempts: row.attempts,
+    expiresAt: row.expiresAt
+  };
+}
+
+export function toPhoneNumber(row: PhoneNumberRow): PhoneNumber {
+  return {
+    profileId: row.profileId,
+    e164Hash: row.e164Hash
   };
 }
