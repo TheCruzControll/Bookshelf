@@ -5,6 +5,7 @@ import { createTrpcContext } from "./context";
 import { router } from "./trpc";
 import { rankingRouter } from "./ranking";
 import type { AppRepositories, AuthIdentity, Ranking } from "@hone/domain";
+import type { Cache } from "@hone/cache";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -16,6 +17,9 @@ vi.mock("@hone/observability", () => ({
 
 const UUID1 = "00000000-0000-0000-0000-000000000001";
 const UUID2 = "00000000-0000-0000-0000-000000000002";
+const UUID3 = "00000000-0000-0000-0000-000000000003";
+const UUID4 = "00000000-0000-0000-0000-000000000004";
+const UUID5 = "00000000-0000-0000-0000-000000000005";
 const NOW = new Date();
 
 function makeRanking(overrides?: Partial<Ranking>): Ranking {
@@ -51,6 +55,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), isBlocked: vi.fn() },
     rankings: {
       upsert: vi.fn(),
+      findById: vi.fn(),
       findByOwnerAndBook: vi.fn(),
       listByOwner: vi.fn(),
       delete: vi.fn(),
@@ -73,15 +78,27 @@ function makeIdentity(overrides?: Partial<AuthIdentity>): AuthIdentity {
   };
 }
 
-function buildApp(identity: AuthIdentity | null, repositories: AppRepositories) {
+function makeCache(store: Map<string, unknown> = new Map()): Cache {
+  return {
+    get: vi.fn(async (key: string) => store.get(key) ?? null),
+    set: vi.fn(async (key: string, value: unknown) => { store.set(key, value); }),
+    del: vi.fn(async (key: string) => { store.delete(key); }),
+    mget: vi.fn(async (keys: string[]) => keys.map((k) => store.get(k) ?? null)),
+    mset: vi.fn(async (entries: { key: string; value: unknown }[]) => { entries.forEach((e) => store.set(e.key, e.value)); }),
+    incr: vi.fn(async () => 0),
+  } as unknown as Cache;
+}
+
+function buildApp(identity: AuthIdentity | null, repositories: AppRepositories, cache?: Cache) {
   const testRouter = router({ ranking: rankingRouter });
   const app = new Hono();
   const auth = { getCurrentIdentity: async () => identity };
+  const deps = cache !== undefined ? { repositories, auth, cache } : { repositories, auth };
   app.use(
     "/trpc/*",
     trpcServer({
       router: testRouter,
-      createContext: createTrpcContext({ repositories, auth }),
+      createContext: createTrpcContext(deps),
     })
   );
   return app;
@@ -97,6 +114,7 @@ describe("ranking.startBucket", () => {
     const repos = makeRepositories({
       rankings: {
         upsert: vi.fn(),
+        findById: vi.fn(),
         findByOwnerAndBook: vi.fn(),
         listByOwner: vi.fn(),
         delete: vi.fn(),
@@ -191,6 +209,7 @@ describe("ranking.startBucket", () => {
     const repos = makeRepositories({
       rankings: {
         upsert: vi.fn(),
+        findById: vi.fn(),
         findByOwnerAndBook: vi.fn(),
         listByOwner: vi.fn(),
         delete: vi.fn(),
@@ -209,5 +228,205 @@ describe("ranking.startBucket", () => {
     expect(Object.keys(data)).toEqual(["rankingId", "bookId", "bucket"]);
     expect(data).not.toHaveProperty("score");
     expect(data).not.toHaveProperty("position");
+  });
+});
+
+describe("ranking.compare", () => {
+  const RANKING_ID = UUID1;
+  const NEW_BOOK_ID = UUID2;
+  const BOOK_A = UUID3;
+  const BOOK_B = UUID4;
+  const BOOK_C = UUID5;
+
+  function makeRankingSession(): Ranking {
+    return makeRanking({ id: RANKING_ID, profileId: UUID1, bookId: NEW_BOOK_ID, bucket: 3 });
+  }
+
+  function makeExistingRankings(): Ranking[] {
+    return [
+      makeRanking({ id: "00000000-0000-0000-0000-000000000010", profileId: UUID1, bookId: BOOK_A, position: 1, bucket: 3 }),
+      makeRanking({ id: "00000000-0000-0000-0000-000000000011", profileId: UUID1, bookId: BOOK_B, position: 2, bucket: 3 }),
+      makeRanking({ id: "00000000-0000-0000-0000-000000000012", profileId: UUID1, bookId: BOOK_C, position: 3, bucket: 3 }),
+    ];
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when ranking session not found", async () => {
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(null),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache();
+    const app = buildApp(makeIdentity(), repos, cache);
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns done=true immediately when there are no existing ranked books", async () => {
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(makeRankingSession()),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([makeRankingSession()]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache();
+    const app = buildApp(makeIdentity(), repos, cache);
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.done).toBe(true);
+    expect(body.result.data.position).toBe(0);
+  });
+
+  it("returns done=false with next pair when ranked books exist", async () => {
+    const session = makeRankingSession();
+    const existing = makeExistingRankings();
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(session),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([session, ...existing]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache();
+    const app = buildApp(makeIdentity(), repos, cache);
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.done).toBe(false);
+    expect(body.result.data.newBookId).toBe(NEW_BOOK_ID);
+    expect(typeof body.result.data.candidateBookId).toBe("string");
+  });
+
+  it("state is kept between calls: second call uses cached state", async () => {
+    const session = makeRankingSession();
+    const existing = makeExistingRankings();
+    const store = new Map<string, unknown>();
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(session),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([session, ...existing]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity(), repos, cache);
+
+    await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID }),
+    });
+
+    expect(store.has(`compare:${RANKING_ID}`)).toBe(true);
+
+    const res2 = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID, winner: "new" }),
+    });
+    expect(res2.status).toBe(200);
+    expect(repos.rankings.findById).toHaveBeenCalledTimes(1);
+  });
+
+  it("converges and returns done=true after binary search exhausts range", async () => {
+    const session = makeRankingSession();
+    const singleExisting = [
+      makeRanking({ id: "00000000-0000-0000-0000-000000000010", profileId: UUID1, bookId: BOOK_A, position: 1, bucket: 3 }),
+    ];
+    const store = new Map<string, unknown>();
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(session),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([session, ...singleExisting]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity(), repos, cache);
+
+    const res1 = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID }),
+    });
+    expect((await res1.json()).result.data.done).toBe(false);
+
+    const res2 = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID, winner: "existing" }),
+    });
+    const body2 = await res2.json();
+    expect(body2.result.data.done).toBe(true);
+    expect(typeof body2.result.data.position).toBe("number");
+    expect(store.has(`compare:${RANKING_ID}`)).toBe(false);
+  });
+
+  it("rejects invalid rankingId", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: "not-a-uuid" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects invalid winner value", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID, winner: "invalid" }),
+    });
+    expect(res.status).toBe(400);
   });
 });
