@@ -1,7 +1,10 @@
 # Agent Runbook
 
-The Hone v1 build is driven by five autonomous GitHub Actions workflows.
-This runbook covers operating, debugging, and recovering them.
+The Hone v1 build is driven by autonomous GitHub Actions workflows.
+This runbook covers triggering, operating, debugging, recovering, and stopping them.
+
+The five core agent workflows are: Orchestrator, Implementer, Reviewer, Tester, and Documenter.
+Two additional infrastructure workflows supplement them: Spec-Watcher and Rebaser.
 
 ## Agent overview
 
@@ -44,7 +47,7 @@ Before the agents can run end-to-end, do this once:
 
 ## Daily operations
 
-- **Check progress:** the Actions tab shows recent runs of all five workflows. Issues filtered by `lifecycle:in-progress`, `lifecycle:in-review` show what's flowing.
+- **Check progress:** the Actions tab shows recent runs of all workflows. Issues filtered by `lifecycle:in-progress`, `lifecycle:in-review` show what's flowing.
 - **Inspect a stuck issue:** `gh issue view N` — labels indicate state. If `lifecycle:in-progress` for >1 hour with no PR, kill the Implementer run via `gh run cancel <run-id>` and reset the issue: `gh issue edit N --remove-label lifecycle:in-progress --add-label lifecycle:ready`.
 - **Adjust parallelism:** edit `MAX_CONCURRENT_IMPLEMENTERS` in `agent-orchestrator.yml`. Default 3. Push to a new branch + PR so the change goes through review. Higher numbers = faster wall-clock but more API spend and more rebase conflicts.
 - **Conflict during parallel runs:** when two Implementers' PRs both claim files outside their declared `## Files` sections, the second to merge will rebase-fail. The Implementer's recovery step resets the issue to `lifecycle:ready`; the next Orchestrator pass re-dispatches. If conflicts are frequent, tighten the `## Files` declarations on the offending issues.
@@ -64,6 +67,16 @@ Before the agents can run end-to-end, do this once:
 - **PR does not have `Closes #N`** → Orchestrator cannot close the issue automatically. Add the line to the PR body and the next Orchestrator pass will close.
 - **Anthropic API quota exhausted** → all agents fail at the `claude-code-base-action` step. Refill the budget; re-trigger the workflows.
 - **`BOT_PAT` expired** → Implementer's PR doesn't retrigger Reviewer/Tester. Rotate the PAT.
+
+## Triggering workflows
+
+- **Orchestrator:** Runs automatically every 15 minutes. Manually: `gh workflow run agent-orchestrator.yml -R TheCruzControll/bookshelf`.
+- **Implementer:** Dispatched by the Orchestrator via `repository_dispatch`. Manually: `gh workflow run agent-implementer.yml -f issue_number=<n> -R TheCruzControll/bookshelf`.
+- **Reviewer:** Triggers automatically on `pull_request.opened`, `pull_request.synchronize`, and `pull_request.ready_for_review`. Re-trigger by pushing an empty commit to the PR branch.
+- **Tester:** Triggers automatically on all `pull_request.*` events. Re-trigger by pushing an empty commit.
+- **Documenter:** Triggers on `pull_request.closed` (merged PRs), weekly cron, or manually: `gh workflow run agent-documenter.yml -f pr_number=<n> -R TheCruzControll/bookshelf`.
+- **Spec-Watcher:** Triggers on merged `type:doc` PRs touching spec files, or manually: `gh workflow run agent-spec-watcher.yml -f pr_number=<n> -R TheCruzControll/bookshelf`.
+- **Rebaser:** Triggers on `push` to `main` and `pull_request.opened`, or manually: `gh workflow run agent-rebaser.yml -R TheCruzControll/bookshelf`.
 
 ## Stopping the swarm
 
