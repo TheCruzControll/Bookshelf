@@ -16,7 +16,7 @@ import {
   activityEvents,
   books,
   editions,
-  friendships,
+  follows,
   profiles,
   recommendationScores,
   reviews,
@@ -159,27 +159,12 @@ export class DrizzleActivityRepository implements ActivityRepository {
   }
 
   async getFriendFeed(input: Parameters<ActivityRepository["getFriendFeed"]>[0]) {
-    const friendRows = await this.db
-      .select({
-        requesterId: friendships.requesterId,
-        addresseeId: friendships.addresseeId
-      })
-      .from(friendships)
-      .where(
-        and(
-          eq(friendships.status, "accepted"),
-          or(
-            eq(friendships.requesterId, input.viewerId),
-            eq(friendships.addresseeId, input.viewerId)
-          )
-        )
-      );
+    const followRows = await this.db
+      .select({ followeeId: follows.followeeId })
+      .from(follows)
+      .where(eq(follows.followerId, input.viewerId));
 
-    const friendIds = friendRows.map((friendship) =>
-      friendship.requesterId === input.viewerId
-        ? friendship.addresseeId
-        : friendship.requesterId
-    );
+    const friendIds = followRows.map((row) => row.followeeId);
 
     if (friendIds.length === 0) {
       return [];
