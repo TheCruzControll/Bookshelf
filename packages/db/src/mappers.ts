@@ -92,6 +92,8 @@ export function toShelfItem(row: ShelfItemRow): ShelfItem {
     editionId: row.editionId ?? undefined,
     status: row.status,
     rank: row.rank ?? undefined,
+    notes: row.notes ?? undefined,
+    position: row.position ?? undefined,
     addedAt: row.addedAt,
     updatedAt: row.updatedAt
   };

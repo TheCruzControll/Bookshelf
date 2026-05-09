@@ -110,6 +110,8 @@ export interface ShelfItem {
   editionId?: EntityId | undefined;
   status: ReadingStatus;
   rank?: number | undefined;
+  notes?: string | undefined;
+  position?: number | undefined;
   addedAt: Date;
   updatedAt: Date;
 }
