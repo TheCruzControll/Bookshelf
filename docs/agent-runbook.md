@@ -10,7 +10,7 @@ Two additional infrastructure workflows supplement them: Spec-Watcher and Rebase
 
 | Agent | Workflow | Trigger | Role |
 |---|---|---|---|
-| Orchestrator | `agent-orchestrator.yml` | every 15 min, on issue/PR events, manual dispatch | non-Claude TS script (`tools/orchestrator/orchestrator.ts`) — parses `Depends on:` lines, sets `lifecycle:ready`/`blocked`, dispatches up to `MAX_CONCURRENT_IMPLEMENTERS` (default 3) ready issues whose `## Files` claim sets don't overlap, closes issues when their PR merges |
+| Orchestrator | `agent-orchestrator.yml` | every 15 min, on issue/PR events, manual dispatch | non-Claude TS script (`tools/orchestrator/orchestrator.ts`) — parses `Depends on:` lines, sets `lifecycle:ready`/`blocked`, dispatches up to `MAX_CONCURRENT_IMPLEMENTERS` (default 3) ready issues whose `## Files` claim sets don't overlap (serialization blocks both `in-progress` and `in-review` issues), closes issues when their PR merges |
 | Implementer | `agent-implementer.yml` | manual dispatch (or repository_dispatch) with `issue_number` | reads the issue and locked specs, writes code on a branch, opens a draft PR `Closes #N` |
 | Reviewer | `agent-reviewer.yml` | on `pull_request.opened/synchronize/ready_for_review` | reviews diff against issue scope and locked decisions; on approve calls `gh pr merge --auto --squash` |
 | Tester | `agent-tester.yml` | on `pull_request.*` | typecheck + lint + test against a Postgres service container; the `agent-tester` check is the auto-merge gate |
@@ -92,7 +92,8 @@ Resume with `gh workflow enable`.
 
 To pause without disabling, add `lifecycle:in-progress` to a sentinel issue
 to occupy the implementer slot — Orchestrator's single-flight check
-prevents new dispatches while any issue is in-progress.
+prevents new dispatches while any issue is in-progress or in-review (blocking
+serialization claims until the PR merges).
 
 ## Cost notes
 
