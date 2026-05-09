@@ -42,6 +42,33 @@ if (!token) {
 
 const octokit = new Octokit({ auth: token });
 
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+const CREATE_DELAY_MS = Number(process.env.BOOTSTRAP_CREATE_DELAY_MS ?? '1500');
+const MAX_RETRIES = Number(process.env.BOOTSTRAP_MAX_RETRIES ?? '6');
+
+/** Wraps an octokit call with retry on GitHub secondary rate limits. */
+async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const e = err as { status?: number; message?: string; response?: { headers?: Record<string, string> } };
+      const isSecondary = e.status === 403 && (e.message ?? '').includes('secondary rate limit');
+      const isPrimary = e.status === 403 && (e.message ?? '').includes('rate limit');
+      if (!isSecondary && !isPrimary) throw err;
+
+      const retryAfter = Number(e.response?.headers?.['retry-after']);
+      const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : Math.min(120_000, 2 ** attempt * 5_000);
+      console.log(`[${label}] rate-limited (attempt ${attempt}/${MAX_RETRIES}); sleeping ${Math.round(backoffMs / 1000)}s`);
+      await sleep(backoffMs);
+    }
+  }
+  throw new Error(`${label}: gave up after ${MAX_RETRIES} retries`);
+}
+
 /** Topological sort: deps first. Throws on cycle. */
 function topoSort(defs: IssueDef[]): IssueDef[] {
   const byId = new Map(defs.map((d) => [d.id, d] as const));
@@ -140,13 +167,15 @@ async function main(): Promise<void> {
     const labels = [...def.labels, lifecycleLabel];
 
     try {
-      const res = await octokit.issues.create({
-        owner,
-        repo,
-        title: def.title,
-        body,
-        labels,
-      });
+      const res = await withRetry(`create ${def.id}`, () =>
+        octokit.issues.create({
+          owner,
+          repo,
+          title: def.title,
+          body,
+          labels,
+        }),
+      );
       idToNumber.set(def.id, res.data.number);
       created += 1;
       console.log(`  created #${res.data.number}: ${def.title}`);
@@ -154,6 +183,9 @@ async function main(): Promise<void> {
       console.error(`  failed to create ${def.id}:`, err);
       throw err;
     }
+
+    // Throttle to stay under GitHub's content-creation secondary limit.
+    await sleep(CREATE_DELAY_MS);
   }
 
   console.log(`\nDone. created=${created} skipped=${skipped} total=${sorted.length}`);
@@ -162,7 +194,9 @@ async function main(): Promise<void> {
 async function chooseLifecycle(depNumbers: number[]): Promise<string> {
   if (depNumbers.length === 0) return 'lifecycle:ready';
   for (const n of depNumbers) {
-    const res = await octokit.issues.get({ owner, repo, issue_number: n });
+    const res = await withRetry(`get #${n}`, () =>
+      octokit.issues.get({ owner, repo, issue_number: n }),
+    );
     if (res.data.state !== 'closed') return 'lifecycle:blocked';
   }
   return 'lifecycle:ready';
