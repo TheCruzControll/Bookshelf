@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
-import { requestIdMiddleware, accessLogMiddleware, otelHook } from "./middleware";
+import { requestIdMiddleware, accessLogMiddleware, otelHook, rateLimitMiddleware } from "./middleware";
+import { MemoryCache } from "@hone/cache";
 
 vi.mock("@hone/observability", () => ({
   createLogger: () => ({
@@ -108,5 +109,80 @@ describe("middleware integration in createApi", () => {
       headers: { "x-request-id": "test-req-id-123" }
     });
     expect(res.headers.get("x-request-id")).toBe("test-req-id-123");
+  });
+});
+
+describe("rateLimitMiddleware", () => {
+  function makeRateLimitApp(maxRequests: number, group: "auth" | "search" | "write" = "write") {
+    const cache = new MemoryCache();
+    const app = new Hono();
+    app.use("*", rateLimitMiddleware(group, cache, { maxRequests, windowMs: 60_000 }));
+    app.get("/test", (c) => c.text("ok"));
+    return app;
+  }
+
+  it("allows requests under the limit", async () => {
+    const app = makeRateLimitApp(5);
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 429 when limit is exceeded", async () => {
+    const app = makeRateLimitApp(2);
+    await app.request("/test");
+    await app.request("/test");
+    const res = await app.request("/test");
+    expect(res.status).toBe(429);
+  });
+
+  it("429 response includes Retry-After header", async () => {
+    const app = makeRateLimitApp(1);
+    await app.request("/test");
+    const res = await app.request("/test");
+    expect(res.status).toBe(429);
+    const retryAfter = res.headers.get("retry-after");
+    expect(retryAfter).toBeTruthy();
+    expect(Number(retryAfter)).toBeGreaterThan(0);
+  });
+
+  it("429 response body contains error field", async () => {
+    const app = makeRateLimitApp(1);
+    await app.request("/test");
+    const res = await app.request("/test");
+    const body = await res.json();
+    expect(body).toMatchObject({ error: "Too Many Requests" });
+  });
+
+  it("different IPs are tracked independently", async () => {
+    const app = makeRateLimitApp(1);
+    const res1 = await app.request("/test", { headers: { "x-forwarded-for": "1.2.3.4" } });
+    const res2 = await app.request("/test", { headers: { "x-forwarded-for": "5.6.7.8" } });
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+  });
+
+  it("uses default config for auth group", async () => {
+    const cache = new MemoryCache();
+    const app = new Hono();
+    app.use("*", rateLimitMiddleware("auth", cache));
+    app.get("/test", (c) => c.text("ok"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("uses default config for search group", async () => {
+    const cache = new MemoryCache();
+    const app = new Hono();
+    app.use("*", rateLimitMiddleware("search", cache));
+    app.get("/test", (c) => c.text("ok"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("rate limiter is bypassed when no cache is configured", async () => {
+    const { createApi } = await import("./app");
+    const app = createApi();
+    const res = await app.request("/health");
+    expect(res.status).toBe(200);
   });
 });

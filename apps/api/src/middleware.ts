@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
 import { createLogger } from "@hone/observability";
+import type { Cache } from "@hone/cache";
 
 const accessLogger = createLogger("hone-api-access");
 
@@ -59,5 +60,54 @@ export function otelHook(): MiddlewareHandler {
 
     c.res.headers.set("x-trace-id", traceId);
     c.res.headers.set("x-span-id", spanId);
+  };
+}
+
+export type RateLimitGroup = "auth" | "search" | "write";
+
+export interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+}
+
+const DEFAULT_RATE_LIMIT_CONFIGS: Record<RateLimitGroup, RateLimitConfig> = {
+  auth: { maxRequests: 20, windowMs: 60_000 },
+  search: { maxRequests: 60, windowMs: 60_000 },
+  write: { maxRequests: 30, windowMs: 60_000 },
+};
+
+export function rateLimitMiddleware(
+  group: RateLimitGroup,
+  cache: Cache,
+  config?: RateLimitConfig
+): MiddlewareHandler {
+  const { maxRequests, windowMs } = config ?? DEFAULT_RATE_LIMIT_CONFIGS[group];
+
+  return async (c, next) => {
+    const ip =
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+      c.req.header("x-real-ip") ??
+      "unknown";
+
+    const windowStart = Math.floor(Date.now() / windowMs);
+    const key = `rl:${group}:${ip}:${windowStart}`;
+
+    const count = await cache.incr(key, 1, windowMs);
+
+    if (count > maxRequests) {
+      const retryAfterSec = Math.ceil(
+        (windowMs - (Date.now() % windowMs)) / 1000
+      );
+      c.res = new Response(JSON.stringify({ error: "Too Many Requests" }), {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(retryAfterSec),
+        },
+      });
+      return;
+    }
+
+    await next();
   };
 }

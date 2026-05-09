@@ -7,7 +7,7 @@ import { clearSentryUser, setSentryUser } from "@hone/observability";
 import type { Cache } from "@hone/cache";
 import { createTrpcContext } from "./trpc/context";
 import { appRouter } from "./trpc/router";
-import { requestIdMiddleware, accessLogMiddleware, otelHook } from "./middleware";
+import { requestIdMiddleware, accessLogMiddleware, otelHook, rateLimitMiddleware } from "./middleware";
 
 export interface ApiDependencies {
   repositories?: AppRepositories;
@@ -44,6 +44,15 @@ export function createApi(dependencies: ApiDependencies = {}) {
     }
     await next();
   });
+
+  if (dependencies.cache) {
+    const cache = dependencies.cache;
+    app.use("/trpc/auth.*", rateLimitMiddleware("auth", cache));
+    app.use("/trpc/search.*", rateLimitMiddleware("search", cache));
+    app.use("/trpc/profile.*", rateLimitMiddleware("write", cache));
+    app.use("/trpc/ranking.*", rateLimitMiddleware("write", cache));
+    app.use("/shelves/*", rateLimitMiddleware("write", cache));
+  }
 
   app.get("/health", (c) =>
     c.json({
