@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, lte, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -22,6 +22,8 @@ import type {
 import type { HoneDb } from "./client";
 import {
   activityEvents,
+  blocks,
+  blocksAgainstHash,
   books,
   editions,
   friendships,
@@ -33,6 +35,8 @@ import {
 } from "./schema";
 import {
   toActivityEvent,
+  toBlock,
+  toBlockAgainstHash,
   toBook,
   toEdition,
   toProfile,
@@ -255,11 +259,74 @@ class DrizzleFollowRepository implements FollowRepository {
 
 class DrizzleBlockRepository implements BlockRepository {
   constructor(private readonly db: HoneDb) {}
-  async block(): Promise<never> { throw new Error("not implemented"); }
-  async unblock(): Promise<void> { throw new Error("not implemented"); }
-  async findBlock(): Promise<null> { throw new Error("not implemented"); }
-  async listBlockedByUser(): Promise<never[]> { throw new Error("not implemented"); }
-  async isBlocked(): Promise<boolean> { throw new Error("not implemented"); }
+
+  async block(input: Parameters<BlockRepository["block"]>[0]) {
+    const [row] = await this.db
+      .insert(blocks)
+      .values({ blockerId: input.blockerId, blockedId: input.blockedId })
+      .onConflictDoNothing()
+      .returning();
+    if (!row) {
+      const existing = await this.db.query.blocks.findFirst({
+        where: and(eq(blocks.blockerId, input.blockerId), eq(blocks.blockedId, input.blockedId))
+      });
+      if (!existing) throw new Error("Failed to block user");
+      return toBlock(existing);
+    }
+    return toBlock(row);
+  }
+
+  async unblock(input: Parameters<BlockRepository["unblock"]>[0]) {
+    await this.db
+      .delete(blocks)
+      .where(and(eq(blocks.blockerId, input.blockerId), eq(blocks.blockedId, input.blockedId)));
+  }
+
+  async findBlock(input: Parameters<BlockRepository["findBlock"]>[0]) {
+    const row = await this.db.query.blocks.findFirst({
+      where: and(eq(blocks.blockerId, input.blockerId), eq(blocks.blockedId, input.blockedId))
+    });
+    return row ? toBlock(row) : null;
+  }
+
+  async listBlockedByUser(blockerId: Parameters<BlockRepository["listBlockedByUser"]>[0]) {
+    const rows = await this.db.query.blocks.findMany({
+      where: eq(blocks.blockerId, blockerId)
+    });
+    return rows.map(toBlock);
+  }
+
+  async isBlocked(input: Parameters<BlockRepository["isBlocked"]>[0]) {
+    const row = await this.db.query.blocks.findFirst({
+      where: or(
+        and(eq(blocks.blockerId, input.viewerId), eq(blocks.blockedId, input.targetId)),
+        and(eq(blocks.blockerId, input.targetId), eq(blocks.blockedId, input.viewerId))
+      )
+    });
+    return row !== undefined;
+  }
+
+  async insertHashRetention(input: Parameters<BlockRepository["insertHashRetention"]>[0]) {
+    const [row] = await this.db
+      .insert(blocksAgainstHash)
+      .values({ hash: input.hash, expiresAt: input.expiresAt })
+      .returning();
+    if (!row) throw new Error("Failed to insert hash retention");
+    return toBlockAgainstHash(row);
+  }
+
+  async findActiveHashRetentions(hash: string) {
+    const now = new Date();
+    const rows = await this.db.query.blocksAgainstHash.findMany({
+      where: and(eq(blocksAgainstHash.hash, hash), gt(blocksAgainstHash.expiresAt, now))
+    });
+    return rows.map(toBlockAgainstHash);
+  }
+
+  async deleteExpiredHashRetentions() {
+    const now = new Date();
+    await this.db.delete(blocksAgainstHash).where(lte(blocksAgainstHash.expiresAt, now));
+  }
 }
 
 class DrizzleRankingRepository implements RankingRepository {

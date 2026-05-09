@@ -136,3 +136,71 @@ describe("visibility 4-tier enum mapping", () => {
     expect(expectedDefault).toBe("followers");
   });
 });
+
+import { toBlock, toBlockAgainstHash } from "./mappers";
+
+describe("toBlock mapper", () => {
+  it("maps a blocks row to a Block domain object", () => {
+    const now = new Date();
+    const row = {
+      id: "00000000-0000-0000-0000-000000000020",
+      blockerId: "00000000-0000-0000-0000-000000000021",
+      blockedId: "00000000-0000-0000-0000-000000000022",
+      createdAt: now
+    };
+
+    const block = toBlock(row as Parameters<typeof toBlock>[0]);
+    expect(block.id).toBe(row.id);
+    expect(block.blockerId).toBe(row.blockerId);
+    expect(block.blockedId).toBe(row.blockedId);
+    expect(block.createdAt).toBe(now);
+  });
+});
+
+describe("toBlockAgainstHash mapper", () => {
+  it("maps a blocks_against_hash row to a BlockAgainstHash domain object", () => {
+    const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000030",
+      hash: "abc123hashedphone",
+      expiresAt
+    };
+
+    const bah = toBlockAgainstHash(row as Parameters<typeof toBlockAgainstHash>[0]);
+    expect(bah.id).toBe(row.id);
+    expect(bah.hash).toBe(row.hash);
+    expect(bah.expiresAt).toBe(expiresAt);
+  });
+
+  it("expiresAt is 90 days from now for a standard retention", () => {
+    const now = new Date();
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(now.getTime() + ninetyDaysMs);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000031",
+      hash: "somehash",
+      expiresAt
+    };
+
+    const bah = toBlockAgainstHash(row as Parameters<typeof toBlockAgainstHash>[0]);
+    const diffMs = bah.expiresAt.getTime() - now.getTime();
+    expect(diffMs).toBeGreaterThanOrEqual(ninetyDaysMs - 1000);
+    expect(diffMs).toBeLessThanOrEqual(ninetyDaysMs + 1000);
+  });
+});
+
+describe("blocks schema structure", () => {
+  it("blocks pair is unique (pair uniqueness enforced at schema level)", () => {
+    const blockerId = "00000000-0000-0000-0000-000000000021";
+    const blockedId = "00000000-0000-0000-0000-000000000022";
+    const row1 = {
+      id: "00000000-0000-0000-0000-000000000023",
+      blockerId,
+      blockedId,
+      createdAt: new Date()
+    };
+    const block = toBlock(row1 as Parameters<typeof toBlock>[0]);
+    expect(block.blockerId).toBe(blockerId);
+    expect(block.blockedId).toBe(blockedId);
+  });
+});

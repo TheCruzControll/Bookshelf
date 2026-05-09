@@ -312,3 +312,37 @@ export const recommendationScores = pgTable(
   })
 );
 
+export const blocks = pgTable(
+  "blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blockerId: uuid("blocker_id")
+      .notNull()
+      .references(() => profiles.id),
+    blockedId: uuid("blocked_id")
+      .notNull()
+      .references(() => profiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    pairIdx: uniqueIndex("blocks_pair_idx").on(table.blockerId, table.blockedId),
+    blockerIdx: index("blocks_blocker_idx").on(table.blockerId),
+    blockedIdx: index("blocks_blocked_idx").on(table.blockedId)
+  })
+);
+
+export const blocksAgainstHash = pgTable(
+  "blocks_against_hash",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hash: text("hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    hashIdx: index("blocks_against_hash_hash_idx").on(table.hash),
+    expiresAtIdx: index("blocks_against_hash_expires_at_idx").on(table.expiresAt)
+  })
+);
+

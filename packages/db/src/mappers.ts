@@ -1,5 +1,7 @@
 import type {
   ActivityEvent,
+  Block,
+  BlockAgainstHash,
   Book,
   Edition,
   Profile,
@@ -9,6 +11,8 @@ import type {
 } from "@hone/domain";
 import type {
   activityEvents,
+  blocks,
+  blocksAgainstHash,
   books,
   editions,
   profiles,
@@ -24,6 +28,8 @@ type ShelfRow = typeof shelves.$inferSelect;
 type ShelfItemRow = typeof shelfItems.$inferSelect;
 type ReviewRow = typeof reviews.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
+type BlockRow = typeof blocks.$inferSelect;
+type BlockAgainstHashRow = typeof blocksAgainstHash.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -118,3 +124,19 @@ export function toActivityEvent(row: ActivityRow): ActivityEvent {
   };
 }
 
+export function toBlock(row: BlockRow): Block {
+  return {
+    id: row.id,
+    blockerId: row.blockerId,
+    blockedId: row.blockedId,
+    createdAt: row.createdAt
+  };
+}
+
+export function toBlockAgainstHash(row: BlockAgainstHashRow): BlockAgainstHash {
+  return {
+    id: row.id,
+    hash: row.hash,
+    expiresAt: row.expiresAt
+  };
+}

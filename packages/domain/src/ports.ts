@@ -1,6 +1,7 @@
 import type {
   ActivityEvent,
   Block,
+  BlockAgainstHash,
   Book,
   ContactsHash,
   Edition,
@@ -113,6 +114,9 @@ export interface BlockRepository {
   findBlock(input: { blockerId: EntityId; blockedId: EntityId }): Promise<Block | null>;
   listBlockedByUser(blockerId: EntityId): Promise<Block[]>;
   isBlocked(input: { viewerId: EntityId; targetId: EntityId }): Promise<boolean>;
+  insertHashRetention(input: { hash: string; expiresAt: Date }): Promise<BlockAgainstHash>;
+  findActiveHashRetentions(hash: string): Promise<BlockAgainstHash[]>;
+  deleteExpiredHashRetentions(): Promise<void>;
 }
 
 export interface RankingRepository {
