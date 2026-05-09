@@ -1,0 +1,7 @@
+appId: host.exp.Exponent
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Hone"
+- assertVisible: "Hone your taste through trusted readers."
+- assertVisible: "Friend activity"
