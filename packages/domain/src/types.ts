@@ -1,6 +1,19 @@
 export type EntityId = string;
 
-export type Visibility = "private" | "friends" | "public";
+export type Visibility = "public" | "followers" | "mutuals" | "private";
+
+export type ContentType =
+  | "identity"
+  | "follower_list"
+  | "review"
+  | "score"
+  | "finished_shelf"
+  | "custom_shelf"
+  | "want_to_read_shelf"
+  | "reading_shelf"
+  | "dropped_shelf"
+  | "reading_status"
+  | "activity_stream";
 
 export type ReadingStatus =
   | "want_to_read"

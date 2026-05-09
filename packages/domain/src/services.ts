@@ -25,7 +25,7 @@ export class ShelfService {
       verb: "book_added",
       bookId: input.bookId,
       shelfId: input.shelfId,
-      visibility: "friends"
+      visibility: "followers"
     });
 
     return shelfItem;
