@@ -7,7 +7,7 @@ This runbook covers operating, debugging, and recovering them.
 
 | Agent | Workflow | Trigger | Role |
 |---|---|---|---|
-| Orchestrator | `agent-orchestrator.yml` | every 15 min, on issue/PR events, manual dispatch | parses `Depends on:` lines, sets `lifecycle:ready`/`blocked`, dispatches up to `MAX_CONCURRENT_IMPLEMENTERS` (default 3) ready issues whose `## Files` claim sets don't overlap, closes issues when their PR merges |
+| Orchestrator | `agent-orchestrator.yml` | every 15 min, on issue/PR events, manual dispatch | non-Claude TS script (`tools/orchestrator/orchestrator.ts`) — parses `Depends on:` lines, sets `lifecycle:ready`/`blocked`, dispatches up to `MAX_CONCURRENT_IMPLEMENTERS` (default 3) ready issues whose `## Files` claim sets don't overlap, closes issues when their PR merges |
 | Implementer | `agent-implementer.yml` | manual dispatch (or repository_dispatch) with `issue_number` | reads the issue and locked specs, writes code on a branch, opens a draft PR `Closes #N` |
 | Reviewer | `agent-reviewer.yml` | on `pull_request.opened/synchronize/ready_for_review` | reviews diff against issue scope and locked decisions; on approve calls `gh pr merge --auto --squash` |
 | Tester | `agent-tester.yml` | on `pull_request.*` | typecheck + lint + test against a Postgres service container; the `agent-tester` check is the auto-merge gate |
@@ -22,8 +22,9 @@ linked issue and re-evaluates the DAG.
 Before the agents can run end-to-end, do this once:
 
 1. **Set repo secrets:**
-   - `ANTHROPIC_API_KEY` — Anthropic API key, provisioned with a billing budget.
-   - `BOT_PAT` — fine-grained PAT scoped to this repo with `contents:write`, `pull-requests:write`, `issues:write`, `workflows:write`. Required so Implementer's PR triggers Reviewer/Tester (default `GITHUB_TOKEN` does not retrigger workflows on its own pushes).
+   - `CLAUDE_CODE_OAUTH_TOKEN` — generate locally via `claude setup-token` from your Claude Code CLI; tied to your Claude.ai subscription. Implementer / Reviewer / Documenter use this. Token rotates periodically — when agents start failing auth, regenerate locally and update the secret.
+   - `BOT_PAT` — fine-grained PAT scoped to this repo with `contents:write`, `pull-requests:write`, `issues:write`, `workflows:write`. Required so Implementer's PR triggers Reviewer/Tester (default `GITHUB_TOKEN` does not retrigger workflows on its own pushes) and so the Orchestrator can dispatch.
+   - `ANTHROPIC_API_KEY` (optional fallback) — only set if you switch any workflow off OAuth and back to API-key auth.
 2. **Bootstrap labels:**
    - `gh workflow run bootstrap-labels.yml -R TheCruzControll/bookshelf` — or trigger from the Actions tab. Idempotent.
 3. **Branch protection on `main`:**
@@ -77,9 +78,12 @@ prevents new dispatches while any issue is in-progress.
 
 ## Cost notes
 
-- Each Implementer run uses 5–30 minutes of Claude API time depending on issue size. Budget for ~$200–800 over the full v1 build at Claude Sonnet pricing.
-- Reviewer and Tester run on every PR, including doc-only PRs. Tester skips lint+test for doc-only PRs.
-- Weekly Documenter drift audit is bounded — produces at most one PR per run.
+- On the OAuth path (default), all Claude usage is metered against your subscription's 5-hour rolling window and weekly cap. Max 5x is comfortable for the v1 build (~30 hrs/week of usage, well under the cap). Pro will stall mid-build.
+- The Orchestrator is a non-Claude TS script — runs on every cron tick (96/day) and consumes zero subscription quota. Its only cost is GitHub Actions minutes (negligible).
+- Implementer pinned to Sonnet 4.6 (quality where it matters). Reviewer and Documenter pinned to Haiku 4.5 (lighter quota draw, sufficient for code review and doc writing).
+- Tester is non-Claude (just runs `pnpm test`).
+- If the OAuth subscription quota trips, agents fail auth, the Implementer's recover-on-failure step resets labels back to ready, and the next Orchestrator pass re-dispatches once quota refreshes.
+- API-key fallback: switch any workflow to `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}` if you want to insulate critical work from quota stalls. Costs ~$0.50–3 per Implementer run at Sonnet pricing.
 
 ## Where to look
 

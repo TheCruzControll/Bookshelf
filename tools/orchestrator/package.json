@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "bootstrap:issues": "tsx bootstrap-issues.ts",
+    "orchestrator": "tsx orchestrator.ts",
     "audit": "tsx audit.ts"
   },
   "dependencies": {
