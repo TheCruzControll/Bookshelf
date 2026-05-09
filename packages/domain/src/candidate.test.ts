@@ -185,13 +185,6 @@ describe("selectCandidate property tests", () => {
           });
           if (result === null) return false;
 
-          const genreMatches = rankedBooks
-            .filter((b) => b.bucket === targetBucket)
-            .filter((b) => b.genres.length > 0 && false);
-
-          if (genreMatches.length > 0) {
-            return result.bucket === targetBucket;
-          }
           return result.bucket === targetBucket;
         }
       )
