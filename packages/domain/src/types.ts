@@ -37,6 +37,7 @@ export interface Profile {
   bio?: string | undefined;
   avatarUrl?: string | undefined;
   defaultVisibility: Visibility;
+  defaultContentVisibility?: Partial<Record<ContentType, Visibility>> | undefined;
   createdAt: Date;
   updatedAt: Date;
 }

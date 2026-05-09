@@ -51,6 +51,23 @@ describe("domain types smoke test", () => {
     expect(values).toHaveLength(4);
   });
 
+  it("ContentType covers all PRD visibility items", () => {
+    const values: ContentType[] = [
+      "identity",
+      "follower_list",
+      "review",
+      "score",
+      "finished_shelf",
+      "custom_shelf",
+      "want_to_read_shelf",
+      "reading_shelf",
+      "dropped_shelf",
+      "reading_status",
+      "activity_stream",
+    ];
+    expect(values).toHaveLength(11);
+  });
+
   it("ReadingStatus type accepts valid values", () => {
     const values: ReadingStatus[] = [
       "want_to_read",
@@ -68,11 +85,13 @@ describe("domain types smoke test", () => {
       handle: "tester",
       displayName: "Test User",
       defaultVisibility: "public",
+      defaultContentVisibility: { activity_stream: "followers", reading_shelf: "followers" },
       createdAt: now,
       updatedAt: now,
     };
     expect(profile.handle).toBe("tester");
     expect(profile.defaultVisibility).toBe("public");
+    expect(profile.defaultContentVisibility?.activity_stream).toBe("followers");
   });
 
   it("Book shape is structurally valid", () => {
