@@ -370,3 +370,38 @@ export const tasteVectors = pgTable(
     profileIdx: index("taste_vectors_profile_idx").on(table.profileId)
   })
 );
+
+export const phoneVerifications = pgTable(
+  "phone_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    phoneE164: text("phone_e164").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    phoneIdx: index("phone_verifications_phone_idx").on(table.phoneE164),
+    expiresIdx: index("phone_verifications_expires_idx").on(table.expiresAt)
+  })
+);
+
+export const phoneNumbers = pgTable(
+  "phone_numbers",
+  {
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    e164Hash: text("e164_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    profileIdx: uniqueIndex("phone_numbers_profile_idx").on(table.profileId),
+    hashIdx: uniqueIndex("phone_numbers_hash_idx").on(table.e164Hash)
+  })
+);

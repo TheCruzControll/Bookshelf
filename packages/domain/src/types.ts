@@ -264,3 +264,18 @@ export interface AccountDeletion {
   hardDeleteAfter: Date;
   exportedAt?: Date | undefined;
 }
+
+export interface PhoneVerification {
+  id: EntityId;
+  phoneE164: string;
+  codeHash: string;
+  attempts: number;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface PhoneNumber {
+  profileId: EntityId;
+  e164Hash: string;
+  createdAt: Date;
+}

@@ -4,6 +4,8 @@ import type {
   Book,
   Edition,
   Import,
+  PhoneNumber,
+  PhoneVerification,
   Profile,
   Ranking,
   Review,
@@ -16,6 +18,8 @@ import type {
   books,
   editions,
   imports,
+  phoneNumbers,
+  phoneVerifications,
   profiles,
   rankings,
   reviews,
@@ -33,6 +37,8 @@ type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
+type PhoneVerificationRow = typeof phoneVerifications.$inferSelect;
+type PhoneNumberRow = typeof phoneNumbers.$inferSelect;
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
@@ -168,5 +174,24 @@ export function toRanking(row: RankingRow): Ranking {
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+export function toPhoneVerification(row: PhoneVerificationRow): PhoneVerification {
+  return {
+    id: row.id,
+    phoneE164: row.phoneE164,
+    codeHash: row.codeHash,
+    attempts: row.attempts,
+    expiresAt: row.expiresAt,
+    createdAt: row.createdAt
+  };
+}
+
+export function toPhoneNumber(row: PhoneNumberRow): PhoneNumber {
+  return {
+    profileId: row.profileId,
+    e164Hash: row.e164Hash,
+    createdAt: row.createdAt
   };
 }

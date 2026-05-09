@@ -57,6 +57,13 @@
       "when": 1747180800000,
       "tag": "0007_taste_vectors",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1747267200000,
+      "tag": "0008_phone_verifications_phone_numbers",
+      "breakpoints": true
     }
   ]
 }
