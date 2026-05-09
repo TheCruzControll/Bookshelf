@@ -24,19 +24,28 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
-          PR=$(gh pr list --repo "$REPO" --state open --search "$HEAD_SHA" \
-            --json number,headRefOid \
-            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n1)
+          echo "agent-tester run $RUN_ID succeeded for SHA $HEAD_SHA — checking PR state."
+
+          # Use the commits/{sha}/pulls API directly. `gh pr list --search`
+          # uses GitHub's fuzzy issue search and doesn't reliably match by
+          # commit SHA, which silently no-op'd this workflow.
+          PR=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" \
+            --jq '[.[] | select(.state == "open")] | .[0].number // empty')
+
           if [ -z "$PR" ]; then
             echo "No open PR found for SHA $HEAD_SHA — nothing to do."
             exit 0
           fi
+          echo "Found open PR #$PR for SHA $HEAD_SHA."
+
           IS_DRAFT=$(gh pr view "$PR" --repo "$REPO" --json isDraft --jq '.isDraft')
           if [ "$IS_DRAFT" = "true" ]; then
-            echo "Marking #$PR ready for review (agent-tester succeeded)"
+            echo "Marking #$PR ready for review (agent-tester succeeded)."
             gh pr ready "$PR" --repo "$REPO"
+            echo "Marked #$PR ready."
           else
             echo "#$PR is already ready — nothing to do."
           fi
