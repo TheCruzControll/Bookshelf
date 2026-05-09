@@ -64,6 +64,21 @@ export interface BookRepository {
 
 export interface ShelfRepository {
   listShelves(ownerId: EntityId, viewerId?: EntityId): Promise<Shelf[]>;
+  findById(id: EntityId): Promise<Shelf | null>;
+  create(input: {
+    ownerId: EntityId;
+    name: string;
+    slug: string;
+    visibility: Visibility;
+  }): Promise<Shelf>;
+  update(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    name?: string | undefined;
+    visibility?: Visibility | undefined;
+    description?: string | undefined;
+  }): Promise<Shelf>;
+  delete(input: { id: EntityId; ownerId: EntityId }): Promise<void>;
   addBook(input: {
     ownerId: EntityId;
     shelfId: EntityId;

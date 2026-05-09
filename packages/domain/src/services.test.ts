@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { ShelfService, HandleService, AppServices, ProfileService, SYSTEM_SHELVES } from "./services";
-import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository } from "./ports";
-import type { Profile, Shelf, ShelfItem } from "./types";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, SYSTEM_SHELVES, slugify } from "./services";
+import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository, RankingRepository } from "./ports";
+import type { Profile, Ranking, Shelf, ShelfItem } from "./types";
 
 function makeShelfItem(overrides?: Partial<ShelfItem>): ShelfItem {
   const now = new Date();
@@ -51,6 +51,10 @@ describe("ShelfService", () => {
     const shelfItem = makeShelfItem();
     const shelves: ShelfRepository = {
       listShelves: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
       addBook: vi.fn().mockResolvedValue(shelfItem),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn()
@@ -84,6 +88,10 @@ describe("ShelfService", () => {
     const shelfItem = makeShelfItem({ editionId: "00000000-0000-0000-0000-000000000020" });
     const shelves: ShelfRepository = {
       listShelves: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
       addBook: vi.fn().mockResolvedValue(shelfItem),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn()
@@ -124,6 +132,10 @@ describe("ProfileService", () => {
     };
     const shelvesRepo: ShelfRepository = {
       listShelves: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn().mockResolvedValue(systemShelves)
@@ -163,6 +175,10 @@ describe("ProfileService", () => {
     };
     const shelvesRepo: ShelfRepository = {
       listShelves: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn().mockResolvedValue(systemShelves)
@@ -206,6 +222,10 @@ describe("ProfileService", () => {
     };
     const shelvesRepo: ShelfRepository = {
       listShelves: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn().mockResolvedValue(systemShelves)
@@ -228,7 +248,7 @@ describe("AppServices", () => {
     const repositories: AppRepositories = {
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-      shelves: { listShelves: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
+      shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
       reviews: { create: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn() },
       recommendations: { getForUser: vi.fn() },
@@ -252,5 +272,147 @@ describe("AppServices", () => {
     expect(services.profiles).toBeInstanceOf(ProfileService);
     expect(services.repositories).toBe(repositories);
     expect(services.auth).toBe(auth);
+  });
+});
+
+describe("ShelfService CRUD", () => {
+  function makeShelfRepo(overrides?: Partial<ShelfRepository>): ShelfRepository {
+    return {
+      listShelves: vi.fn().mockResolvedValue([]),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      addBook: vi.fn(),
+      rankShelfItem: vi.fn(),
+      createSystemShelves: vi.fn(),
+      ...overrides,
+    };
+  }
+  function makeActivity(): ActivityRepository {
+    return { append: vi.fn(), getFriendFeed: vi.fn() };
+  }
+
+  it("createShelf slugifies the name and delegates to shelves.create", async () => {
+    const shelf = makeShelf({ name: "My Cool Shelf", slug: "my-cool-shelf", isSystem: false });
+    const shelvesRepo = makeShelfRepo({ create: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.createShelf({ ownerId: "00000000-0000-0000-0000-000000000001", name: "My Cool Shelf", visibility: "public" });
+    expect(shelvesRepo.create).toHaveBeenCalledWith(expect.objectContaining({ slug: "my-cool-shelf" }));
+    expect(result.name).toBe("My Cool Shelf");
+  });
+
+  it("updateShelf throws NOT_FOUND when shelf does not exist", async () => {
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(null) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.updateShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000001" }))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("updateShelf throws FORBIDDEN when caller is not the owner", async () => {
+    const shelf = makeShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000099" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.updateShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001" }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("updateShelf throws FORBIDDEN when shelf is a system shelf", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: true });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.updateShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001" }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("updateShelf delegates to shelves.update when owner matches", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false });
+    const updated = makeShelf({ ...shelf, name: "Updated", visibility: "private" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf), update: vi.fn().mockResolvedValue(updated) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.updateShelf({ id: shelf.id, ownerId: shelf.ownerId, name: "Updated", visibility: "private" });
+    expect(result.name).toBe("Updated");
+  });
+
+  it("deleteShelf throws NOT_FOUND when shelf does not exist", async () => {
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(null) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.deleteShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000001" }))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("deleteShelf throws FORBIDDEN when caller is not the owner", async () => {
+    const shelf = makeShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000099" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.deleteShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001" }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("deleteShelf throws FORBIDDEN when shelf is a system shelf", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: true });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.deleteShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001" }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("deleteShelf delegates to shelves.delete when owner matches", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf), delete: vi.fn().mockResolvedValue(undefined) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await service.deleteShelf({ id: shelf.id, ownerId: shelf.ownerId });
+    expect(shelvesRepo.delete).toHaveBeenCalledWith({ id: shelf.id, ownerId: shelf.ownerId });
+  });
+
+  it("listShelves delegates to shelves.listShelves", async () => {
+    const shelf = makeShelf();
+    const shelvesRepo = makeShelfRepo({ listShelves: vi.fn().mockResolvedValue([shelf]) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.listShelves("00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002");
+    expect(shelvesRepo.listShelves).toHaveBeenCalledWith("00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002");
+    expect(result).toHaveLength(1);
+  });
+});
+
+describe("slugify", () => {
+  it("lowercases and replaces spaces with hyphens", () => {
+    expect(slugify("My Cool Shelf")).toBe("my-cool-shelf");
+  });
+
+  it("strips leading and trailing hyphens", () => {
+    expect(slugify("  My Shelf  ")).toBe("my-shelf");
+  });
+
+  it("collapses multiple non-alphanumeric chars into one hyphen", () => {
+    expect(slugify("Hello!! World")).toBe("hello-world");
+  });
+});
+
+describe("RankingService", () => {
+  it("startBucket delegates to rankings.startBucket", async () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "00000000-0000-0000-0000-000000000001",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      bookId: "00000000-0000-0000-0000-000000000002",
+      position: 0,
+      score: 0,
+      bucket: 3,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const rankingsRepo: RankingRepository = {
+      upsert: vi.fn(),
+      findByOwnerAndBook: vi.fn(),
+      listByOwner: vi.fn(),
+      delete: vi.fn(),
+      startBucket: vi.fn().mockResolvedValue(ranking),
+    };
+    const service = new RankingService(rankingsRepo);
+    const result = await service.startBucket({ ownerId: ranking.profileId, bookId: ranking.bookId, bucket: 3 });
+    expect(rankingsRepo.startBucket).toHaveBeenCalledWith({ ownerId: ranking.profileId, bookId: ranking.bookId, bucket: 3 });
+    expect(result.bucket).toBe(3);
   });
 });
