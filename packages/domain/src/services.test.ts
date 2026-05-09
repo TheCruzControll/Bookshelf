@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { ShelfService, AppServices } from "./services";
+import { ShelfService, HandleService, AppServices } from "./services";
 import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider } from "./ports";
 import type { ShelfItem } from "./types";
 
@@ -79,7 +79,7 @@ describe("ShelfService", () => {
 describe("AppServices", () => {
   it("exposes a shelves service", () => {
     const repositories: AppRepositories = {
-      profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn() },
+      profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn() },
       reviews: { create: vi.fn() },
@@ -101,6 +101,7 @@ describe("AppServices", () => {
     const services = new AppServices(repositories, auth);
 
     expect(services.shelves).toBeInstanceOf(ShelfService);
+    expect(services.handles).toBeInstanceOf(HandleService);
     expect(services.repositories).toBe(repositories);
     expect(services.auth).toBe(auth);
   });
