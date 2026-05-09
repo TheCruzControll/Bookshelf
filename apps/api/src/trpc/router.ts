@@ -1,7 +1,9 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { ZodError } from "zod";
-import { captureException } from "@hone/observability";
+import { captureException, createLogger } from "@hone/observability";
 import type { TrpcContext } from "./context";
+
+const spanLogger = createLogger("hone-trpc-span");
 
 const t = initTRPC.context<TrpcContext>().create({
   errorFormatter({ shape, error }) {
@@ -44,8 +46,37 @@ const t = initTRPC.context<TrpcContext>().create({
   }
 });
 
+const spanMiddleware = t.middleware(async ({ ctx, path, next }) => {
+  const start = Date.now();
+  const viewerId = ctx.identity?.userId ?? null;
+  let errorType: string | null = null;
+
+  try {
+    const result = await next();
+    if (!result.ok) {
+      errorType = result.error.code;
+    }
+    return result;
+  } catch (err) {
+    if (err instanceof TRPCError) {
+      errorType = err.code;
+    } else {
+      errorType = "INTERNAL_SERVER_ERROR";
+    }
+    throw err;
+  } finally {
+    const latency = Date.now() - start;
+    spanLogger.info({
+      span: path,
+      viewerId,
+      latency,
+      errorType
+    });
+  }
+});
+
 export const router = t.router;
-export const publicProcedure = t.procedure;
+export const publicProcedure = t.procedure.use(spanMiddleware);
 
 export const appRouter = router({});
 
