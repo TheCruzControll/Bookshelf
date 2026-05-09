@@ -283,6 +283,40 @@ Required order:
   `Matched` / `Needs review` / `Unmatched`. Default action: keep Hone
   state, ignore CSV value. User can override.
 
+### Goodreads Import — column mapping and rating handling
+
+- **Columns used:**
+
+  | CSV column | Used for |
+  |---|---|
+  | `Title`, `Author` | Catalog match (required) |
+  | `ISBN`, `ISBN13` | Primary match key (strip Goodreads' `="..."` quoting) |
+  | `Exclusive Shelf` | Status mapping (`to-read` / `currently-reading` / `read`) |
+  | `Bookshelves` | Custom-shelf assignment |
+  | `My Rating` | Stored privately as imported rating; pre-fills the star bucket on later ranking but does **not** auto-create a score |
+  | `Date Read` | `finished_at` on imported finished state (optional) |
+  | `Date Added` | `created_at` for imported state |
+  | `My Review` | Imported as a Hone review (default visibility = `public`, overridable at import time) |
+  | `Read Count` | Detects re-reads; only latest finish imported (re-reads not a v1 concept) |
+
+  All other columns dropped.
+
+- **Shelf → status mapping:**
+  - `Exclusive Shelf = to-read` → Hone `Want to read`
+  - `Exclusive Shelf = currently-reading` → Hone `Reading`
+  - `Exclusive Shelf = read` → Hone `Finished` placed in the
+    `Ready to rank` backlog. Does NOT enter taste ranking automatically.
+  - Goodreads custom shelves named in `Bookshelves` → Hone custom shelves
+    with the same names; books are added to them.
+  - User can override the mapping at confirmation time and skip custom-
+    shelf creation entirely.
+
+- **`My Rating` handling: pre-fill, never auto-rank.**
+  When the user goes to rank an imported book later, the 1–5 star step
+  pre-selects the Goodreads rating. The user can change it. Comparisons
+  still run. This honors the spec rule that "Hone scores come from
+  comparisons" while smoothly carrying intent over.
+
 ### Multi-Device Conflict Resolution
 
 - **Hybrid: LWW for state, optimistic locking for authored content.**
