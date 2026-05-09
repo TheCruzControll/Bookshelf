@@ -167,6 +167,11 @@ export interface Block {
   createdAt: Date;
 }
 
+export interface BlockAgainstHash {
+  hash: string;
+  expiresAt: Date;
+}
+
 export interface Ranking {
   id: EntityId;
   profileId: EntityId;
