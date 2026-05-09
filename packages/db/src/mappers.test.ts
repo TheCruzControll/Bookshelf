@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, imports, rankings, shelves, tasteVectors } from "./schema";
+import { blocks, blocksAgainstHash, follows, imports, rankings, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -740,5 +740,84 @@ describe("taste_vectors table schema", () => {
 
   it("taste_vectors profileId column exists", () => {
     expect(tasteVectors.profileId).toBeDefined();
+  });
+});
+
+describe("blocks table schema and mapper", () => {
+  const now = new Date();
+
+  it("blocks schema includes required columns", () => {
+    const cols = Object.keys(blocks);
+    expect(cols).toContain("blockerId");
+    expect(cols).toContain("blockedId");
+    expect(cols).toContain("createdAt");
+  });
+
+  it("blocks schema does not have a surrogate id column", () => {
+    const cols = Object.keys(blocks);
+    expect(cols).not.toContain("id");
+  });
+
+  it("toBlock maps a row to a Block domain object", () => {
+    const row = {
+      blockerId: "00000000-0000-0000-0000-000000000001",
+      blockedId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now
+    };
+
+    const block = toBlock(row as Parameters<typeof toBlock>[0]);
+    expect(block.id).toBe(`${row.blockerId}:${row.blockedId}`);
+    expect(block.blockerId).toBe(row.blockerId);
+    expect(block.blockedId).toBe(row.blockedId);
+    expect(block.createdAt).toBe(now);
+  });
+
+  it("toBlock produces unique id per ordered pair", () => {
+    const row1 = {
+      blockerId: "00000000-0000-0000-0000-000000000001",
+      blockedId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now
+    };
+    const row2 = {
+      blockerId: "00000000-0000-0000-0000-000000000002",
+      blockedId: "00000000-0000-0000-0000-000000000001",
+      createdAt: now
+    };
+
+    const block1 = toBlock(row1 as Parameters<typeof toBlock>[0]);
+    const block2 = toBlock(row2 as Parameters<typeof toBlock>[0]);
+    expect(block1.id).not.toBe(block2.id);
+  });
+});
+
+describe("blocks_against_hash table schema and mapper", () => {
+  it("blocksAgainstHash schema includes required columns", () => {
+    const cols = Object.keys(blocksAgainstHash);
+    expect(cols).toContain("hash");
+    expect(cols).toContain("expiresAt");
+  });
+
+  it("toBlockAgainstHash maps a row to a BlockAgainstHash domain object", () => {
+    const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+    const row = {
+      hash: "abc123def456",
+      expiresAt
+    };
+
+    const bah = toBlockAgainstHash(row as Parameters<typeof toBlockAgainstHash>[0]);
+    expect(bah.hash).toBe("abc123def456");
+    expect(bah.expiresAt).toBe(expiresAt);
+  });
+
+  it("toBlockAgainstHash 90-day expiry is preserved", () => {
+    const now = new Date();
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(now.getTime() + ninetyDaysMs);
+    const row = { hash: "somehash", expiresAt };
+
+    const bah = toBlockAgainstHash(row as Parameters<typeof toBlockAgainstHash>[0]);
+    const diffMs = bah.expiresAt.getTime() - now.getTime();
+    expect(diffMs).toBeGreaterThanOrEqual(ninetyDaysMs - 1000);
+    expect(diffMs).toBeLessThanOrEqual(ninetyDaysMs + 1000);
   });
 });

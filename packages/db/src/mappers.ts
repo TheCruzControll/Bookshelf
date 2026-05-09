@@ -1,6 +1,8 @@
 import type {
   AccountDeletion,
   ActivityEvent,
+  Block,
+  BlockAgainstHash,
   Book,
   Edition,
   Import,
@@ -13,6 +15,8 @@ import type {
 import type {
   accountDeletions,
   activityEvents,
+  blocks,
+  blocksAgainstHash,
   books,
   editions,
   imports,
@@ -24,6 +28,8 @@ import type {
 } from "./schema";
 
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
+type BlockRow = typeof blocks.$inferSelect;
+type BlockAgainstHashRow = typeof blocksAgainstHash.$inferSelect;
 type ProfileRow = typeof profiles.$inferSelect;
 type BookRow = typeof books.$inferSelect;
 type EditionRow = typeof editions.$inferSelect;
@@ -168,5 +174,21 @@ export function toRanking(row: RankingRow): Ranking {
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+export function toBlock(row: BlockRow): Block {
+  return {
+    id: `${row.blockerId}:${row.blockedId}`,
+    blockerId: row.blockerId,
+    blockedId: row.blockedId,
+    createdAt: row.createdAt
+  };
+}
+
+export function toBlockAgainstHash(row: BlockAgainstHashRow): BlockAgainstHash {
+  return {
+    hash: row.hash,
+    expiresAt: row.expiresAt
   };
 }
