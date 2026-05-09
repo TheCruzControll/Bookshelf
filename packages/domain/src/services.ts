@@ -4,9 +4,10 @@ import type {
   AuthProvider,
   ProfileRepository,
   RankingRepository,
+  ReviewRepository,
   ShelfRepository
 } from "./ports";
-import type { EntityId, Profile, Ranking, Shelf, ShelfItem, Visibility } from "./types";
+import type { EntityId, Profile, Ranking, Review, Shelf, ShelfItem, Visibility } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -242,11 +243,37 @@ export class RankingService {
   }
 }
 
+export class ReviewService {
+  constructor(
+    private readonly reviews: ReviewRepository,
+    private readonly activity: ActivityRepository
+  ) {}
+
+  async createReview(input: {
+    authorId: EntityId;
+    bookId: EntityId;
+    editionId?: EntityId | undefined;
+    body: string;
+    visibility: Visibility;
+  }): Promise<Review> {
+    const review = await this.reviews.create(input);
+    await this.activity.append({
+      actorId: input.authorId,
+      verb: "book_reviewed",
+      bookId: input.bookId,
+      reviewId: review.id,
+      visibility: input.visibility,
+    });
+    return review;
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
   readonly rankings: RankingService;
+  readonly reviews: ReviewService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -262,5 +289,9 @@ export class AppServices {
       repositories.shelves
     );
     this.rankings = new RankingService(repositories.rankings);
+    this.reviews = new ReviewService(
+      repositories.reviews,
+      repositories.activity
+    );
   }
 }

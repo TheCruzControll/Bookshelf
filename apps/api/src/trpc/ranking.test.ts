@@ -429,4 +429,127 @@ describe("ranking.compare", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("creates a review and returns reviewId when done=true and reviewBody is provided", async () => {
+    const session = makeRankingSession();
+    const REVIEW_ID = "00000000-0000-0000-0000-000000000099";
+    const store = new Map<string, unknown>();
+    const mockReview = {
+      id: REVIEW_ID,
+      authorId: UUID1,
+      bookId: NEW_BOOK_ID,
+      body: "Great book!",
+      visibility: "public" as const,
+      version: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(session),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([session]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+      reviews: {
+        create: vi.fn().mockResolvedValue(mockReview),
+        update: vi.fn(),
+      },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn() },
+    });
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity(), repos, cache);
+
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID, reviewBody: "Great book!", reviewVisibility: "public" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.done).toBe(true);
+    expect(body.result.data.reviewId).toBe(REVIEW_ID);
+    expect(repos.reviews.create).toHaveBeenCalledWith({
+      authorId: UUID1,
+      bookId: NEW_BOOK_ID,
+      body: "Great book!",
+      visibility: "public",
+    });
+  });
+
+  it("does not create a review when done=true and reviewBody is absent", async () => {
+    const session = makeRankingSession();
+    const store = new Map<string, unknown>();
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(session),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([session]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity(), repos, cache);
+
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.done).toBe(true);
+    expect(body.result.data.reviewId).toBeUndefined();
+    expect(repos.reviews.create).not.toHaveBeenCalled();
+  });
+
+  it("defaults reviewVisibility to public when reviewBody is provided without reviewVisibility", async () => {
+    const session = makeRankingSession();
+    const REVIEW_ID = "00000000-0000-0000-0000-000000000098";
+    const store = new Map<string, unknown>();
+    const mockReview = {
+      id: REVIEW_ID,
+      authorId: UUID1,
+      bookId: NEW_BOOK_ID,
+      body: "Loved it",
+      visibility: "public" as const,
+      version: 1,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn().mockResolvedValue(session),
+        findByOwnerAndBook: vi.fn(),
+        listByOwner: vi.fn().mockResolvedValue([session]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+      reviews: {
+        create: vi.fn().mockResolvedValue(mockReview),
+        update: vi.fn(),
+      },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn() },
+    });
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity(), repos, cache);
+
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID, reviewBody: "Loved it" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.done).toBe(true);
+    expect(body.result.data.reviewId).toBe(REVIEW_ID);
+    expect(repos.reviews.create).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: "public" })
+    );
+  });
 });

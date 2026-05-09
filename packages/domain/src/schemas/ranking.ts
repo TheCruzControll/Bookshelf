@@ -18,6 +18,7 @@ export const ReviewSchema = z.object({
   editionId: EntityIdSchema.optional(),
   body: z.string().min(1),
   visibility: z.enum(["public", "followers", "mutuals", "private"]),
+  version: z.number().int().positive(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -27,6 +28,10 @@ export const CreateReviewInputSchema = z.object({
   editionId: EntityIdSchema.optional(),
   body: z.string().min(1),
   visibility: z.enum(["public", "followers", "mutuals", "private"]).default("public"),
+});
+
+export const CreateReviewOutputSchema = z.object({
+  review: ReviewSchema,
 });
 
 export const UpdateReviewInputSchema = z.object({
@@ -48,6 +53,8 @@ export const StartBucketOutputSchema = z.object({
 export const CompareInputSchema = z.object({
   rankingId: EntityIdSchema,
   winner: z.enum(["new", "existing"]).optional(),
+  reviewBody: z.string().min(1).optional(),
+  reviewVisibility: z.enum(["public", "followers", "mutuals", "private"]).optional(),
 });
 
 export const CompareOutputSchema = z.discriminatedUnion("done", [
@@ -59,12 +66,14 @@ export const CompareOutputSchema = z.discriminatedUnion("done", [
   z.object({
     done: z.literal(true),
     position: z.number().int().nonnegative(),
+    reviewId: EntityIdSchema.optional(),
   }),
 ]);
 
 export type RankingInput = z.infer<typeof RankingSchema>;
 export type ReviewInput = z.infer<typeof ReviewSchema>;
 export type CreateReviewInput = z.infer<typeof CreateReviewInputSchema>;
+export type CreateReviewOutput = z.infer<typeof CreateReviewOutputSchema>;
 export type UpdateReviewInput = z.infer<typeof UpdateReviewInputSchema>;
 export type StartBucketInput = z.infer<typeof StartBucketInputSchema>;
 export type StartBucketOutput = z.infer<typeof StartBucketOutputSchema>;

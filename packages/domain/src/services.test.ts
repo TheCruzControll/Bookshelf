@@ -408,7 +408,6 @@ describe("RankingService", () => {
     const rankingsRepo: RankingRepository = {
       upsert: vi.fn(),
       findByOwnerAndBook: vi.fn(),
-      findById: vi.fn(),
       listByOwner: vi.fn(),
       delete: vi.fn(),
       startBucket: vi.fn().mockResolvedValue(ranking),
