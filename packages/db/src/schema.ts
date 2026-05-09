@@ -11,9 +11,10 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const visibilityEnum = pgEnum("visibility", [
-  "private",
-  "friends",
-  "public"
+  "public",
+  "followers",
+  "mutuals",
+  "private"
 ]);
 
 export const readingStatusEnum = pgEnum("reading_status", [
@@ -43,7 +44,7 @@ export const profiles = pgTable(
     avatarUrl: text("avatar_url"),
     defaultVisibility: visibilityEnum("default_visibility")
       .notNull()
-      .default("friends"),
+      .default("public"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -182,7 +183,7 @@ export const shelves = pgTable(
       .references(() => profiles.id),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
-    visibility: visibilityEnum("visibility").notNull().default("friends"),
+    visibility: visibilityEnum("visibility").notNull().default("public"),
     isSystem: boolean("is_system").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -241,7 +242,7 @@ export const reviews = pgTable("reviews", {
     .references(() => books.id),
   editionId: uuid("edition_id").references(() => editions.id),
   body: text("body").notNull(),
-  visibility: visibilityEnum("visibility").notNull().default("friends"),
+  visibility: visibilityEnum("visibility").notNull().default("public"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -261,7 +262,7 @@ export const activityEvents = pgTable(
     bookId: uuid("book_id").references(() => books.id),
     shelfId: uuid("shelf_id").references(() => shelves.id),
     reviewId: uuid("review_id").references(() => reviews.id),
-    visibility: visibilityEnum("visibility").notNull().default("friends"),
+    visibility: visibilityEnum("visibility").notNull().default("followers"),
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .notNull()
       .defaultNow()

@@ -1,10 +1,54 @@
 import { describe, it, expect } from "vitest";
-import type { Visibility, ReadingStatus, Profile, Book } from "./types";
+import type {
+  Book,
+  ContentType,
+  Profile,
+  ReadingStatus,
+  Visibility,
+} from "./types";
+
+// Compile-time assertions for the Posture C 4-tier model.
+
+type IsExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type Assert<T extends true> = T;
+
+type _VisibilityIsFourTier = Assert<
+  IsExact<Visibility, "public" | "followers" | "mutuals" | "private">
+>;
+
+type _ContentTypeCoversAllItems = Assert<
+  IsExact<
+    ContentType,
+    | "identity"
+    | "follower_list"
+    | "review"
+    | "score"
+    | "finished_shelf"
+    | "custom_shelf"
+    | "want_to_read_shelf"
+    | "reading_shelf"
+    | "dropped_shelf"
+    | "reading_status"
+    | "activity_stream"
+  >
+>;
+
+type _ProfileDefaultVisibilityIsVisibility = Assert<
+  IsExact<Profile["defaultVisibility"], Visibility>
+>;
+
+export type {
+  _VisibilityIsFourTier,
+  _ContentTypeCoversAllItems,
+  _ProfileDefaultVisibilityIsVisibility,
+};
+
+// Runtime smoke tests against the same types.
 
 describe("domain types smoke test", () => {
-  it("Visibility type accepts valid values", () => {
-    const values: Visibility[] = ["private", "friends", "public"];
-    expect(values).toHaveLength(3);
+  it("Visibility type accepts the four Posture C tiers", () => {
+    const values: Visibility[] = ["public", "followers", "mutuals", "private"];
+    expect(values).toHaveLength(4);
   });
 
   it("ReadingStatus type accepts valid values", () => {
@@ -12,7 +56,7 @@ describe("domain types smoke test", () => {
       "want_to_read",
       "reading",
       "finished",
-      "dropped"
+      "dropped",
     ];
     expect(values).toHaveLength(4);
   });
@@ -25,7 +69,7 @@ describe("domain types smoke test", () => {
       displayName: "Test User",
       defaultVisibility: "public",
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
     expect(profile.handle).toBe("tester");
     expect(profile.defaultVisibility).toBe("public");
@@ -37,7 +81,7 @@ describe("domain types smoke test", () => {
       id: "00000000-0000-0000-0000-000000000002",
       canonicalTitle: "The Great Gatsby",
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
     expect(book.canonicalTitle).toBe("The Great Gatsby");
   });

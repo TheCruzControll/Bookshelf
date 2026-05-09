@@ -8,6 +8,13 @@
       "when": 1778141023498,
       "tag": "0000_magenta_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778342382277,
+      "tag": "0001_closed_vermin",
+      "breakpoints": true
     }
   ]
 }
