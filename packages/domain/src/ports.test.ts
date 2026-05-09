@@ -49,6 +49,7 @@ type _NotificationRepositoryHasListTokensForUser = Assert<HasKey<NotificationRep
 
 type _ImportRepositoryHasCreate = Assert<HasKey<ImportRepository, "create">>;
 type _ImportRepositoryHasFindById = Assert<HasKey<ImportRepository, "findById">>;
+type _ImportRepositoryHasFindByOwnerAndHash = Assert<HasKey<ImportRepository, "findByOwnerAndHash">>;
 type _ImportRepositoryHasListByOwner = Assert<HasKey<ImportRepository, "listByOwner">>;
 type _ImportRepositoryHasUpdateStatus = Assert<HasKey<ImportRepository, "updateStatus">>;
 
@@ -105,6 +106,7 @@ export type {
   _NotificationRepositoryHasListTokensForUser,
   _ImportRepositoryHasCreate,
   _ImportRepositoryHasFindById,
+  _ImportRepositoryHasFindByOwnerAndHash,
   _ImportRepositoryHasListByOwner,
   _ImportRepositoryHasUpdateStatus,
   _ContactsRepositoryHasUpsertHashes,
