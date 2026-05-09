@@ -1,0 +1,44 @@
+name: agent-reviewer
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: reviewer-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.user.login == 'hone-implementer[bot]' || github.event.pull_request.user.login == 'hone-documenter[bot]' || contains(github.event.pull_request.labels.*.name, 'agent:reviewer')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Read prompt
+        id: prompt
+        run: |
+          {
+            echo 'PROMPT<<EOF_PROMPT'
+            cat tools/orchestrator/prompts/reviewer.md
+            echo
+            echo "EOF_PROMPT"
+          } >> "$GITHUB_OUTPUT"
+      - uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "Bash,Read,Glob,Grep"
+          timeout_minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}

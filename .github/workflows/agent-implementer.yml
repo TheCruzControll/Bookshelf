@@ -1,0 +1,86 @@
+name: agent-implementer
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to implement"
+        required: true
+        type: string
+  repository_dispatch:
+    types: [implement-issue]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: implementer-${{ inputs.issue_number || github.event.client_payload.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Resolve issue number
+        id: issue
+        run: |
+          NUM="${{ inputs.issue_number || github.event.client_payload.issue_number }}"
+          if [ -z "$NUM" ]; then echo "No issue number"; exit 1; fi
+          echo "number=$NUM" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_PAT }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Mark in-progress
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          gh issue edit "${{ steps.issue.outputs.number }}" \
+            --remove-label "lifecycle:ready" \
+            --remove-label "lifecycle:blocked" \
+            --add-label "lifecycle:in-progress" \
+            --add-label "agent:implementer" -R "${{ github.repository }}"
+      - name: Read prompt
+        id: prompt
+        run: |
+          {
+            echo 'PROMPT<<EOF_PROMPT'
+            cat tools/orchestrator/prompts/implementer.md
+            echo
+            echo "EOF_PROMPT"
+          } >> "$GITHUB_OUTPUT"
+      - name: Configure git
+        run: |
+          git config user.name "hone-implementer[bot]"
+          git config user.email "hone-implementer[bot]@users.noreply.github.com"
+      - uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "Bash,Edit,Write,Read,Glob,Grep"
+          timeout_minutes: 50
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          REPO: ${{ github.repository }}
+      - name: Recover on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          gh issue edit "${{ steps.issue.outputs.number }}" \
+            --remove-label "lifecycle:in-progress" \
+            --add-label "lifecycle:ready" -R "${{ github.repository }}" || true
+          gh issue comment "${{ steps.issue.outputs.number }}" \
+            --body "Implementer run failed. Resetting to ready. Inspect run logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -R "${{ github.repository }}" || true

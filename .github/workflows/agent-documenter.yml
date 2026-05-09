@@ -1,0 +1,55 @@
+name: agent-documenter
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to derive doc updates from (optional)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: documenter-${{ github.event.pull_request.number || inputs.pr_number || 'weekly' }}
+  cancel-in-progress: false
+
+jobs:
+  document:
+    if: github.event_name != 'pull_request' || (github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'type:doc'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_PAT }}
+          fetch-depth: 0
+      - name: Configure git
+        run: |
+          git config user.name "hone-documenter[bot]"
+          git config user.email "hone-documenter[bot]@users.noreply.github.com"
+      - name: Read prompt
+        id: prompt
+        run: |
+          {
+            echo 'PROMPT<<EOF_PROMPT'
+            cat tools/orchestrator/prompts/documenter.md
+            echo
+            echo "EOF_PROMPT"
+          } >> "$GITHUB_OUTPUT"
+      - uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "Bash,Edit,Write,Read,Glob,Grep"
+          timeout_minutes: 25
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          TRIGGER: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
