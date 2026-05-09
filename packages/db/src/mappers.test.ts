@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking } from "./mappers";
+import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, rankings, shelves } from "./schema";
+import { follows, imports, rankings, shelves } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -599,5 +599,96 @@ describe("rankings table schema and mapper", () => {
     const ranking = toRanking(row as Parameters<typeof toRanking>[0]);
     expect(typeof ranking.score).toBe("number");
     expect(ranking.score).toBe(4.2);
+  });
+});
+
+describe("imports table schema and mapper", () => {
+  const now = new Date();
+
+  it("imports schema includes required columns", () => {
+    const cols = Object.keys(imports);
+    expect(cols).toContain("id");
+    expect(cols).toContain("ownerId");
+    expect(cols).toContain("source");
+    expect(cols).toContain("idempotencyHash");
+    expect(cols).toContain("conflictCount");
+    expect(cols).toContain("status");
+    expect(cols).toContain("createdAt");
+    expect(cols).toContain("completedAt");
+  });
+
+  it("toImport maps a row to an Import domain object", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000001",
+      ownerId: "00000000-0000-0000-0000-000000000002",
+      source: "goodreads",
+      idempotencyHash: null,
+      conflictCount: 0,
+      status: "pending",
+      createdAt: now,
+      completedAt: null
+    };
+
+    const imp = toImport(row as Parameters<typeof toImport>[0]);
+    expect(imp.id).toBe(row.id);
+    expect(imp.ownerId).toBe(row.ownerId);
+    expect(imp.source).toBe("goodreads");
+    expect(imp.idempotencyHash).toBeUndefined();
+    expect(imp.conflictCount).toBe(0);
+    expect(imp.status).toBe("pending");
+    expect(imp.createdAt).toBe(now);
+    expect(imp.completedAt).toBeUndefined();
+  });
+
+  it("toImport maps idempotencyHash when present", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000001",
+      ownerId: "00000000-0000-0000-0000-000000000002",
+      source: "goodreads",
+      idempotencyHash: "abc123def456",
+      conflictCount: 3,
+      status: "needs_review",
+      createdAt: now,
+      completedAt: null
+    };
+
+    const imp = toImport(row as Parameters<typeof toImport>[0]);
+    expect(imp.idempotencyHash).toBe("abc123def456");
+    expect(imp.conflictCount).toBe(3);
+    expect(imp.status).toBe("needs_review");
+  });
+
+  it("toImport maps completedAt when present", () => {
+    const completedAt = new Date("2024-06-01T12:00:00Z");
+    const row = {
+      id: "00000000-0000-0000-0000-000000000001",
+      ownerId: "00000000-0000-0000-0000-000000000002",
+      source: "goodreads",
+      idempotencyHash: "hash123",
+      conflictCount: 0,
+      status: "completed",
+      createdAt: now,
+      completedAt
+    };
+
+    const imp = toImport(row as Parameters<typeof toImport>[0]);
+    expect(imp.completedAt).toBe(completedAt);
+    expect(imp.status).toBe("completed");
+  });
+
+  it("toImport maps conflictCount correctly for non-zero value", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000001",
+      ownerId: "00000000-0000-0000-0000-000000000002",
+      source: "goodreads",
+      idempotencyHash: null,
+      conflictCount: 7,
+      status: "needs_review",
+      createdAt: now,
+      completedAt: null
+    };
+
+    const imp = toImport(row as Parameters<typeof toImport>[0]);
+    expect(imp.conflictCount).toBe(7);
   });
 });

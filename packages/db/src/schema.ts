@@ -275,6 +275,8 @@ export const imports = pgTable("imports", {
     .notNull()
     .references(() => profiles.id),
   source: text("source").notNull(),
+  idempotencyHash: text("idempotency_hash"),
+  conflictCount: integer("conflict_count").notNull().default(0),
   status: text("status").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
