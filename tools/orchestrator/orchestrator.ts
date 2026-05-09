@@ -139,6 +139,44 @@ function intersects(a: Set<string>, b: Set<string>): boolean {
   return false;
 }
 
+/**
+ * Files at the repo root that nearly every infra issue wants to touch.
+ * When two PRs both modify these, parallel dispatch produces avoidable
+ * merge conflicts. Issues whose claim set includes one of these are
+ * serialized — only one such issue may be in-flight at a time.
+ */
+const ROOT_CONFIG_FILES = new Set([
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'turbo.json',
+  'tsconfig.base.json',
+  'tsconfig.json',
+  'eslint.config.mjs',
+  'eslint.config.js',
+  'eslint.config.ts',
+  'prettier.config.mjs',
+  'prettier.config.js',
+  'vitest.config.ts',
+  'vitest.config.mjs',
+]);
+const REPO_ROOT_PREFIX = '/home/user/Bookshelf/';
+
+function claimsRootConfig(claim: Set<string>): boolean {
+  // The conservative wildcard claim catches everything, root config included.
+  if (claim.has('*')) return true;
+  for (const raw of claim) {
+    let path = raw.startsWith(REPO_ROOT_PREFIX) ? raw.slice(REPO_ROOT_PREFIX.length) : raw;
+    path = path.replace(/^\/+/, '');
+    // Only files at the repo root count — `apps/api/package.json` is fine to
+    // run in parallel with `eslint.config.mjs`. Per-package config is
+    // package-local and doesn't conflict with root config.
+    if (path.includes('/')) continue;
+    if (ROOT_CONFIG_FILES.has(path)) return true;
+  }
+  return false;
+}
+
 function lifecycleOf(issue: IssueLite): string | undefined {
   return issue.labels.find((l) => LIFECYCLE.includes(l as typeof LIFECYCLE[number]));
 }
@@ -282,12 +320,30 @@ async function dispatchParallel(issues: IssueLite[]): Promise<void> {
   }
 
   const active = await inProgressClaims(issues);
+  // Track whether any in-flight issue is touching root config — those run
+  // strictly serialized (only one at a time across the whole DAG) because
+  // parallel root-config edits cause near-guaranteed merge conflicts.
+  let rootConfigInFlight = false;
+  for (const i of issues) {
+    if (i.state !== 'open') continue;
+    if (lifecycleOf(i) !== 'lifecycle:in-progress') continue;
+    if (claimsRootConfig(parseClaim(i.body, i.labels))) {
+      rootConfigInFlight = true;
+      break;
+    }
+  }
   const dispatched: number[] = [];
 
   for (const c of candidates) {
     if (dispatched.length >= slots) break;
     const myFiles = parseClaim(c.body, c.labels);
     if (intersects(myFiles, active)) continue;
+
+    const myClaimsRootConfig = claimsRootConfig(myFiles);
+    if (myClaimsRootConfig && rootConfigInFlight) {
+      console.log(`#${c.number}: skipping — another root-config issue already in flight`);
+      continue;
+    }
 
     try {
       await octokit.actions.createWorkflowDispatch({
@@ -300,6 +356,7 @@ async function dispatchParallel(issues: IssueLite[]): Promise<void> {
       // Pre-claim before next iteration so we don't dispatch overlapping siblings
       // in the same pass.
       for (const f of myFiles) active.add(f);
+      if (myClaimsRootConfig) rootConfigInFlight = true;
       // Optimistically flip lifecycle so subsequent passes don't double-dispatch.
       await setLifecycle(c, 'lifecycle:in-progress');
       await octokit.issues.addLabels({
