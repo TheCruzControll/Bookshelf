@@ -1,0 +1,65 @@
+name: e2e-web
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "packages/domain/**"
+      - "apps/api/**"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "packages/domain/**"
+      - "apps/api/**"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hone
+          POSTGRES_PASSWORD: hone
+          POSTGRES_DB: hone
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://hone:hone@localhost:5432/hone
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable corepack
+        run: corepack enable
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm --filter @hone/web exec playwright install --with-deps chromium
+      - name: Build web
+        run: pnpm --filter @hone/web build
+      - name: Start web server
+        run: pnpm --filter @hone/web exec next start &
+        env:
+          PORT: 3000
+      - name: Wait for server
+        run: npx wait-on http://localhost:3000 --timeout 30000
+      - name: Run Playwright e2e tests
+        run: pnpm --filter @hone/web e2e:ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
