@@ -118,6 +118,29 @@ render, every search result, and every contacts-match surface.
   AI/ML in v1.
 - **Sentiment.** Use score on ranked book as sentiment proxy; do not parse
   review text.
+- **Initial weights (v1, hand-tuned, will be revised after real-data
+  observation).** Final score is the sum of all signal contributions:
+
+  | Signal | Weight | Notes |
+  |---|---|---|
+  | `mutual_avg_score` | 0.30 | Average score from mutuals who finished the book; only meaningful with ≥1 mutual finish |
+  | `mutual_finished_count` | 0.25 | Count of mutuals who finished it; saturates at 5+ |
+  | `taste_overlap` | 0.25 | Cosine similarity between viewer and book on shared ranked-book scores |
+  | `genre_match` | 0.10 | 1.0 if book has ≥1 of viewer's top-3 genres, else 0 |
+  | `recency` | 0.05 | Decay function over days-since-book-added-to-Hone, max ~0.05 fresh, near 0 after ~6 months |
+  | `popularity_floor` | gate | Book must have ≥3 Hone readers to enter candidate pool; not weighted, just a filter |
+
+- **Reason copy mapped to dominant signal:**
+
+  | Dominant signal | Copy |
+  |---|---|
+  | `mutual_avg_score` | `Your mutuals rated this <X.X> on average` |
+  | `mutual_finished_count` | `<N> of your mutuals finished this` |
+  | `taste_overlap` | `Matches your taste in books you've ranked highly` |
+  | `genre_match` | `In your top genre: <genre>` |
+  | `recency` | `Recently added to Hone` |
+  | cold-start fallback | `Popular among Hone readers right now` |
+
 
 ### Lists
 
