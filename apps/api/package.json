@@ -21,6 +21,7 @@
     "@hono/trpc-server": "^0.4.2",
     "@trpc/server": "^11.0.0",
     "hono": "^4.8.0",
+    "libphonenumber-js": "^1.13.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {

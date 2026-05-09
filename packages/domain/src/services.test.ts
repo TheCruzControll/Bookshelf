@@ -261,7 +261,8 @@ describe("AppServices", () => {
       imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
       contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
       lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
-      sessions: { create: vi.fn(), findById: vi.fn(), deleteById: vi.fn(), deleteAllForUser: vi.fn() }
+      sessions: { create: vi.fn(), findById: vi.fn(), deleteById: vi.fn(), deleteAllForUser: vi.fn() },
+      phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), delete: vi.fn(), deleteExpired: vi.fn(), storeVerifiedPhone: vi.fn() }
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null)
@@ -407,6 +408,7 @@ describe("RankingService", () => {
     };
     const rankingsRepo: RankingRepository = {
       upsert: vi.fn(),
+      findById: vi.fn(),
       findByOwnerAndBook: vi.fn(),
       listByOwner: vi.fn(),
       delete: vi.fn(),

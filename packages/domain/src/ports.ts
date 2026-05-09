@@ -13,6 +13,7 @@ import type {
   ListItem,
   NotificationPlatform,
   NotificationToken,
+  PhoneVerification,
   Ranking,
   FeedItem,
   Profile,
@@ -239,6 +240,23 @@ export interface SessionRepository {
   deleteAllForUser(userId: EntityId): Promise<void>;
 }
 
+export interface PhoneVerificationRepository {
+  upsert(input: {
+    phoneE164: string;
+    codeHash: string;
+    expiresAt: Date;
+  }): Promise<PhoneVerification>;
+  findByPhone(phoneE164: string): Promise<PhoneVerification | null>;
+  incrementAttempts(phoneE164: string): Promise<PhoneVerification | null>;
+  delete(phoneE164: string): Promise<void>;
+  deleteExpired(): Promise<void>;
+  storeVerifiedPhone(input: { profileId: EntityId; e164Hash: string }): Promise<void>;
+}
+
+export interface SmsProvider {
+  sendOtp(input: { to: string; code: string }): Promise<void>;
+}
+
 export interface AppRepositories {
   profiles: ProfileRepository;
   books: BookRepository;
@@ -254,6 +272,7 @@ export interface AppRepositories {
   contacts: ContactsRepository;
   lists: ListRepository;
   sessions: SessionRepository;
+  phoneVerifications: PhoneVerificationRepository;
 }
 
 export interface BlockFilter {

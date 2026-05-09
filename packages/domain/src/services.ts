@@ -1,13 +1,16 @@
+import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import type {
   ActivityRepository,
   AppRepositories,
   AuthProvider,
+  PhoneVerificationRepository,
   ProfileRepository,
   RankingRepository,
   ReviewRepository,
-  ShelfRepository
+  ShelfRepository,
+  SmsProvider
 } from "./ports";
-import type { EntityId, Profile, Ranking, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { EntityId, PhoneVerification, Profile, Ranking, Review, Shelf, ShelfItem, Visibility } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -268,16 +271,98 @@ export class ReviewService {
   }
 }
 
+export const PHONE_OTP_TTL_MS = 10 * 60 * 1000;
+export const PHONE_OTP_MAX_ATTEMPTS = 5;
+
+export function hashOtp(code: string): string {
+  return createHash("sha256").update(code).digest("hex");
+}
+
+export function generateOtpCode(): string {
+  return String(randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+export class PhoneVerifyService {
+  constructor(
+    private readonly phoneVerifications: PhoneVerificationRepository,
+    private readonly sms: SmsProvider
+  ) {}
+
+  async startVerify(input: {
+    profileId: EntityId;
+    phoneE164: string;
+  }): Promise<PhoneVerification> {
+    const code = generateOtpCode();
+    const codeHash = hashOtp(code);
+    const expiresAt = new Date(Date.now() + PHONE_OTP_TTL_MS);
+
+    const verification = await this.phoneVerifications.upsert({
+      phoneE164: input.phoneE164,
+      codeHash,
+      expiresAt,
+    });
+
+    await this.sms.sendOtp({ to: input.phoneE164, code });
+
+    return verification;
+  }
+
+  async confirmVerify(input: {
+    profileId: EntityId;
+    phoneE164: string;
+    code: string;
+  }): Promise<{ verified: boolean }> {
+    const verification = await this.phoneVerifications.findByPhone(input.phoneE164);
+
+    if (!verification) {
+      return { verified: false };
+    }
+
+    if (verification.expiresAt < new Date()) {
+      await this.phoneVerifications.delete(input.phoneE164);
+      return { verified: false };
+    }
+
+    if (verification.attempts >= PHONE_OTP_MAX_ATTEMPTS) {
+      return { verified: false };
+    }
+
+    const candidateHash = Buffer.from(hashOtp(input.code), "hex");
+    const storedHash = Buffer.from(verification.codeHash, "hex");
+
+    let match = false;
+    if (candidateHash.length === storedHash.length) {
+      match = timingSafeEqual(candidateHash, storedHash);
+    }
+
+    if (!match) {
+      await this.phoneVerifications.incrementAttempts(input.phoneE164);
+      return { verified: false };
+    }
+
+    const e164Hash = createHash("sha256").update(input.phoneE164).digest("hex");
+    await this.phoneVerifications.storeVerifiedPhone({
+      profileId: input.profileId,
+      e164Hash,
+    });
+    await this.phoneVerifications.delete(input.phoneE164);
+
+    return { verified: true };
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
   readonly rankings: RankingService;
   readonly reviews: ReviewService;
+  readonly phoneVerify: PhoneVerifyService;
 
   constructor(
     readonly repositories: AppRepositories,
-    readonly auth: AuthProvider
+    readonly auth: AuthProvider,
+    readonly sms?: SmsProvider
   ) {
     this.shelves = new ShelfService(
       repositories.shelves,
@@ -292,6 +377,14 @@ export class AppServices {
     this.reviews = new ReviewService(
       repositories.reviews,
       repositories.activity
+    );
+    this.phoneVerify = new PhoneVerifyService(
+      repositories.phoneVerifications,
+      sms ?? {
+        sendOtp: async () => {
+          throw new Error("SMS provider not configured");
+        },
+      }
     );
   }
 }

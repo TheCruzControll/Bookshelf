@@ -68,6 +68,9 @@ importers:
       hono:
         specifier: ^4.8.0
         version: 4.12.18
+      libphonenumber-js:
+        specifier: ^1.13.0
+        version: 1.13.0
       zod:
         specifier: ^3.25.0
         version: 3.25.76
@@ -4019,6 +4022,9 @@ packages:
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
+
+  libphonenumber-js@1.13.0:
+    resolution: {integrity: sha512-N12qmdu0BM1wVNkMKYOoJR4fTOZDblrKNsOqGbKoUZrYsYLX2zx1O5X+vhK0WJPBU/+/kh9tCr8x0a7t1puGWg==}
 
   lighthouse-logger@1.4.2:
     resolution: {integrity: sha512-gPWxznF6TKmUHrOQjlVo2UbaL2EJ71mb2CCeRs/2qBpi4L/g4LUVc9+3lKQ6DTUZwJswfM7ainGrLO1+fOqa2g==}
@@ -9603,6 +9609,8 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
       type-check: 0.4.0
+
+  libphonenumber-js@1.13.0: {}
 
   lighthouse-logger@1.4.2:
     dependencies:

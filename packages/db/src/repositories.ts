@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, lt, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -11,6 +11,7 @@ import type {
   ImportRepository,
   ListRepository,
   NotificationRepository,
+  PhoneVerificationRepository,
   ProfileRepository,
   RankingRepository,
   Recommendation,
@@ -27,6 +28,8 @@ import {
   editions,
   follows,
   imports,
+  phoneNumbers,
+  phoneVerifications,
   profiles,
   recommendationScores,
   reviews,
@@ -38,6 +41,8 @@ import {
   toBook,
   toEdition,
   toImport,
+  toPhoneNumber,
+  toPhoneVerification,
   toProfile,
   toReview,
   toShelf,
@@ -483,6 +488,84 @@ class DrizzleSessionRepository implements SessionRepository {
   async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
 }
 
+class DrizzlePhoneVerificationRepository implements PhoneVerificationRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async upsert(input: { phoneE164: string; codeHash: string; expiresAt: Date }) {
+    const [row] = await this.db
+      .insert(phoneVerifications)
+      .values({
+        phoneE164: input.phoneE164,
+        codeHash: input.codeHash,
+        attempts: 0,
+        expiresAt: input.expiresAt,
+      })
+      .onConflictDoUpdate({
+        target: phoneVerifications.phoneE164,
+        set: {
+          codeHash: input.codeHash,
+          attempts: 0,
+          expiresAt: input.expiresAt,
+        },
+      })
+      .returning();
+    if (!row) throw new Error("Failed to upsert phone verification");
+    return toPhoneVerification(row);
+  }
+
+  async findByPhone(phoneE164: string) {
+    const row = await this.db.query.phoneVerifications.findFirst({
+      where: eq(phoneVerifications.phoneE164, phoneE164),
+    });
+    return row ? toPhoneVerification(row) : null;
+  }
+
+  async incrementAttempts(phoneE164: string) {
+    const existing = await this.findByPhone(phoneE164);
+    if (!existing) return null;
+    const [row] = await this.db
+      .update(phoneVerifications)
+      .set({ attempts: existing.attempts + 1 })
+      .where(eq(phoneVerifications.phoneE164, phoneE164))
+      .returning();
+    return row ? toPhoneVerification(row) : null;
+  }
+
+  async delete(phoneE164: string) {
+    await this.db
+      .delete(phoneVerifications)
+      .where(eq(phoneVerifications.phoneE164, phoneE164));
+  }
+
+  async deleteExpired() {
+    await this.db
+      .delete(phoneVerifications)
+      .where(lt(phoneVerifications.expiresAt, new Date()));
+  }
+
+  async storeVerifiedPhone(input: { profileId: EntityId; e164Hash: string }) {
+    const existing = await this.db.query.phoneNumbers.findFirst({
+      where: eq(phoneNumbers.profileId, input.profileId),
+    });
+    if (existing) {
+      await this.db
+        .update(phoneNumbers)
+        .set({ e164Hash: input.e164Hash })
+        .where(eq(phoneNumbers.profileId, input.profileId));
+    } else {
+      await this.db.insert(phoneNumbers).values({
+        profileId: input.profileId,
+        e164Hash: input.e164Hash,
+      });
+    }
+    const row = await this.db.query.phoneNumbers.findFirst({
+      where: eq(phoneNumbers.profileId, input.profileId),
+    });
+    if (!row) throw new Error("Failed to store verified phone");
+    toPhoneNumber(row);
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -499,6 +582,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     contacts: new DrizzleContactsRepository(db),
     lists: new DrizzleListRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    phoneVerifications: new DrizzlePhoneVerificationRepository(db),
   };
 }
 
