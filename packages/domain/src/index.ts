@@ -1,3 +1,4 @@
+export * from "./affiliate";
 export * from "./isbn";
 export * from "./lww";
 export * from "./ports";
