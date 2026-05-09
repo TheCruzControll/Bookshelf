@@ -6,6 +6,7 @@ import { AppServices } from "@hone/domain";
 import { clearSentryUser, setSentryUser } from "@hone/observability";
 import { createTrpcContext } from "./trpc/context";
 import { appRouter } from "./trpc/router";
+import { requestIdMiddleware, accessLogMiddleware, otelHook } from "./middleware";
 
 export interface ApiDependencies {
   repositories?: AppRepositories;
@@ -21,6 +22,10 @@ const addBookSchema = z.object({
 
 export function createApi(dependencies: ApiDependencies = {}) {
   const app = new Hono();
+
+  app.use("*", requestIdMiddleware());
+  app.use("*", otelHook());
+  app.use("*", accessLogMiddleware());
 
   app.use("*", async (c, next) => {
     if (dependencies.auth) {
