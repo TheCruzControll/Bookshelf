@@ -11,6 +11,7 @@ import type {
   ShelfItem,
   Visibility
 } from "./types";
+import type { ViewerContext } from "./visibility";
 
 export interface AuthIdentity {
   userId: EntityId;
@@ -86,6 +87,15 @@ export interface RecommendationRepository {
   getForUser(userId: EntityId, limit: number): Promise<Recommendation[]>;
 }
 
+export interface BlockFilter {
+  removeBlocked<T extends { id: EntityId }>(viewerId: EntityId, items: T[]): Promise<T[]>;
+  isBlocked(viewerId: EntityId, targetId: EntityId): Promise<boolean>;
+}
+
+export interface FollowRepository {
+  getViewerContext(viewerId: EntityId | null, targetId: EntityId): Promise<ViewerContext>;
+}
+
 export interface AppRepositories {
   profiles: ProfileRepository;
   books: BookRepository;
@@ -93,4 +103,6 @@ export interface AppRepositories {
   reviews: ReviewRepository;
   activity: ActivityRepository;
   recommendations: RecommendationRepository;
+  follows: FollowRepository;
+  blockFilter: BlockFilter;
 }
