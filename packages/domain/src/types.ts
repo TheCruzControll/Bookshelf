@@ -293,3 +293,17 @@ export interface PhoneNumber {
   profileId: EntityId;
   e164Hash: string;
 }
+
+export interface ContactIndex {
+  profileId: EntityId;
+  contactHash: string;
+  saltVersion: number;
+  expiresAt: Date;
+}
+
+export interface EmailIndex {
+  profileId: EntityId;
+  emailHash: string;
+  saltVersion: number;
+  expiresAt: Date;
+}
