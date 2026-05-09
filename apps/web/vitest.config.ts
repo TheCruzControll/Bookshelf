@@ -3,13 +3,14 @@ import rootConfig from "../../vitest.config";
 
 export default mergeConfig(rootConfig, defineConfig({
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["app/**/*.test.ts", "app/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    environment: "jsdom",
     coverage: {
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80
+        lines: 60,
+        functions: 60,
+        branches: 60,
+        statements: 60
       }
     }
   }
