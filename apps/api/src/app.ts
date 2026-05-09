@@ -4,12 +4,22 @@ import { z } from "zod";
 import type { AppRepositories, AuthProvider } from "@hone/domain";
 import { AppServices } from "@hone/domain";
 import { clearSentryUser, setSentryUser } from "@hone/observability";
+import { MemoryCache } from "@hone/cache";
+import type { Cache } from "@hone/cache";
 import { createTrpcContext } from "./trpc/context";
 import { appRouter } from "./trpc/router";
+import { createRateLimiter } from "./trpc/rate-limiter";
+import type { RateLimitConfig } from "./trpc/rate-limiter";
 
 export interface ApiDependencies {
   repositories?: AppRepositories;
   auth?: AuthProvider;
+  cache?: Cache;
+  rateLimitConfigs?: {
+    auth?: RateLimitConfig;
+    search?: RateLimitConfig;
+    write?: RateLimitConfig;
+  };
 }
 
 const addBookSchema = z.object({
@@ -21,6 +31,9 @@ const addBookSchema = z.object({
 
 export function createApi(dependencies: ApiDependencies = {}) {
   const app = new Hono();
+
+  const cache = dependencies.cache ?? new MemoryCache();
+  const rateLimiter = createRateLimiter(cache, dependencies.rateLimitConfigs ?? {});
 
   app.use("*", async (c, next) => {
     if (dependencies.auth) {
@@ -44,6 +57,10 @@ export function createApi(dependencies: ApiDependencies = {}) {
       service: "hone-api"
     })
   );
+
+  app.use("/trpc/:proc{auth\\..*}", rateLimiter("auth"));
+  app.use("/trpc/:proc{search\\..*}", rateLimiter("search"));
+  app.use("/trpc/:proc{write\\..*}", rateLimiter("write"));
 
   app.use(
     "/trpc/*",
@@ -72,4 +89,3 @@ export function createApi(dependencies: ApiDependencies = {}) {
 }
 
 export type HoneApi = ReturnType<typeof createApi>;
-
