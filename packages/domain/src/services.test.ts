@@ -84,7 +84,15 @@ describe("AppServices", () => {
       shelves: { listShelves: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn() },
       reviews: { create: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn() },
-      recommendations: { getForUser: vi.fn() }
+      recommendations: { getForUser: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
+      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), isBlocked: vi.fn() },
+      rankings: { upsert: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn() },
+      notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForUser: vi.fn() },
+      imports: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
+      contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+      lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
+      sessions: { create: vi.fn(), findById: vi.fn(), deleteById: vi.fn(), deleteAllForUser: vi.fn() }
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null)

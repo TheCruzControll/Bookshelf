@@ -2,13 +2,21 @@ import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
+  BlockRepository,
   BookRepository,
+  ContactsRepository,
   EntityId,
   FeedItem,
+  FollowRepository,
+  ImportRepository,
+  ListRepository,
+  NotificationRepository,
   ProfileRepository,
+  RankingRepository,
   Recommendation,
   RecommendationRepository,
   ReviewRepository,
+  SessionRepository,
   ShelfRepository
 } from "@hone/domain";
 import type { HoneDb } from "./client";
@@ -16,7 +24,7 @@ import {
   activityEvents,
   books,
   editions,
-  friendships,
+  follows,
   profiles,
   recommendationScores,
   reviews,
@@ -159,27 +167,12 @@ export class DrizzleActivityRepository implements ActivityRepository {
   }
 
   async getFriendFeed(input: Parameters<ActivityRepository["getFriendFeed"]>[0]) {
-    const friendRows = await this.db
-      .select({
-        requesterId: friendships.requesterId,
-        addresseeId: friendships.addresseeId
-      })
-      .from(friendships)
-      .where(
-        and(
-          eq(friendships.status, "accepted"),
-          or(
-            eq(friendships.requesterId, input.viewerId),
-            eq(friendships.addresseeId, input.viewerId)
-          )
-        )
-      );
+    const followRows = await this.db
+      .select({ followeeId: follows.followeeId })
+      .from(follows)
+      .where(eq(follows.followerId, input.viewerId));
 
-    const friendIds = friendRows.map((friendship) =>
-      friendship.requesterId === input.viewerId
-        ? friendship.addresseeId
-        : friendship.requesterId
-    );
+    const friendIds = followRows.map((row) => row.followeeId);
 
     if (friendIds.length === 0) {
       return [];
@@ -235,6 +228,78 @@ export class DrizzleRecommendationRepository
   }
 }
 
+class DrizzleFollowRepository implements FollowRepository {
+  constructor(private readonly db: HoneDb) {}
+  async follow(): Promise<never> { throw new Error("not implemented"); }
+  async unfollow(): Promise<void> { throw new Error("not implemented"); }
+  async findFollow(): Promise<null> { throw new Error("not implemented"); }
+  async listFollowers(): Promise<never[]> { throw new Error("not implemented"); }
+  async listFollowing(): Promise<never[]> { throw new Error("not implemented"); }
+  async isMutual(): Promise<boolean> { throw new Error("not implemented"); }
+}
+
+class DrizzleBlockRepository implements BlockRepository {
+  constructor(private readonly db: HoneDb) {}
+  async block(): Promise<never> { throw new Error("not implemented"); }
+  async unblock(): Promise<void> { throw new Error("not implemented"); }
+  async findBlock(): Promise<null> { throw new Error("not implemented"); }
+  async listBlockedByUser(): Promise<never[]> { throw new Error("not implemented"); }
+  async isBlocked(): Promise<boolean> { throw new Error("not implemented"); }
+}
+
+class DrizzleRankingRepository implements RankingRepository {
+  constructor(private readonly db: HoneDb) {}
+  async upsert(): Promise<never> { throw new Error("not implemented"); }
+  async findByOwnerAndBook(): Promise<null> { throw new Error("not implemented"); }
+  async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
+  async delete(): Promise<void> { throw new Error("not implemented"); }
+}
+
+class DrizzleNotificationRepository implements NotificationRepository {
+  constructor(private readonly db: HoneDb) {}
+  async registerToken(): Promise<never> { throw new Error("not implemented"); }
+  async removeToken(): Promise<void> { throw new Error("not implemented"); }
+  async listTokensForUser(): Promise<never[]> { throw new Error("not implemented"); }
+}
+
+class DrizzleImportRepository implements ImportRepository {
+  constructor(private readonly db: HoneDb) {}
+  async create(): Promise<never> { throw new Error("not implemented"); }
+  async findById(): Promise<null> { throw new Error("not implemented"); }
+  async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
+  async updateStatus(): Promise<never> { throw new Error("not implemented"); }
+}
+
+class DrizzleContactsRepository implements ContactsRepository {
+  constructor(private readonly db: HoneDb) {}
+  async upsertHashes(): Promise<void> { throw new Error("not implemented"); }
+  async findMatches(): Promise<never[]> { throw new Error("not implemented"); }
+  async deleteForUser(): Promise<void> { throw new Error("not implemented"); }
+  async deleteExpired(): Promise<void> { throw new Error("not implemented"); }
+  async listByUser(): Promise<never[]> { throw new Error("not implemented"); }
+}
+
+class DrizzleListRepository implements ListRepository {
+  constructor(private readonly db: HoneDb) {}
+  async create(): Promise<never> { throw new Error("not implemented"); }
+  async findById(): Promise<null> { throw new Error("not implemented"); }
+  async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
+  async update(): Promise<never> { throw new Error("not implemented"); }
+  async delete(): Promise<void> { throw new Error("not implemented"); }
+  async addItem(): Promise<never> { throw new Error("not implemented"); }
+  async removeItem(): Promise<void> { throw new Error("not implemented"); }
+  async listItems(): Promise<never[]> { throw new Error("not implemented"); }
+  async reorderItems(): Promise<void> { throw new Error("not implemented"); }
+}
+
+class DrizzleSessionRepository implements SessionRepository {
+  constructor(private readonly db: HoneDb) {}
+  async create(): Promise<never> { throw new Error("not implemented"); }
+  async findById(): Promise<null> { throw new Error("not implemented"); }
+  async deleteById(): Promise<void> { throw new Error("not implemented"); }
+  async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -242,7 +307,15 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     shelves: new DrizzleShelfRepository(db),
     reviews: new DrizzleReviewRepository(db),
     activity: new DrizzleActivityRepository(db),
-    recommendations: new DrizzleRecommendationRepository(db)
+    recommendations: new DrizzleRecommendationRepository(db),
+    follows: new DrizzleFollowRepository(db),
+    blocks: new DrizzleBlockRepository(db),
+    rankings: new DrizzleRankingRepository(db),
+    notifications: new DrizzleNotificationRepository(db),
+    imports: new DrizzleImportRepository(db),
+    contacts: new DrizzleContactsRepository(db),
+    lists: new DrizzleListRepository(db),
+    sessions: new DrizzleSessionRepository(db),
   };
 }
 
