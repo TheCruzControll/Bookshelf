@@ -211,8 +211,16 @@ export interface ContactsHash {
 }
 
 export interface Session {
-  id: EntityId;
-  userId: EntityId;
+  tokenHash: string;
+  profileId: EntityId;
   createdAt: Date;
   expiresAt: Date;
+  revokedAt?: Date | undefined;
+}
+
+export interface AuthIdentity {
+  provider: string;
+  providerUserId: string;
+  profileId: EntityId;
+  createdAt: Date;
 }

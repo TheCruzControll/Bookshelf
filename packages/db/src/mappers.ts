@@ -1,18 +1,22 @@
 import type {
   ActivityEvent,
+  AuthIdentity,
   Book,
   Edition,
   Profile,
   Review,
+  Session,
   Shelf,
   ShelfItem
 } from "@hone/domain";
 import type {
   activityEvents,
+  authIdentities,
   books,
   editions,
   profiles,
   reviews,
+  sessions,
   shelfItems,
   shelves
 } from "./schema";
@@ -24,6 +28,8 @@ type ShelfRow = typeof shelves.$inferSelect;
 type ShelfItemRow = typeof shelfItems.$inferSelect;
 type ReviewRow = typeof reviews.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
+type AuthIdentityRow = typeof authIdentities.$inferSelect;
+type SessionRow = typeof sessions.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -115,6 +121,25 @@ export function toActivityEvent(row: ActivityRow): ActivityEvent {
     reviewId: row.reviewId ?? undefined,
     visibility: row.visibility,
     occurredAt: row.occurredAt
+  };
+}
+
+export function toAuthIdentity(row: AuthIdentityRow): AuthIdentity {
+  return {
+    provider: row.provider,
+    providerUserId: row.providerUserId,
+    profileId: row.profileId,
+    createdAt: row.createdAt
+  };
+}
+
+export function toSession(row: SessionRow): Session {
+  return {
+    tokenHash: row.tokenHash,
+    profileId: row.profileId,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    revokedAt: row.revokedAt ?? undefined
   };
 }
 

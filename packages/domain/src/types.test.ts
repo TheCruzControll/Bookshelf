@@ -252,8 +252,8 @@ describe("domain types smoke test", () => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const session: Session = {
-      id: "00000000-0000-0000-0000-000000000018",
-      userId: "00000000-0000-0000-0000-000000000001",
+      tokenHash: "abc123hashvalue",
+      profileId: "00000000-0000-0000-0000-000000000001",
       createdAt: now,
       expiresAt,
     };

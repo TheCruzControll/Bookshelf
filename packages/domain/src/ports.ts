@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  AuthIdentity,
   Block,
   Book,
   ContactsHash,
@@ -24,13 +25,13 @@ import type {
   Visibility
 } from "./types";
 
-export interface AuthIdentity {
+export interface OAuthIdentity {
   userId: EntityId;
   email?: string;
 }
 
 export interface AuthProvider {
-  getCurrentIdentity(): Promise<AuthIdentity | null>;
+  getCurrentIdentity(): Promise<OAuthIdentity | null>;
 }
 
 export interface StorageProvider {
@@ -196,13 +197,23 @@ export interface ListRepository {
 
 export interface SessionRepository {
   create(input: {
-    id: EntityId;
-    userId: EntityId;
+    tokenHash: string;
+    profileId: EntityId;
     expiresAt: Date;
   }): Promise<Session>;
-  findById(id: EntityId): Promise<Session | null>;
-  deleteById(id: EntityId): Promise<void>;
-  deleteAllForUser(userId: EntityId): Promise<void>;
+  findByTokenHash(tokenHash: string): Promise<Session | null>;
+  revokeByTokenHash(tokenHash: string): Promise<void>;
+  revokeAllForProfile(profileId: EntityId): Promise<void>;
+}
+
+export interface AuthIdentityRepository {
+  create(input: {
+    provider: string;
+    providerUserId: string;
+    profileId: EntityId;
+  }): Promise<AuthIdentity>;
+  findByProvider(input: { provider: string; providerUserId: string }): Promise<AuthIdentity | null>;
+  listByProfile(profileId: EntityId): Promise<AuthIdentity[]>;
 }
 
 export interface AppRepositories {
@@ -220,4 +231,5 @@ export interface AppRepositories {
   contacts: ContactsRepository;
   lists: ListRepository;
   sessions: SessionRepository;
+  authIdentities: AuthIdentityRepository;
 }

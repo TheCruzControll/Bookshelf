@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toReview, toShelf } from "./mappers";
+import { toAuthIdentity, toBook, toProfile, toReview, toSession, toShelf } from "./mappers";
 import type { Visibility } from "@hone/domain";
-import { follows } from "./schema";
+import { authIdentities, follows, sessions } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -149,5 +149,88 @@ describe("follows table schema", () => {
   it("follows table does not have a surrogate id column", () => {
     const cols = Object.keys(follows);
     expect(cols).not.toContain("id");
+  });
+});
+
+describe("auth_identities table schema", () => {
+  it("auth_identities table has provider, providerUserId, and profileId columns", () => {
+    const cols = Object.keys(authIdentities);
+    expect(cols).toContain("provider");
+    expect(cols).toContain("providerUserId");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("createdAt");
+  });
+
+  it("auth_identities table does not have a surrogate id column", () => {
+    const cols = Object.keys(authIdentities);
+    expect(cols).not.toContain("id");
+  });
+});
+
+describe("sessions table schema", () => {
+  it("sessions table has tokenHash, profileId, expiresAt, and revokedAt columns", () => {
+    const cols = Object.keys(sessions);
+    expect(cols).toContain("tokenHash");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("expiresAt");
+    expect(cols).toContain("revokedAt");
+    expect(cols).toContain("createdAt");
+  });
+
+  it("sessions table uses tokenHash as primary key, not a uuid id", () => {
+    const cols = Object.keys(sessions);
+    expect(cols).not.toContain("id");
+    expect(cols).toContain("tokenHash");
+  });
+});
+
+describe("toAuthIdentity mapper", () => {
+  it("maps a row to an AuthIdentity domain object", () => {
+    const now = new Date();
+    const row = {
+      provider: "apple",
+      providerUserId: "apple-sub-123",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      createdAt: now
+    };
+    const identity = toAuthIdentity(row as Parameters<typeof toAuthIdentity>[0]);
+    expect(identity.provider).toBe("apple");
+    expect(identity.providerUserId).toBe("apple-sub-123");
+    expect(identity.profileId).toBe("00000000-0000-0000-0000-000000000001");
+    expect(identity.createdAt).toBe(now);
+  });
+});
+
+describe("toSession mapper", () => {
+  it("maps a row to a Session domain object", () => {
+    const now = new Date();
+    const expires = new Date(now.getTime() + 86400 * 1000);
+    const row = {
+      tokenHash: "abc123hash",
+      profileId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now,
+      expiresAt: expires,
+      revokedAt: null
+    };
+    const session = toSession(row as Parameters<typeof toSession>[0]);
+    expect(session.tokenHash).toBe("abc123hash");
+    expect(session.profileId).toBe("00000000-0000-0000-0000-000000000002");
+    expect(session.expiresAt).toBe(expires);
+    expect(session.revokedAt).toBeUndefined();
+  });
+
+  it("maps revokedAt when present", () => {
+    const now = new Date();
+    const expires = new Date(now.getTime() + 86400 * 1000);
+    const revoked = new Date(now.getTime() + 3600 * 1000);
+    const row = {
+      tokenHash: "def456hash",
+      profileId: "00000000-0000-0000-0000-000000000003",
+      createdAt: now,
+      expiresAt: expires,
+      revokedAt: revoked
+    };
+    const session = toSession(row as Parameters<typeof toSession>[0]);
+    expect(session.revokedAt).toBe(revoked);
   });
 });

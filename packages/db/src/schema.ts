@@ -285,3 +285,42 @@ export const recommendationScores = pgTable(
   })
 );
 
+export const authIdentities = pgTable(
+  "auth_identities",
+  {
+    provider: text("provider").notNull(),
+    providerUserId: text("provider_user_id").notNull(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    providerIdx: uniqueIndex("auth_identities_provider_idx").on(
+      table.provider,
+      table.providerUserId
+    ),
+    profileIdx: index("auth_identities_profile_idx").on(table.profileId)
+  })
+);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true })
+  },
+  (table) => ({
+    profileIdx: index("sessions_profile_idx").on(table.profileId)
+  })
+);
+
