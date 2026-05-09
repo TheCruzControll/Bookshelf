@@ -10,7 +10,8 @@ export default mergeConfig(rootConfig, defineConfig({
         "**/dist/**",
         "**/*.config.ts",
         "src/index.ts",
-        "src/ports.ts"
+        "src/ports.ts",
+        "src/types.ts"
       ],
       thresholds: {
         lines: 90,
