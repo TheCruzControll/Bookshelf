@@ -56,5 +56,6 @@
   { "name": "priority:p1", "color": "d93f0b", "description": "Important" },
   { "name": "priority:p2", "color": "fbca04", "description": "Nice-to-have" },
 
-  { "name": "needs-human", "color": "000000", "description": "Cycle, scope failure, or escalation" }
+  { "name": "needs-human", "color": "000000", "description": "Cycle, scope failure, or escalation" },
+  { "name": "needs-triage", "color": "f59e0b", "description": "Spec-watcher proposal — review and assign labels before it enters the DAG" }
 ]
