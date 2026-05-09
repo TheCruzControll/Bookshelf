@@ -57,38 +57,9 @@ export const profiles = pgTable(
   })
 );
 
-export const friendships = pgTable(
-  "friendships",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    requesterId: uuid("requester_id")
-      .notNull()
-      .references(() => profiles.id),
-    addresseeId: uuid("addressee_id")
-      .notNull()
-      .references(() => profiles.id),
-    status: text("status").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow()
-  },
-  (table) => ({
-    pairIdx: uniqueIndex("friendships_pair_idx").on(
-      table.requesterId,
-      table.addresseeId
-    ),
-    requesterIdx: index("friendships_requester_idx").on(table.requesterId),
-    addresseeIdx: index("friendships_addressee_idx").on(table.addresseeId)
-  })
-);
-
 export const follows = pgTable(
   "follows",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
     followerId: uuid("follower_id")
       .notNull()
       .references(() => profiles.id),
@@ -103,7 +74,9 @@ export const follows = pgTable(
     pairIdx: uniqueIndex("follows_pair_idx").on(
       table.followerId,
       table.followeeId
-    )
+    ),
+    followerIdx: index("follows_follower_idx").on(table.followerId),
+    followeeIdx: index("follows_followee_idx").on(table.followeeId)
   })
 );
 

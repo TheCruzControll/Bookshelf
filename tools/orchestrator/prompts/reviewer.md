@@ -32,6 +32,17 @@ Read before reviewing:
 
 Check, in order:
 
+0. **Literal acceptance-criteria match.** Extract every `- [ ]` line
+   from the linked issue body. For each one, find concrete evidence in
+   the diff that satisfies it WITH EXACT VALUES. If the AC says "domain
+   90%, db/api 80%, web/native 60%," the corresponding `vitest.config.ts`
+   thresholds must read exactly those numbers — not 50, not "close
+   enough," not deferred to a follow-up. If the AC names a specific file
+   path, that path must exist in the diff. If the AC quotes a string,
+   that string must appear verbatim. **Soft-matching, deferring, or
+   silently relaxing acceptance criteria is an automatic
+   request-changes.** Cite the exact AC line and the diff value side by
+   side in the inline comment.
 1. **Scope.** Does the diff implement only what the issue asks for? Flag
    any out-of-scope changes (refactors, "while I was here" cleanup, new
    features).
@@ -126,6 +137,12 @@ This signals to humans that the agent thinks it's mergeable.
 
 ## Hard rules
 
+- **Never approve a PR that fails the literal acceptance-criteria
+  check.** If the issue says "domain coverage threshold 90%" and the
+  PR sets it to 50%, that's a request-changes regardless of whether CI
+  is green. Approving such a PR would let the Implementer ratchet down
+  spec targets to whatever the codebase happens to pass today, which
+  defeats the point of having a spec.
 - Never approve a PR with no tests when one was expected by the issue's
   acceptance criteria.
 - Never approve a PR that introduces secrets, opens up unauthenticated
