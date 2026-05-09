@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  agent-tester:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:
@@ -97,11 +97,6 @@ jobs:
           # related to the diff, so a package with 1 changed source runs only
           # its associated tests.
           pnpm turbo run test --filter="${{ steps.scope.outputs.filter }}" -- --changed "origin/${{ github.event.pull_request.base.ref }}" 2>&1 | tee test.log
-      - name: List which tests ran
-        if: always() && steps.scope.outputs.doc_only != 'true'
-        run: |
-          echo "## Tests executed"
-          grep -E "^ ?(✓|×|FAIL|PASS|RUNS)" test.log || echo "No test markers found in log."
       - name: Comment summary on PR
         if: always()
         env:
@@ -118,8 +113,18 @@ jobs:
             echo "| typecheck (affected) | ${{ steps.typecheck.outcome || 'skipped' }} |"
             echo "| lint (affected) | ${{ steps.lint.outcome || 'skipped' }} |"
             echo "| test (affected, --changed) | ${{ steps.tests.outcome || 'skipped' }} |"
-            echo
             if [ -f test.log ]; then
+              echo
+              echo "**Tests executed:**"
+              TEST_NAMES=$(grep -E "^ ?(✓|×|FAIL|PASS|RUNS|●)" test.log || true)
+              if [ -n "$TEST_NAMES" ]; then
+                echo '```'
+                echo "$TEST_NAMES"
+                echo '```'
+              else
+                echo "_(no individual test names found in output)_"
+              fi
+              echo
               echo "<details><summary>Last 80 lines of test output</summary>"
               echo
               echo '```'
