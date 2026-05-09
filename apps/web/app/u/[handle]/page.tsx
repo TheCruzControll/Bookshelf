@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Profile, Shelf, Review } from "@hone/domain";
 import { isPubliclyVisible } from "../visibility";
 import { buildProfileMeta } from "../og-meta";
+import { fetchCurrentHandleForOldHandle } from "../handle-redirect";
 
 export const revalidate = 60;
 
@@ -36,6 +37,10 @@ export default async function UserProfilePage({ params }: Props) {
   const profile = await fetchProfile(handle);
 
   if (!profile) {
+    const currentHandle = await fetchCurrentHandleForOldHandle(handle);
+    if (currentHandle) {
+      redirect(`/u/${currentHandle}`);
+    }
     notFound();
   }
 

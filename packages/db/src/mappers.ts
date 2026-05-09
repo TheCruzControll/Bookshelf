@@ -5,6 +5,7 @@ import type {
   BlockAgainstHash,
   Book,
   Edition,
+  HandleHistory,
   Import,
   Profile,
   Ranking,
@@ -19,6 +20,7 @@ import type {
   blocksAgainstHash,
   books,
   editions,
+  handleHistory,
   imports,
   profiles,
   rankings,
@@ -189,6 +191,18 @@ export function toBlock(row: BlockRow): Block {
 export function toBlockAgainstHash(row: BlockAgainstHashRow): BlockAgainstHash {
   return {
     hash: row.hash,
+    expiresAt: row.expiresAt
+  };
+}
+
+type HandleHistoryRow = typeof handleHistory.$inferSelect;
+
+export function toHandleHistory(row: HandleHistoryRow): HandleHistory {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    oldHandle: row.oldHandle,
+    retiredAt: row.retiredAt,
     expiresAt: row.expiresAt
   };
 }

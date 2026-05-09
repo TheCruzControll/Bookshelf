@@ -269,3 +269,11 @@ export interface AccountDeletion {
   hardDeleteAfter: Date;
   exportedAt?: Date | undefined;
 }
+
+export interface HandleHistory {
+  id: EntityId;
+  profileId: EntityId;
+  oldHandle: string;
+  retiredAt: Date;
+  expiresAt: Date;
+}

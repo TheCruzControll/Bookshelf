@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, lte, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -8,6 +8,7 @@ import type {
   EntityId,
   FeedItem,
   FollowRepository,
+  HandleHistoryRepository,
   ImportRepository,
   ListRepository,
   NotificationRepository,
@@ -26,6 +27,7 @@ import {
   books,
   editions,
   follows,
+  handleHistory,
   profiles,
   recommendationScores,
   reviews,
@@ -36,6 +38,7 @@ import {
   toActivityEvent,
   toBook,
   toEdition,
+  toHandleHistory,
   toProfile,
   toReview,
   toShelf,
@@ -402,6 +405,49 @@ class DrizzleSessionRepository implements SessionRepository {
   async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
 }
 
+export class DrizzleHandleHistoryRepository implements HandleHistoryRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async record(input: Parameters<HandleHistoryRepository["record"]>[0]) {
+    const [row] = await this.db
+      .insert(handleHistory)
+      .values({
+        profileId: input.profileId,
+        oldHandle: input.oldHandle,
+        retiredAt: input.retiredAt,
+        expiresAt: input.expiresAt,
+      })
+      .returning();
+    if (!row) {
+      throw new Error("Failed to record handle history");
+    }
+    return toHandleHistory(row);
+  }
+
+  async findCurrentHandleByOldHandle(oldHandle: string) {
+    const now = new Date();
+    const rows = await this.db
+      .select({ currentHandle: profiles.handle })
+      .from(handleHistory)
+      .innerJoin(profiles, eq(handleHistory.profileId, profiles.id))
+      .where(
+        and(
+          eq(handleHistory.oldHandle, oldHandle.toLowerCase()),
+          gt(handleHistory.expiresAt, now)
+        )
+      )
+      .limit(1);
+    return rows[0]?.currentHandle ?? null;
+  }
+
+  async deleteExpired() {
+    const now = new Date();
+    await this.db
+      .delete(handleHistory)
+      .where(lte(handleHistory.expiresAt, now));
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -418,6 +464,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     contacts: new DrizzleContactsRepository(db),
     lists: new DrizzleListRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    handleHistory: new DrizzleHandleHistoryRepository(db),
   };
 }
 

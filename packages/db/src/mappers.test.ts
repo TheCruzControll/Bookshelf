@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toHandleHistory, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { blocks, blocksAgainstHash, follows, imports, rankings, shelves, tasteVectors } from "./schema";
+import { blocks, blocksAgainstHash, follows, handleHistory, imports, rankings, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -819,5 +819,50 @@ describe("blocks_against_hash table schema and mapper", () => {
     const diffMs = bah.expiresAt.getTime() - now.getTime();
     expect(diffMs).toBeGreaterThanOrEqual(ninetyDaysMs - 1000);
     expect(diffMs).toBeLessThanOrEqual(ninetyDaysMs + 1000);
+  });
+
+  it("handleHistory schema includes required columns", () => {
+    const cols = Object.keys(handleHistory);
+    expect(cols).toContain("id");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("oldHandle");
+    expect(cols).toContain("retiredAt");
+    expect(cols).toContain("expiresAt");
+  });
+
+  it("toHandleHistory maps a row to a HandleHistory domain object", () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 3 * 365 * 24 * 60 * 60 * 1000);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000099",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      oldHandle: "olduser",
+      retiredAt: now,
+      expiresAt,
+    };
+
+    const hh = toHandleHistory(row as Parameters<typeof toHandleHistory>[0]);
+    expect(hh.id).toBe(row.id);
+    expect(hh.profileId).toBe(row.profileId);
+    expect(hh.oldHandle).toBe("olduser");
+    expect(hh.retiredAt).toBe(now);
+    expect(hh.expiresAt).toBe(expiresAt);
+  });
+
+  it("toHandleHistory preserves multi-year expiry window", () => {
+    const now = new Date();
+    const threeYearsMs = 3 * 365 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(now.getTime() + threeYearsMs);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000099",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      oldHandle: "formerhandle",
+      retiredAt: now,
+      expiresAt,
+    };
+
+    const hh = toHandleHistory(row as Parameters<typeof toHandleHistory>[0]);
+    const diffMs = hh.expiresAt.getTime() - now.getTime();
+    expect(diffMs).toBeGreaterThanOrEqual(threeYearsMs - 1000);
   });
 });
