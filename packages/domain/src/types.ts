@@ -224,6 +224,30 @@ export interface ContactsHash {
   expiresAt: Date;
 }
 
+export interface GoodreadsRow {
+  bookId: string;
+  title: string;
+  author: string;
+  additionalAuthors: string[];
+  isbn10?: string | undefined;
+  isbn13?: string | undefined;
+  myRating: number;
+  averageRating: number;
+  publisher?: string | undefined;
+  binding?: string | undefined;
+  numberOfPages?: number | undefined;
+  yearPublished?: number | undefined;
+  originalPublicationYear?: number | undefined;
+  dateRead?: Date | undefined;
+  dateAdded?: Date | undefined;
+  bookshelves: string[];
+  exclusiveShelf?: string | undefined;
+  myReview?: string | undefined;
+  privateNotes?: string | undefined;
+  readCount: number;
+  status: ReadingStatus;
+}
+
 export interface Session {
   id: EntityId;
   userId: EntityId;
