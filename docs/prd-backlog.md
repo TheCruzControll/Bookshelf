@@ -255,6 +255,25 @@ Required order:
 - **Re-signup with same identifier inside grace = recovery.** Outside grace
   = fresh account, no content carry-over.
 
+### Manual Book Creation
+
+- **Required:** title (1–500 chars), at least one author (≤ 200 chars).
+- **Optional in v1:** ISBN-13 (or ISBN-10 auto-converted to ISBN-13),
+  first published year, description / blurb.
+- **Out of v1:** cover image upload (defer — moderation surface), page
+  count, publisher, language (English-only).
+- **Storage:** `source = 'manual'`, `created_by = <user_id>`. `Manual
+  entry` badge on Book Detail.
+- **No auto-merge with catalog.** If the same book later appears in
+  OL/GB, the manual record is not auto-replaced. The user keeps using
+  it or chooses the catalog version on a later search. Admin bulk-merge
+  tool deferred to post-v1.
+- **Visibility: public to all Hone users.** Bob can find and add Maya's
+  manual book entry. Spam risk is low at v1 scale (invite-driven user
+  base) and findability helps obscure books that aren't yet in OL/GB.
+  The user's content (review, score) is separate from the book record,
+  so this doesn't leak personal data.
+
 ### Affiliate Links (V1)
 
 - **Retailers shipped at v1:** Bookshop.org US, Bookshop.org UK,
