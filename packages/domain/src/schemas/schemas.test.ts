@@ -237,6 +237,7 @@ describe("ranking schemas", () => {
       bookId: UUID,
       body: "Excellent read",
       visibility: "public",
+      version: 1,
       createdAt: NOW,
       updatedAt: NOW,
     });
