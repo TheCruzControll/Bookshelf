@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, lte, ne, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -779,12 +779,10 @@ export class DrizzleContactsRepository implements ContactsRepository {
       .where(
         and(
           inArray(contactsIndex.contactHash, input.hashes),
-          eq(contactsIndex.profileId, input.excludeUserId)
+          ne(contactsIndex.profileId, input.excludeUserId)
         )
       );
-    return rows
-      .map((r) => r.profileId)
-      .filter((id) => id !== input.excludeUserId);
+    return rows.map((r) => r.profileId);
   }
 
   async deleteForUser(userId: EntityId) {
@@ -797,11 +795,7 @@ export class DrizzleContactsRepository implements ContactsRepository {
     const now = new Date();
     await this.db
       .delete(contactsIndex)
-      .where(
-        and(
-          eq(contactsIndex.expiresAt, now)
-        )
-      );
+      .where(lte(contactsIndex.expiresAt, now));
   }
 
   async listByUser(userId: EntityId) {
@@ -809,12 +803,13 @@ export class DrizzleContactsRepository implements ContactsRepository {
       .select()
       .from(contactsIndex)
       .where(eq(contactsIndex.profileId, userId));
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
     return rows.map(toContactIndex).map((ci) => ({
       id: `${ci.profileId}:${ci.contactHash}` as EntityId,
       userId: ci.profileId as EntityId,
       hash: ci.contactHash,
       saltVersion: ci.saltVersion,
-      createdAt: ci.expiresAt,
+      createdAt: new Date(ci.expiresAt.getTime() - NINETY_DAYS_MS),
       expiresAt: ci.expiresAt,
     }));
   }
