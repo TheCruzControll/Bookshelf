@@ -261,6 +261,29 @@ Required order:
 - **No realtime cross-device sync in v1.** No websockets. Refresh on app
   foreground / pull-to-refresh.
 
+### Genre Data
+
+- **Source:** OL `subjects` and GB `categories`, mapped through a
+  Hone-owned static mapping table to a controlled vocabulary of ~30
+  canonical genres (e.g. `Fiction`, `Sci-Fi`, `Fantasy`, `Romance`,
+  `Mystery`, `Horror`, `Literary Fiction`, `History`, `Biography`).
+  The mapping table is seeded from the top OL subjects + GB categories
+  in the catalog snapshot and grows over time. Books that don't map to
+  anything get the `Uncategorized` placeholder.
+- **No hard cap on genres per book.** A book carries every canonical
+  genre it maps to. In practice most books end up with 2–4 genres
+  because the mapping table collapses noisy near-duplicates.
+- **Normalized contribution in recommendation math.** Each genre signal
+  is weighted `1/N` where N = the book's total genre count, so
+  multi-genre books participate in more signals but weaker each, and
+  cannot single-handedly dominate any one taste profile.
+- **Primary genre.** Each mapping rule carries a confidence weight; a
+  book's primary genre is the one with the highest mapping confidence.
+  Used for "Popular in Your Top Genre" algorithmic list and as the
+  first-priority signal in ranking candidate selection.
+- **User's top genre = the most frequent primary genre across the
+  user's finished books.**
+
 ### Score Derivation (formula and ties)
 
 - **V1 formula: bucket-anchored linear interpolation.** Each star bucket
