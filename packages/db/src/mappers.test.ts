@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toBook, toProfile, toReview, toShelf } from "./mappers";
 import type { Visibility } from "@hone/domain";
+import { follows } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -134,5 +135,19 @@ describe("visibility 4-tier enum mapping", () => {
   it("schema default for activity_events is followers", () => {
     const expectedDefault: Visibility = "followers";
     expect(expectedDefault).toBe("followers");
+  });
+});
+
+describe("follows table schema", () => {
+  it("follows table has follower_id, followee_id, and created_at columns", () => {
+    const cols = Object.keys(follows);
+    expect(cols).toContain("followerId");
+    expect(cols).toContain("followeeId");
+    expect(cols).toContain("createdAt");
+  });
+
+  it("follows table does not have a surrogate id column", () => {
+    const cols = Object.keys(follows);
+    expect(cols).not.toContain("id");
   });
 });
