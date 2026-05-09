@@ -4,7 +4,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { createTrpcContext } from "./context";
 import { router } from "./trpc";
 import { authRouter } from "./auth";
-import type { AppRepositories, AuthIdentity, OAuthIdentity, Session } from "@hone/domain";
+import type { AppRepositories, AppleJwksProvider, AuthIdentity, OAuthIdentity, Session } from "@hone/domain";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -52,15 +52,16 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
   };
 }
 
-function buildApp(identity: AuthIdentity | null, repositories: AppRepositories) {
+function buildApp(identity: AuthIdentity | null, repositories: AppRepositories, jwksProvider?: AppleJwksProvider) {
   const testRouter = router({ auth: authRouter });
   const app = new Hono();
   const auth = { getCurrentIdentity: async () => identity };
+  const mockJwksProvider: AppleJwksProvider = jwksProvider ?? { fetchKeys: vi.fn().mockResolvedValue([]) };
   app.use(
     "/trpc/*",
     trpcServer({
       router: testRouter,
-      createContext: createTrpcContext({ repositories, auth }),
+      createContext: createTrpcContext({ repositories, auth, jwksProvider: mockJwksProvider, appleAudience: "com.hone.app" }),
     })
   );
   return app;
