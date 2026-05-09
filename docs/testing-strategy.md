@@ -34,14 +34,14 @@ filter, ranking math) lean heavily on unit + property tests; others
 
 | Package | Targets | Framework |
 |---|---|---|
-| `packages/domain` | pure functions, services with stubbed ports, schemas, the `VisibilityFilter`, ranking math, ISBN normalization, `Depends on:` parser | Vitest |
+| `packages/domain` | pure functions (visibility filter, ranking math, ISBN normalization, feed grouping), services with stubbed ports, schemas, `Depends on:` parser | Vitest + fast-check |
 | `packages/db` | mappers (row → domain), pure SQL builders, ISBN-13 helpers | Vitest |
 | `apps/api` | tRPC procedure handlers with mocked services, error mapping middleware, rate-limit logic | Vitest |
 | `apps/web` | React components rendered in isolation, hooks, utils | Vitest + @testing-library/react |
 | `apps/native` | React Native components, hooks, util modules | Vitest with `jsdom` env or `@testing-library/react-native` |
 
 **Property-based tests (fast-check):**
-- Visibility filter: for any (viewer, target, content_visibility), the filter result is consistent with the access matrix.
+- Visibility filter (implemented in `packages/domain/src/visibility.ts`): for any (viewer, target, content_visibility), the filter result is consistent with the Posture C access matrix; all four visibility tiers and all viewer relationships verified.
 - Block enforcement: blocked users never appear in any query result, regardless of input shape.
 - Ranking binary insertion: monotonic — inserting N books with deterministic comparisons produces the same ordering as a reference quicksort over the comparison oracle.
 - ISBN normalization: idempotent — `normalize(normalize(x)) == normalize(x)`; ISBN-10 and ISBN-13 forms of the same edition map to the same canonical key.
