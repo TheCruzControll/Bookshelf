@@ -204,6 +204,13 @@ function claimsSharedDomain(claim: Set<string>): boolean {
     let path = raw.startsWith(REPO_ROOT_PREFIX) ? raw.slice(REPO_ROOT_PREFIX.length) : raw;
     path = path.replace(/^\/+/, '');
     if (SHARED_DOMAIN_FILES.has(path)) return true;
+    // Directory claim (e.g. `packages/domain/` from area:domain fallback)
+    // covers any shared file living inside that directory.
+    if (path.endsWith('/')) {
+      for (const shared of SHARED_DOMAIN_FILES) {
+        if (shared.startsWith(path)) return true;
+      }
+    }
   }
   return false;
 }
