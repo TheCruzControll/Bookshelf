@@ -397,7 +397,10 @@ class DrizzleNotificationRepository implements NotificationRepository {
   constructor(private readonly db: HoneDb) {}
   async registerToken(): Promise<never> { throw new Error("not implemented"); }
   async removeToken(): Promise<void> { throw new Error("not implemented"); }
-  async listTokensForUser(): Promise<never[]> { throw new Error("not implemented"); }
+  async listTokensForProfile(): Promise<never[]> { throw new Error("not implemented"); }
+  async getSetting(): Promise<null> { throw new Error("not implemented"); }
+  async setSetting(): Promise<never> { throw new Error("not implemented"); }
+  async listSettings(): Promise<never[]> { throw new Error("not implemented"); }
 }
 
 class DrizzleImportRepository implements ImportRepository {

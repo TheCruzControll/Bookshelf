@@ -508,3 +508,48 @@ export const emailIndex = pgTable(
     expiresAtIdx: index("email_index_expires_at_idx").on(table.expiresAt)
   })
 );
+
+export const notificationPlatformEnum = pgEnum("notification_platform", [
+  "apns",
+  "fcm"
+]);
+
+export const notificationTokens = pgTable(
+  "notification_tokens",
+  {
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    platform: notificationPlatformEnum("platform").notNull(),
+    token: text("token").notNull(),
+    lastSeen: timestamp("last_seen", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    pkIdx: uniqueIndex("notification_tokens_profile_platform_token_idx").on(
+      table.profileId,
+      table.platform,
+      table.token
+    ),
+    profileIdx: index("notification_tokens_profile_idx").on(table.profileId)
+  })
+);
+
+export const notificationSettings = pgTable(
+  "notification_settings",
+  {
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    key: text("key").notNull(),
+    value: jsonb("value").notNull()
+  },
+  (table) => ({
+    pkIdx: uniqueIndex("notification_settings_profile_key_idx").on(
+      table.profileId,
+      table.key
+    ),
+    profileIdx: index("notification_settings_profile_idx").on(table.profileId)
+  })
+);

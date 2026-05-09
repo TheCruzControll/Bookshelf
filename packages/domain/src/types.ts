@@ -210,12 +210,16 @@ export interface ListItem {
 }
 
 export interface NotificationToken {
-  id: EntityId;
-  userId: EntityId;
+  profileId: EntityId;
   platform: NotificationPlatform;
   token: string;
-  createdAt: Date;
-  updatedAt: Date;
+  lastSeen: Date;
+}
+
+export interface NotificationSetting {
+  profileId: EntityId;
+  key: string;
+  value: unknown;
 }
 
 export interface Import {

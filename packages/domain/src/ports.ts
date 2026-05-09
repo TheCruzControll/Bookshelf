@@ -12,6 +12,7 @@ import type {
   List,
   ListItem,
   NotificationPlatform,
+  NotificationSetting,
   NotificationToken,
   Ranking,
   FeedItem,
@@ -162,12 +163,15 @@ export interface RankingRepository {
 
 export interface NotificationRepository {
   registerToken(input: {
-    userId: EntityId;
+    profileId: EntityId;
     platform: NotificationPlatform;
     token: string;
   }): Promise<NotificationToken>;
-  removeToken(input: { userId: EntityId; token: string }): Promise<void>;
-  listTokensForUser(userId: EntityId): Promise<NotificationToken[]>;
+  removeToken(input: { profileId: EntityId; token: string }): Promise<void>;
+  listTokensForProfile(profileId: EntityId): Promise<NotificationToken[]>;
+  getSetting(input: { profileId: EntityId; key: string }): Promise<NotificationSetting | null>;
+  setSetting(input: { profileId: EntityId; key: string; value: unknown }): Promise<NotificationSetting>;
+  listSettings(profileId: EntityId): Promise<NotificationSetting[]>;
 }
 
 export interface ImportRepository {
