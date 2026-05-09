@@ -93,16 +93,37 @@ function parseDeps(body: string): number[] {
   return [...seen].sort((a, b) => a - b);
 }
 
-function parseFiles(body: string): Set<string> {
+/**
+ * Parse the issue's claim set. Prefer an explicit `## Files` section. When
+ * absent, fall back to a coarse area-label claim (e.g. `area:web` →
+ * `apps/web/`). Last resort if there's neither: claim `*` so the issue runs
+ * alone, since we can't reason about what it will touch.
+ */
+function parseClaim(body: string, labels: string[]): Set<string> {
   const m = body.match(/##\s*Files\s*\n([\s\S]*?)(?=\n##\s|$)/i);
-  if (!m || !m[1]) return new Set(['*']);
-  const files = m[1]
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('-'))
-    .map((line) => line.replace(/^-\s*/, '').replace(/`/g, '').trim())
-    .filter(Boolean);
-  return files.length === 0 ? new Set(['*']) : new Set(files);
+  if (m && m[1]) {
+    const files = m[1]
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('-'))
+      .map((line) => line.replace(/^-\s*/, '').replace(/`/g, '').trim())
+      .filter(Boolean);
+    if (files.length > 0) return new Set(files);
+  }
+
+  const areaToPath: Record<string, string> = {
+    'area:api': 'apps/api/',
+    'area:web': 'apps/web/',
+    'area:native': 'apps/native/',
+    'area:db': 'packages/db/',
+    'area:domain': 'packages/domain/',
+    'area:ci': '.github/',
+  };
+  const claims = labels
+    .filter((l) => l.startsWith('area:'))
+    .map((l) => areaToPath[l])
+    .filter((p): p is string => Boolean(p));
+  return claims.length > 0 ? new Set(claims) : new Set(['*']);
 }
 
 function intersects(a: Set<string>, b: Set<string>): boolean {
@@ -237,7 +258,7 @@ async function inProgressClaims(issues: IssueLite[]): Promise<Set<string>> {
   for (const i of issues) {
     if (i.state !== 'open') continue;
     if (lifecycleOf(i) === 'lifecycle:in-progress') {
-      for (const f of parseFiles(i.body)) claims.add(f);
+      for (const f of parseClaim(i.body, i.labels)) claims.add(f);
     }
   }
   return claims;
@@ -265,7 +286,7 @@ async function dispatchParallel(issues: IssueLite[]): Promise<void> {
 
   for (const c of candidates) {
     if (dispatched.length >= slots) break;
-    const myFiles = parseFiles(c.body);
+    const myFiles = parseClaim(c.body, c.labels);
     if (intersects(myFiles, active)) continue;
 
     try {
