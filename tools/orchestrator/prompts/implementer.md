@@ -78,18 +78,45 @@ If any fail, fix and re-run. Do not push a red branch.
 
 ## Step 5 — commit and push
 
+First check whether a PR for this issue already exists (the bounce-back
+case: the Reviewer requested changes and the Orchestrator re-dispatched
+you to address them). If yes, switch to that PR's branch and add a new
+commit; do NOT create a fresh branch.
+
 ```
-git checkout -b "agent/issue-${ISSUE_NUMBER}-<short-slug>"
+EXISTING_PR=$(gh pr list --state open --search "in:body Closes #${ISSUE_NUMBER}" --json number,headRefName -R "$REPO" --jq '.[0]')
+if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+  HEAD_REF=$(echo "$EXISTING_PR" | jq -r '.headRefName')
+  PR_NUMBER=$(echo "$EXISTING_PR" | jq -r '.number')
+  echo "Bounce-back: re-implementing on existing branch $HEAD_REF (PR #$PR_NUMBER)"
+  git fetch origin "$HEAD_REF"
+  git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
+else
+  echo "Fresh implementation: creating new branch"
+  git checkout -b "agent/issue-${ISSUE_NUMBER}-<short-slug>"
+fi
+
 git add -A
 git commit -m "feat(<area>): <issue title> (#${ISSUE_NUMBER})"
 git push -u origin HEAD
 ```
 
+On the bounce-back case, do NOT open a new PR (one already exists);
+just push, which fires `pull_request.synchronize` and re-triggers
+Reviewer + Tester on the updated branch.
+
 Use `feat:` for new features, `fix:` for bug fixes, `chore:` for infra,
 `docs:` for doc-only, `test:` for test-only, `refactor:` for non-feature
-restructuring.
+restructuring. On the bounce-back case, prefer `fix:` for the addressing
+commit if the changes were addressing review comments.
 
-## Step 6 — open a draft PR
+## Step 6 — open or update the PR
+
+If the bounce-back case detected an existing PR in Step 5, **skip the
+`gh pr create` step** — the PR already exists. Just resolve its number
+and skip ahead to label management.
+
+For a fresh implementation:
 
 ```
 gh pr create --draft --title "[#${ISSUE_NUMBER}] <issue title>" \
@@ -133,7 +160,10 @@ gh issue edit "$ISSUE_NUMBER" \
   --add-label "lifecycle:in-review" \
   -R "$REPO"
 
+# Note: on bounce-back, the PR may already have lifecycle:in-review;
+# the add-label calls are idempotent.
 gh pr edit "$PR_NUMBER" \
+  --remove-label "agent:implementer" \
   --add-label "agent:reviewer" \
   --add-label "lifecycle:in-review" \
   -R "$REPO"
