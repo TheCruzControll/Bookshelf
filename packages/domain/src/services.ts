@@ -21,11 +21,74 @@ export const SYSTEM_SHELVES: SystemShelfDef[] = [
   { name: "Dropped", slug: "dropped", visibility: "followers" },
 ];
 
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export class ShelfService {
   constructor(
     private readonly shelves: ShelfRepository,
     private readonly activity: ActivityRepository
   ) {}
+
+  async createShelf(input: {
+    ownerId: EntityId;
+    name: string;
+    visibility: Visibility;
+  }): Promise<Shelf> {
+    const slug = slugify(input.name);
+    return this.shelves.create({
+      ownerId: input.ownerId,
+      name: input.name,
+      slug,
+      visibility: input.visibility,
+    });
+  }
+
+  async updateShelf(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    name?: string | undefined;
+    visibility?: Visibility | undefined;
+    description?: string | undefined;
+  }): Promise<Shelf> {
+    const shelf = await this.shelves.findById(input.id);
+    if (!shelf) {
+      throw Object.assign(new Error("Shelf not found"), { code: "NOT_FOUND" });
+    }
+    if (shelf.ownerId !== input.ownerId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+    if (shelf.isSystem) {
+      throw Object.assign(new Error("Cannot modify system shelf"), { code: "FORBIDDEN" });
+    }
+    return this.shelves.update(input);
+  }
+
+  async deleteShelf(input: {
+    id: EntityId;
+    ownerId: EntityId;
+  }): Promise<void> {
+    const shelf = await this.shelves.findById(input.id);
+    if (!shelf) {
+      throw Object.assign(new Error("Shelf not found"), { code: "NOT_FOUND" });
+    }
+    if (shelf.ownerId !== input.ownerId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+    if (shelf.isSystem) {
+      throw Object.assign(new Error("Cannot delete system shelf"), { code: "FORBIDDEN" });
+    }
+    await this.shelves.delete(input);
+  }
+
+  async listShelves(ownerId: EntityId, viewerId?: EntityId): Promise<Shelf[]> {
+    return this.shelves.listShelves(ownerId, viewerId);
+  }
 
   async addBookToShelf(input: {
     ownerId: EntityId;

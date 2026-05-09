@@ -20,6 +20,10 @@ function makeRepositories(): AppRepositories {
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
     shelves: {
       listShelves: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
       addBook: vi.fn().mockResolvedValue(makeShelfItem()),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn().mockResolvedValue([])

@@ -132,6 +132,55 @@ export class DrizzleShelfRepository implements ShelfRepository {
     return rows.map(toShelf);
   }
 
+  async findById(id: EntityId) {
+    const row = await this.db.query.shelves.findFirst({
+      where: eq(shelves.id, id),
+    });
+    return row ? toShelf(row) : null;
+  }
+
+  async create(input: Parameters<ShelfRepository["create"]>[0]) {
+    const [row] = await this.db
+      .insert(shelves)
+      .values({
+        ownerId: input.ownerId,
+        name: input.name,
+        slug: input.slug,
+        visibility: input.visibility,
+        isSystem: false,
+        kind: "custom" as const,
+        authorType: "user" as const,
+      })
+      .returning();
+    if (!row) {
+      throw new Error("Failed to create shelf");
+    }
+    return toShelf(row);
+  }
+
+  async update(input: Parameters<ShelfRepository["update"]>[0]) {
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) updateData.name = input.name;
+    if (input.visibility !== undefined) updateData.visibility = input.visibility;
+    if (input.description !== undefined) updateData.description = input.description;
+
+    const [row] = await this.db
+      .update(shelves)
+      .set(updateData)
+      .where(and(eq(shelves.id, input.id), eq(shelves.ownerId, input.ownerId)))
+      .returning();
+    if (!row) {
+      throw new Error("Shelf not found");
+    }
+    return toShelf(row);
+  }
+
+  async delete(input: Parameters<ShelfRepository["delete"]>[0]) {
+    await this.db
+      .delete(shelves)
+      .where(and(eq(shelves.id, input.id), eq(shelves.ownerId, input.ownerId)));
+  }
+
   async addBook(input: Parameters<ShelfRepository["addBook"]>[0]) {
     const [row] = await this.db
       .insert(shelfItems)
