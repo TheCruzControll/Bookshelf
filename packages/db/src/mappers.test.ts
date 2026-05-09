@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent } from "./mappers";
+import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, shelves } from "./schema";
+import { follows, rankings, shelves } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -515,5 +515,89 @@ describe("follows table schema", () => {
   it("follows table does not have a surrogate id column", () => {
     const cols = Object.keys(follows);
     expect(cols).not.toContain("id");
+  });
+});
+
+describe("rankings table schema and mapper", () => {
+  const now = new Date();
+
+  it("rankings schema includes required columns", () => {
+    const cols = Object.keys(rankings);
+    expect(cols).toContain("id");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("bookId");
+    expect(cols).toContain("position");
+    expect(cols).toContain("score");
+    expect(cols).toContain("bucket");
+    expect(cols).toContain("lockedAt");
+    expect(cols).toContain("version");
+    expect(cols).toContain("createdAt");
+    expect(cols).toContain("updatedAt");
+  });
+
+  it("toRanking maps a row to a Ranking domain object", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000001",
+      profileId: "00000000-0000-0000-0000-000000000010",
+      bookId: "00000000-0000-0000-0000-000000000020",
+      position: 3,
+      score: "8.74",
+      bucket: 5,
+      lockedAt: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    const ranking = toRanking(row as Parameters<typeof toRanking>[0]);
+    expect(ranking.id).toBe(row.id);
+    expect(ranking.profileId).toBe(row.profileId);
+    expect(ranking.bookId).toBe(row.bookId);
+    expect(ranking.position).toBe(3);
+    expect(ranking.score).toBe(8.74);
+    expect(ranking.bucket).toBe(5);
+    expect(ranking.lockedAt).toBeUndefined();
+    expect(ranking.version).toBe(1);
+    expect(ranking.createdAt).toBe(now);
+    expect(ranking.updatedAt).toBe(now);
+  });
+
+  it("toRanking maps lockedAt when present", () => {
+    const lockedAt = new Date("2024-06-01T12:00:00Z");
+    const row = {
+      id: "00000000-0000-0000-0000-000000000002",
+      profileId: "00000000-0000-0000-0000-000000000010",
+      bookId: "00000000-0000-0000-0000-000000000021",
+      position: 1,
+      score: "9.50",
+      bucket: 5,
+      lockedAt,
+      version: 2,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    const ranking = toRanking(row as Parameters<typeof toRanking>[0]);
+    expect(ranking.lockedAt).toBe(lockedAt);
+    expect(ranking.version).toBe(2);
+  });
+
+  it("toRanking converts numeric score string to number", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000003",
+      profileId: "00000000-0000-0000-0000-000000000010",
+      bookId: "00000000-0000-0000-0000-000000000022",
+      position: 5,
+      score: "4.20",
+      bucket: 3,
+      lockedAt: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    const ranking = toRanking(row as Parameters<typeof toRanking>[0]);
+    expect(typeof ranking.score).toBe("number");
+    expect(ranking.score).toBe(4.2);
   });
 });

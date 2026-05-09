@@ -2,8 +2,10 @@ import {
   boolean,
   index,
   integer,
+  numeric,
   pgEnum,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -279,6 +281,40 @@ export const imports = pgTable("imports", {
     .defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true })
 });
+
+export const rankings = pgTable(
+  "rankings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    bookId: uuid("book_id")
+      .notNull()
+      .references(() => books.id),
+    position: integer("position").notNull(),
+    score: numeric("score", { precision: 5, scale: 2 }).notNull(),
+    bucket: smallint("bucket").notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    profileBookIdx: uniqueIndex("rankings_profile_book_idx").on(
+      table.profileId,
+      table.bookId
+    ),
+    profilePositionIdx: index("rankings_profile_position_idx").on(
+      table.profileId,
+      table.position
+    )
+  })
+);
 
 export const recommendationScores = pgTable(
   "recommendation_scores",
