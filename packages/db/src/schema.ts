@@ -340,3 +340,43 @@ export const recommendationScores = pgTable(
   })
 );
 
+export const contactsIndex = pgTable(
+  "contacts_index",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    contactHash: text("contact_hash").notNull(),
+    saltVersion: integer("salt_version").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    profileHashIdx: index("contacts_index_profile_id_idx").on(table.profileId),
+    hashSaltIdx: index("contacts_index_hash_salt_idx").on(
+      table.contactHash,
+      table.saltVersion
+    )
+  })
+);
+
+export const emailIndex = pgTable(
+  "email_index",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    emailHash: text("email_hash").notNull(),
+    saltVersion: integer("salt_version").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    profileHashIdx: index("email_index_profile_id_idx").on(table.profileId),
+    hashSaltIdx: index("email_index_hash_salt_idx").on(
+      table.emailHash,
+      table.saltVersion
+    )
+  })
+);
+

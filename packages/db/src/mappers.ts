@@ -1,7 +1,9 @@
 import type {
   ActivityEvent,
   Book,
+  ContactIndex,
   Edition,
+  EmailIndex,
   Profile,
   Ranking,
   Review,
@@ -11,7 +13,9 @@ import type {
 import type {
   activityEvents,
   books,
+  contactsIndex,
   editions,
+  emailIndex,
   profiles,
   rankings,
   reviews,
@@ -27,6 +31,8 @@ type ShelfItemRow = typeof shelfItems.$inferSelect;
 type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
+type ContactIndexRow = typeof contactsIndex.$inferSelect;
+type EmailIndexRow = typeof emailIndex.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -140,6 +146,26 @@ export function toRanking(row: RankingRow): Ranking {
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+export function toContactIndex(row: ContactIndexRow): ContactIndex {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    contactHash: row.contactHash,
+    saltVersion: row.saltVersion,
+    expiresAt: row.expiresAt
+  };
+}
+
+export function toEmailIndex(row: EmailIndexRow): EmailIndex {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    emailHash: row.emailHash,
+    saltVersion: row.saltVersion,
+    expiresAt: row.expiresAt
   };
 }
 

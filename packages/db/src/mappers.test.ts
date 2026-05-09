@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking } from "./mappers";
+import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toContactIndex, toEmailIndex } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, rankings, shelves } from "./schema";
+import { contactsIndex, emailIndex, follows, rankings, shelves } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -599,5 +599,62 @@ describe("rankings table schema and mapper", () => {
     const ranking = toRanking(row as Parameters<typeof toRanking>[0]);
     expect(typeof ranking.score).toBe("number");
     expect(ranking.score).toBe(4.2);
+  });
+});
+
+describe("contacts_index and email_index schema and mappers", () => {
+  const now = new Date();
+  const expires = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+  it("contactsIndex schema includes required columns", () => {
+    const cols = Object.keys(contactsIndex);
+    expect(cols).toContain("id");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("contactHash");
+    expect(cols).toContain("saltVersion");
+    expect(cols).toContain("expiresAt");
+  });
+
+  it("emailIndex schema includes required columns", () => {
+    const cols = Object.keys(emailIndex);
+    expect(cols).toContain("id");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("emailHash");
+    expect(cols).toContain("saltVersion");
+    expect(cols).toContain("expiresAt");
+  });
+
+  it("toContactIndex maps a row to a ContactIndex domain object", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000030",
+      profileId: "00000000-0000-0000-0000-000000000010",
+      contactHash: "abc123def456",
+      saltVersion: 1,
+      expiresAt: expires
+    };
+
+    const contact = toContactIndex(row as Parameters<typeof toContactIndex>[0]);
+    expect(contact.id).toBe(row.id);
+    expect(contact.profileId).toBe(row.profileId);
+    expect(contact.contactHash).toBe("abc123def456");
+    expect(contact.saltVersion).toBe(1);
+    expect(contact.expiresAt).toBe(expires);
+  });
+
+  it("toEmailIndex maps a row to an EmailIndex domain object", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000031",
+      profileId: "00000000-0000-0000-0000-000000000010",
+      emailHash: "xyz789hash",
+      saltVersion: 2,
+      expiresAt: expires
+    };
+
+    const email = toEmailIndex(row as Parameters<typeof toEmailIndex>[0]);
+    expect(email.id).toBe(row.id);
+    expect(email.profileId).toBe(row.profileId);
+    expect(email.emailHash).toBe("xyz789hash");
+    expect(email.saltVersion).toBe(2);
+    expect(email.expiresAt).toBe(expires);
   });
 });

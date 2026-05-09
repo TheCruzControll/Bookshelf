@@ -224,6 +224,22 @@ export interface ContactsHash {
   expiresAt: Date;
 }
 
+export interface ContactIndex {
+  id: EntityId;
+  profileId: EntityId;
+  contactHash: string;
+  saltVersion: number;
+  expiresAt: Date;
+}
+
+export interface EmailIndex {
+  id: EntityId;
+  profileId: EntityId;
+  emailHash: string;
+  saltVersion: number;
+  expiresAt: Date;
+}
+
 export interface Session {
   id: EntityId;
   userId: EntityId;
