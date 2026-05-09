@@ -256,3 +256,10 @@ export interface Session {
   createdAt: Date;
   expiresAt: Date;
 }
+
+export interface AccountDeletion {
+  profileId: EntityId;
+  requestedAt: Date;
+  hardDeleteAfter: Date;
+  exportedAt?: Date | undefined;
+}

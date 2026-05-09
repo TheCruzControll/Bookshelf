@@ -1,4 +1,5 @@
 import type {
+  AccountDeletion,
   ActivityEvent,
   Book,
   Edition,
@@ -10,6 +11,7 @@ import type {
   ShelfItem
 } from "@hone/domain";
 import type {
+  accountDeletions,
   activityEvents,
   books,
   editions,
@@ -21,6 +23,7 @@ import type {
   shelves
 } from "./schema";
 
+type AccountDeletionRow = typeof accountDeletions.$inferSelect;
 type ProfileRow = typeof profiles.$inferSelect;
 type BookRow = typeof books.$inferSelect;
 type EditionRow = typeof editions.$inferSelect;
@@ -30,6 +33,15 @@ type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
+
+export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
+  return {
+    profileId: row.profileId,
+    requestedAt: row.requestedAt,
+    hardDeleteAfter: row.hardDeleteAfter,
+    exportedAt: row.exportedAt ?? undefined
+  };
+}
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -158,4 +170,3 @@ export function toRanking(row: RankingRow): Ranking {
     updatedAt: row.updatedAt
   };
 }
-

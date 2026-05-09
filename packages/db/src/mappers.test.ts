@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toAccountDeletion, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { follows, imports, rankings, shelves } from "./schema";
 
@@ -690,5 +690,37 @@ describe("imports table schema and mapper", () => {
 
     const imp = toImport(row as Parameters<typeof toImport>[0]);
     expect(imp.conflictCount).toBe(7);
+  });
+
+  it("toAccountDeletion maps a row to an AccountDeletion domain object", () => {
+    const requestedAt = new Date("2026-01-01T00:00:00Z");
+    const hardDeleteAfter = new Date("2026-01-31T00:00:00Z");
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      requestedAt,
+      hardDeleteAfter,
+      exportedAt: null
+    };
+
+    const deletion = toAccountDeletion(row as Parameters<typeof toAccountDeletion>[0]);
+    expect(deletion.profileId).toBe(row.profileId);
+    expect(deletion.requestedAt).toBe(requestedAt);
+    expect(deletion.hardDeleteAfter).toBe(hardDeleteAfter);
+    expect(deletion.exportedAt).toBeUndefined();
+  });
+
+  it("toAccountDeletion maps exportedAt when present", () => {
+    const requestedAt = new Date("2026-01-01T00:00:00Z");
+    const hardDeleteAfter = new Date("2026-01-31T00:00:00Z");
+    const exportedAt = new Date("2026-01-15T12:00:00Z");
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      requestedAt,
+      hardDeleteAfter,
+      exportedAt
+    };
+
+    const deletion = toAccountDeletion(row as Parameters<typeof toAccountDeletion>[0]);
+    expect(deletion.exportedAt).toBe(exportedAt);
   });
 });
