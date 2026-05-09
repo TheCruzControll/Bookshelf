@@ -184,6 +184,37 @@ h1 {
   text-align: right;
 }
 
+.affiliateRow {
+  display: grid;
+  gap: 0;
+  padding: 0;
+}
+
+.affiliateButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--paper-line);
+  background: var(--panel);
+  padding: 20px 20px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.1s ease;
+}
+
+.affiliateButton:hover {
+  background: var(--paper-line);
+}
+
+.affiliateButton::after {
+  content: "→";
+  color: var(--muted);
+  font-size: 18px;
+}
+
 @media (max-width: 760px) {
   .shell {
     grid-template-columns: 1fr;
