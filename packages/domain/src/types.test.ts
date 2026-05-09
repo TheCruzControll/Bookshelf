@@ -158,14 +158,16 @@ describe("domain types smoke test", () => {
     const now = new Date();
     const ranking: Ranking = {
       id: "00000000-0000-0000-0000-000000000012",
-      ownerId: "00000000-0000-0000-0000-000000000001",
+      profileId: "00000000-0000-0000-0000-000000000001",
       bookId: "00000000-0000-0000-0000-000000000002",
-      rank: 1,
+      position: 1,
       score: 9.5,
+      bucket: 5,
+      version: 1,
       createdAt: now,
       updatedAt: now,
     };
-    expect(ranking.rank).toBeGreaterThan(0);
+    expect(ranking.position).toBeGreaterThan(0);
     expect(ranking.score).toBeGreaterThanOrEqual(0);
     expect(ranking.score).toBeLessThanOrEqual(10);
   });

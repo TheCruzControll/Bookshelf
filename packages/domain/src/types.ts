@@ -168,10 +168,13 @@ export interface Block {
 
 export interface Ranking {
   id: EntityId;
-  ownerId: EntityId;
+  profileId: EntityId;
   bookId: EntityId;
-  rank: number;
+  position: number;
   score: number;
+  bucket: number;
+  lockedAt?: Date | undefined;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }

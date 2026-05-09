@@ -3,6 +3,7 @@ import type {
   Book,
   Edition,
   Profile,
+  Ranking,
   Review,
   Shelf,
   ShelfItem
@@ -12,6 +13,7 @@ import type {
   books,
   editions,
   profiles,
+  rankings,
   reviews,
   shelfItems,
   shelves
@@ -23,6 +25,7 @@ type EditionRow = typeof editions.$inferSelect;
 type ShelfRow = typeof shelves.$inferSelect;
 type ShelfItemRow = typeof shelfItems.$inferSelect;
 type ReviewRow = typeof reviews.$inferSelect;
+type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
@@ -122,6 +125,21 @@ export function toActivityEvent(row: ActivityRow): ActivityEvent {
     reviewId: row.reviewId ?? undefined,
     visibility: row.visibility,
     occurredAt: row.occurredAt
+  };
+}
+
+export function toRanking(row: RankingRow): Ranking {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    bookId: row.bookId,
+    position: row.position,
+    score: Number(row.score),
+    bucket: row.bucket,
+    lockedAt: row.lockedAt ?? undefined,
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
   };
 }
 
