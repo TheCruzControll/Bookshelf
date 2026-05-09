@@ -125,6 +125,7 @@ export interface RankingRepository {
     rank: number;
     score: number;
   }): Promise<Ranking>;
+  findById(id: EntityId): Promise<Ranking | null>;
   findByOwnerAndBook(input: { ownerId: EntityId; bookId: EntityId }): Promise<Ranking | null>;
   listByOwner(ownerId: EntityId, viewerId?: EntityId): Promise<Ranking[]>;
   delete(input: { ownerId: EntityId; bookId: EntityId }): Promise<void>;

@@ -38,6 +38,7 @@ type _BlockRepositoryHasListBlockedByUser = Assert<HasKey<BlockRepository, "list
 type _BlockRepositoryHasIsBlocked = Assert<HasKey<BlockRepository, "isBlocked">>;
 
 type _RankingRepositoryHasUpsert = Assert<HasKey<RankingRepository, "upsert">>;
+type _RankingRepositoryHasFindById = Assert<HasKey<RankingRepository, "findById">>;
 type _RankingRepositoryHasFindByOwnerAndBook = Assert<HasKey<RankingRepository, "findByOwnerAndBook">>;
 type _RankingRepositoryHasListByOwner = Assert<HasKey<RankingRepository, "listByOwner">>;
 type _RankingRepositoryHasDelete = Assert<HasKey<RankingRepository, "delete">>;
@@ -95,6 +96,7 @@ export type {
   _BlockRepositoryHasListBlockedByUser,
   _BlockRepositoryHasIsBlocked,
   _RankingRepositoryHasUpsert,
+  _RankingRepositoryHasFindById,
   _RankingRepositoryHasFindByOwnerAndBook,
   _RankingRepositoryHasListByOwner,
   _RankingRepositoryHasDelete,

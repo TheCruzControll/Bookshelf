@@ -45,9 +45,28 @@ export const StartBucketOutputSchema = z.object({
   bucket: z.number().int().min(1).max(5),
 });
 
+export const CompareInputSchema = z.object({
+  rankingId: EntityIdSchema,
+  winner: z.enum(["new", "existing"]).optional(),
+});
+
+export const CompareOutputSchema = z.discriminatedUnion("done", [
+  z.object({
+    done: z.literal(false),
+    candidateBookId: EntityIdSchema,
+    newBookId: EntityIdSchema,
+  }),
+  z.object({
+    done: z.literal(true),
+    position: z.number().int().nonnegative(),
+  }),
+]);
+
 export type RankingInput = z.infer<typeof RankingSchema>;
 export type ReviewInput = z.infer<typeof ReviewSchema>;
 export type CreateReviewInput = z.infer<typeof CreateReviewInputSchema>;
 export type UpdateReviewInput = z.infer<typeof UpdateReviewInputSchema>;
 export type StartBucketInput = z.infer<typeof StartBucketInputSchema>;
 export type StartBucketOutput = z.infer<typeof StartBucketOutputSchema>;
+export type CompareInput = z.infer<typeof CompareInputSchema>;
+export type CompareOutput = z.infer<typeof CompareOutputSchema>;

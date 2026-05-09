@@ -301,6 +301,7 @@ class DrizzleBlockRepository implements BlockRepository {
 class DrizzleRankingRepository implements RankingRepository {
   constructor(private readonly db: HoneDb) {}
   async upsert(): Promise<never> { throw new Error("not implemented"); }
+  async findById(): Promise<null> { throw new Error("not implemented"); }
   async findByOwnerAndBook(): Promise<null> { throw new Error("not implemented"); }
   async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
   async delete(): Promise<void> { throw new Error("not implemented"); }
