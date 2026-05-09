@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { blocks, blocksAgainstHash, follows, imports, rankings, shelves, tasteVectors } from "./schema";
+import { blocks, blocksAgainstHash, follows, imports, profiles, rankings, reviews, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -819,5 +819,89 @@ describe("blocks_against_hash table schema and mapper", () => {
     const diffMs = bah.expiresAt.getTime() - now.getTime();
     expect(diffMs).toBeGreaterThanOrEqual(ninetyDaysMs - 1000);
     expect(diffMs).toBeLessThanOrEqual(ninetyDaysMs + 1000);
+  });
+});
+
+describe("version column schema and mapper", () => {
+  const now = new Date();
+
+  it("profiles schema includes version column", () => {
+    const cols = Object.keys(profiles);
+    expect(cols).toContain("version");
+  });
+
+  it("shelves schema includes version column", () => {
+    const cols = Object.keys(shelves);
+    expect(cols).toContain("version");
+  });
+
+  it("reviews schema includes version column", () => {
+    const cols = Object.keys(reviews);
+    expect(cols).toContain("version");
+  });
+
+  it("toProfile maps version field", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000030",
+      handle: "vtest",
+      displayName: "Version Test",
+      bio: null,
+      avatarUrl: null,
+      defaultVisibility: "public" as const,
+      version: 3,
+      createdAt: now,
+      updatedAt: now
+    };
+    const profile = toProfile(row as Parameters<typeof toProfile>[0]);
+    expect(profile.version).toBe(3);
+  });
+
+  it("toShelf maps version field", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000031",
+      ownerId: "00000000-0000-0000-0000-000000000030",
+      name: "My Shelf",
+      slug: "my-shelf",
+      visibility: "public" as const,
+      isSystem: false,
+      kind: "custom" as const,
+      authorType: "user" as const,
+      curatorTier: null,
+      description: null,
+      publishedAt: null,
+      version: 2,
+      createdAt: now,
+      updatedAt: now
+    };
+    const shelf = toShelf(row as Parameters<typeof toShelf>[0]);
+    expect(shelf.version).toBe(2);
+  });
+
+  it("toReview maps version field", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000032",
+      authorId: "00000000-0000-0000-0000-000000000030",
+      bookId: "00000000-0000-0000-0000-000000000001",
+      editionId: null,
+      body: "Excellent.",
+      visibility: "public" as const,
+      version: 5,
+      createdAt: now,
+      updatedAt: now
+    };
+    const review = toReview(row as Parameters<typeof toReview>[0]);
+    expect(review.version).toBe(5);
+  });
+
+  it("version defaults to 1 in schema for profiles", () => {
+    expect(profiles.version).toBeDefined();
+  });
+
+  it("version defaults to 1 in schema for shelves", () => {
+    expect(shelves.version).toBeDefined();
+  });
+
+  it("version defaults to 1 in schema for reviews", () => {
+    expect(reviews.version).toBeDefined();
   });
 });

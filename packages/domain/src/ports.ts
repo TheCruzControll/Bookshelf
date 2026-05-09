@@ -74,6 +74,7 @@ export interface ShelfRepository {
   update(input: {
     id: EntityId;
     ownerId: EntityId;
+    version: number;
     name?: string | undefined;
     visibility?: Visibility | undefined;
     description?: string | undefined;
@@ -100,6 +101,13 @@ export interface ReviewRepository {
     editionId?: EntityId | undefined;
     body: string;
     visibility: Visibility;
+  }): Promise<Review>;
+  update(input: {
+    id: EntityId;
+    authorId: EntityId;
+    version: number;
+    body?: string | undefined;
+    visibility?: Visibility | undefined;
   }): Promise<Review>;
 }
 

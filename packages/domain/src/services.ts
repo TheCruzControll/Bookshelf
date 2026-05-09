@@ -52,6 +52,7 @@ export class ShelfService {
   async updateShelf(input: {
     id: EntityId;
     ownerId: EntityId;
+    version: number;
     name?: string | undefined;
     visibility?: Visibility | undefined;
     description?: string | undefined;

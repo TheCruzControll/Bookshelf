@@ -57,6 +57,7 @@ export function toProfile(row: ProfileRow): Profile {
     bio: row.bio ?? undefined,
     avatarUrl: row.avatarUrl ?? undefined,
     defaultVisibility: row.defaultVisibility,
+    version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -103,6 +104,7 @@ export function toShelf(row: ShelfRow): Shelf {
     curatorTier: row.curatorTier ?? undefined,
     description: row.description ?? undefined,
     publishedAt: row.publishedAt ?? undefined,
+    version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -131,6 +133,7 @@ export function toReview(row: ReviewRow): Review {
     editionId: row.editionId ?? undefined,
     body: row.body,
     visibility: row.visibility,
+    version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };

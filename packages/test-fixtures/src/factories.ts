@@ -37,10 +37,11 @@ export function makeProfile(overrides: Partial<Profile> = {}): Profile {
     bio: undefined,
     avatarUrl: undefined,
     defaultVisibility: "public",
+    version: 1,
     createdAt: now(),
     updatedAt: now(),
     ...overrides,
-  };
+  } as Profile;
 }
 
 export function makeAuthor(overrides: Partial<Author> = {}): Author {
@@ -97,10 +98,11 @@ export function makeShelf(overrides: Partial<Shelf> = {}): Shelf {
     isSystem: false,
     kind: "custom",
     authorType: "user",
+    version: 1,
     createdAt: now(),
     updatedAt: now(),
     ...overrides,
-  };
+  } as Shelf;
 }
 
 export function makeShelfItem(overrides: Partial<ShelfItem> = {}): ShelfItem {
@@ -131,10 +133,11 @@ export function makeReview(overrides: Partial<Review> = {}): Review {
     editionId: undefined,
     body: `This is a test review for book ${bookId}.`,
     visibility: "public",
+    version: 1,
     createdAt: now(),
     updatedAt: now(),
     ...overrides,
-  };
+  } as Review;
 }
 
 export function makeActivityEvent(

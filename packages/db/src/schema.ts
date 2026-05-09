@@ -60,6 +60,7 @@ export const profiles = pgTable(
     defaultVisibility: visibilityEnum("default_visibility")
       .notNull()
       .default("public"),
+    version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -209,6 +210,7 @@ export const shelves = pgTable(
     curatorTier: integer("curator_tier"),
     description: text("description"),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -269,6 +271,7 @@ export const reviews = pgTable("reviews", {
   editionId: uuid("edition_id").references(() => editions.id),
   body: text("body").notNull(),
   visibility: visibilityEnum("visibility").notNull().default("public"),
+  version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

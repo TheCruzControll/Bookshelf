@@ -51,6 +51,7 @@ export const shelfRouter = router({
         const shelf = await services.shelves.updateShelf({
           id: input.id,
           ownerId: ctx.identity.userId,
+          version: input.version,
           name: input.name,
           visibility: input.visibility,
           description: input.description,

@@ -29,10 +29,11 @@ function makeShelf(overrides?: Partial<Shelf>): Shelf {
     isSystem: false,
     kind: "custom",
     authorType: "user",
+    version: 1,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
-  };
+  } as Shelf;
 }
 
 function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories {
@@ -56,12 +57,12 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       createSystemShelves: vi.fn(),
       ...overrides?.shelves,
     },
-    reviews: { create: vi.fn() },
+    reviews: { create: vi.fn(), update: vi.fn() },
     activity: { append: vi.fn(), getFriendFeed: vi.fn() },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), isBlocked: vi.fn() },
-    rankings: { upsert: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
+    rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForUser: vi.fn() },
     imports: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
     contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
@@ -202,7 +203,7 @@ describe("shelf.update", () => {
     const res = await app.request("/trpc/shelf.update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: UUID2, name: "Updated", visibility: "private" }),
+      body: JSON.stringify({ id: UUID2, version: 1, name: "Updated", visibility: "private" }),
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -216,7 +217,7 @@ describe("shelf.update", () => {
     const res = await app.request("/trpc/shelf.update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: UUID2, name: "Updated" }),
+      body: JSON.stringify({ id: UUID2, version: 1, name: "Updated" }),
     });
     expect(res.status).toBe(401);
   });
@@ -232,7 +233,7 @@ describe("shelf.update", () => {
     const res = await app.request("/trpc/shelf.update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: UUID2, name: "Updated" }),
+      body: JSON.stringify({ id: UUID2, version: 1, name: "Updated" }),
     });
     expect(res.status).toBe(404);
   });
@@ -249,7 +250,7 @@ describe("shelf.update", () => {
     const res = await app.request("/trpc/shelf.update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: UUID2, name: "Updated" }),
+      body: JSON.stringify({ id: UUID2, version: 1, name: "Updated" }),
     });
     expect(res.status).toBe(403);
   });
@@ -266,7 +267,7 @@ describe("shelf.update", () => {
     const res = await app.request("/trpc/shelf.update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: UUID2, name: "Updated" }),
+      body: JSON.stringify({ id: UUID2, version: 1, name: "Updated" }),
     });
     expect(res.status).toBe(403);
   });

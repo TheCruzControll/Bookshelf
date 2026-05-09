@@ -23,10 +23,11 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     handle: "testuser",
     displayName: "Test User",
     defaultVisibility: "public",
+    version: 1,
     createdAt: now,
     updatedAt: now,
     ...overrides
-  };
+  } as Profile;
 }
 
 function makeShelf(overrides?: Partial<Shelf>): Shelf {
@@ -40,10 +41,11 @@ function makeShelf(overrides?: Partial<Shelf>): Shelf {
     isSystem: true,
     kind: "system",
     authorType: "user",
+    version: 1,
     createdAt: now,
     updatedAt: now,
     ...overrides
-  };
+  } as Shelf;
 }
 
 describe("ShelfService", () => {
@@ -249,7 +251,7 @@ describe("AppServices", () => {
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
-      reviews: { create: vi.fn() },
+      reviews: { create: vi.fn(), update: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn() },
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
@@ -305,7 +307,7 @@ describe("ShelfService CRUD", () => {
   it("updateShelf throws NOT_FOUND when shelf does not exist", async () => {
     const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(null) });
     const service = new ShelfService(shelvesRepo, makeActivity());
-    await expect(service.updateShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000001" }))
+    await expect(service.updateShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000001", version: 1 }))
       .rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
@@ -313,7 +315,7 @@ describe("ShelfService CRUD", () => {
     const shelf = makeShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000099" });
     const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
     const service = new ShelfService(shelvesRepo, makeActivity());
-    await expect(service.updateShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001" }))
+    await expect(service.updateShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001", version: 1 }))
       .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -321,7 +323,7 @@ describe("ShelfService CRUD", () => {
     const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: true });
     const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
     const service = new ShelfService(shelvesRepo, makeActivity());
-    await expect(service.updateShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001" }))
+    await expect(service.updateShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001", version: 1 }))
       .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -330,7 +332,7 @@ describe("ShelfService CRUD", () => {
     const updated = makeShelf({ ...shelf, name: "Updated", visibility: "private" });
     const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf), update: vi.fn().mockResolvedValue(updated) });
     const service = new ShelfService(shelvesRepo, makeActivity());
-    const result = await service.updateShelf({ id: shelf.id, ownerId: shelf.ownerId, name: "Updated", visibility: "private" });
+    const result = await service.updateShelf({ id: shelf.id, ownerId: shelf.ownerId, version: shelf.version, name: "Updated", visibility: "private" });
     expect(result.name).toBe("Updated");
   });
 
@@ -405,6 +407,7 @@ describe("RankingService", () => {
     };
     const rankingsRepo: RankingRepository = {
       upsert: vi.fn(),
+      findById: vi.fn(),
       findByOwnerAndBook: vi.fn(),
       listByOwner: vi.fn(),
       delete: vi.fn(),
