@@ -1,9 +1,21 @@
 import { describe, it, expect } from "vitest";
 import type {
+  Block,
   Book,
+  ContactsHash,
   ContentType,
+  Follow,
+  Import,
+  ImportSource,
+  ImportStatus,
+  List,
+  ListItem,
+  NotificationPlatform,
+  NotificationToken,
   Profile,
+  Ranking,
   ReadingStatus,
+  Session,
   Visibility,
 } from "./types";
 
@@ -37,10 +49,44 @@ type _ProfileDefaultVisibilityIsVisibility = Assert<
   IsExact<Profile["defaultVisibility"], Visibility>
 >;
 
+type _ImportStatusIsExhaustive = Assert<
+  IsExact<
+    ImportStatus,
+    "pending" | "processing" | "needs_review" | "completed" | "failed"
+  >
+>;
+
+type _ImportSourceIsExhaustive = Assert<
+  IsExact<ImportSource, "goodreads" | "manual">
+>;
+
+type _NotificationPlatformIsExhaustive = Assert<
+  IsExact<NotificationPlatform, "apns" | "fcm">
+>;
+
+type _FollowHasRequiredFields = Assert<
+  IsExact<
+    keyof Follow,
+    "id" | "followerId" | "followeeId" | "createdAt"
+  >
+>;
+
+type _BlockHasRequiredFields = Assert<
+  IsExact<
+    keyof Block,
+    "id" | "blockerId" | "blockedId" | "createdAt"
+  >
+>;
+
 export type {
   _VisibilityIsFourTier,
   _ContentTypeCoversAllItems,
   _ProfileDefaultVisibilityIsVisibility,
+  _ImportStatusIsExhaustive,
+  _ImportSourceIsExhaustive,
+  _NotificationPlatformIsExhaustive,
+  _FollowHasRequiredFields,
+  _BlockHasRequiredFields,
 };
 
 // Runtime smoke tests against the same types.
@@ -84,5 +130,138 @@ describe("domain types smoke test", () => {
       updatedAt: now,
     };
     expect(book.canonicalTitle).toBe("The Great Gatsby");
+  });
+
+  it("Follow shape is structurally valid", () => {
+    const now = new Date();
+    const follow: Follow = {
+      id: "00000000-0000-0000-0000-000000000010",
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now,
+    };
+    expect(follow.followerId).not.toBe(follow.followeeId);
+  });
+
+  it("Block shape is structurally valid", () => {
+    const now = new Date();
+    const block: Block = {
+      id: "00000000-0000-0000-0000-000000000011",
+      blockerId: "00000000-0000-0000-0000-000000000001",
+      blockedId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now,
+    };
+    expect(block.blockerId).not.toBe(block.blockedId);
+  });
+
+  it("Ranking shape is structurally valid", () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "00000000-0000-0000-0000-000000000012",
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      bookId: "00000000-0000-0000-0000-000000000002",
+      rank: 1,
+      score: 9.5,
+      createdAt: now,
+      updatedAt: now,
+    };
+    expect(ranking.rank).toBeGreaterThan(0);
+    expect(ranking.score).toBeGreaterThanOrEqual(0);
+    expect(ranking.score).toBeLessThanOrEqual(10);
+  });
+
+  it("List shape is structurally valid", () => {
+    const now = new Date();
+    const list: List = {
+      id: "00000000-0000-0000-0000-000000000013",
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      title: "My Favourite Books",
+      visibility: "public",
+      createdAt: now,
+      updatedAt: now,
+    };
+    expect(list.title).toBe("My Favourite Books");
+    expect(list.visibility).toBe("public");
+  });
+
+  it("ListItem shape is structurally valid", () => {
+    const now = new Date();
+    const listItem: ListItem = {
+      id: "00000000-0000-0000-0000-000000000014",
+      listId: "00000000-0000-0000-0000-000000000013",
+      bookId: "00000000-0000-0000-0000-000000000002",
+      position: 1,
+      addedAt: now,
+    };
+    expect(listItem.position).toBeGreaterThan(0);
+  });
+
+  it("NotificationToken shape is structurally valid", () => {
+    const now = new Date();
+    const token: NotificationToken = {
+      id: "00000000-0000-0000-0000-000000000015",
+      userId: "00000000-0000-0000-0000-000000000001",
+      platform: "apns",
+      token: "abc123devicetoken",
+      createdAt: now,
+      updatedAt: now,
+    };
+    expect(token.platform).toBe("apns");
+  });
+
+  it("Import shape is structurally valid", () => {
+    const now = new Date();
+    const importRecord: Import = {
+      id: "00000000-0000-0000-0000-000000000016",
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      source: "goodreads",
+      status: "pending",
+      createdAt: now,
+    };
+    expect(importRecord.source).toBe("goodreads");
+    expect(importRecord.status).toBe("pending");
+  });
+
+  it("ImportStatus covers all states", () => {
+    const values: ImportStatus[] = [
+      "pending",
+      "processing",
+      "needs_review",
+      "completed",
+      "failed",
+    ];
+    expect(values).toHaveLength(5);
+  });
+
+  it("ContactsHash shape is structurally valid", () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const contactsHash: ContactsHash = {
+      id: "00000000-0000-0000-0000-000000000017",
+      userId: "00000000-0000-0000-0000-000000000001",
+      hash: "abc123hashedphone",
+      saltVersion: 1,
+      createdAt: now,
+      expiresAt,
+    };
+    expect(contactsHash.saltVersion).toBeGreaterThan(0);
+    expect(contactsHash.expiresAt.getTime()).toBeGreaterThan(contactsHash.createdAt.getTime());
+  });
+
+  it("Session shape is structurally valid", () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const session: Session = {
+      id: "00000000-0000-0000-0000-000000000018",
+      userId: "00000000-0000-0000-0000-000000000001",
+      createdAt: now,
+      expiresAt,
+    };
+    expect(session.expiresAt.getTime()).toBeGreaterThan(session.createdAt.getTime());
+  });
+
+  it("NotificationPlatform accepts apns and fcm", () => {
+    const values: NotificationPlatform[] = ["apns", "fcm"];
+    expect(values).toHaveLength(2);
   });
 });

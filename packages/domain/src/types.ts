@@ -30,6 +30,19 @@ export type ActivityVerb =
   | "book_reviewed"
   | "shelf_updated";
 
+export type ImportStatus =
+  | "pending"
+  | "processing"
+  | "needs_review"
+  | "completed"
+  | "failed";
+
+export type ImportSource = "goodreads" | "manual";
+
+export type NotificationPlatform = "apns" | "fcm";
+
+export type BlockDirection = "outgoing" | "incoming";
+
 export interface Profile {
   id: EntityId;
   handle: string;
@@ -126,4 +139,80 @@ export interface Recommendation {
   book: Book;
   score: number;
   reason: string;
+}
+
+export interface Follow {
+  id: EntityId;
+  followerId: EntityId;
+  followeeId: EntityId;
+  createdAt: Date;
+}
+
+export interface Block {
+  id: EntityId;
+  blockerId: EntityId;
+  blockedId: EntityId;
+  createdAt: Date;
+}
+
+export interface Ranking {
+  id: EntityId;
+  ownerId: EntityId;
+  bookId: EntityId;
+  rank: number;
+  score: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface List {
+  id: EntityId;
+  ownerId: EntityId;
+  title: string;
+  description?: string | undefined;
+  visibility: Visibility;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ListItem {
+  id: EntityId;
+  listId: EntityId;
+  bookId: EntityId;
+  position: number;
+  addedAt: Date;
+}
+
+export interface NotificationToken {
+  id: EntityId;
+  userId: EntityId;
+  platform: NotificationPlatform;
+  token: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Import {
+  id: EntityId;
+  ownerId: EntityId;
+  source: ImportSource;
+  status: ImportStatus;
+  createdAt: Date;
+  completedAt?: Date | undefined;
+}
+
+export interface ContactsHash {
+  id: EntityId;
+  userId: EntityId;
+  hash: string;
+  saltVersion: number;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+export interface Session {
+  id: EntityId;
+  userId: EntityId;
+  createdAt: Date;
+  expiresAt: Date;
 }
