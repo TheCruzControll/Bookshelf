@@ -14,11 +14,13 @@ async function fetchProfile(handle: string): Promise<Profile | null> {
 }
 
 async function fetchPublicShelves(ownerId: string): Promise<Shelf[]> {
-  return [];
+  const shelves: Shelf[] = [];
+  return shelves.filter((s) => isPubliclyVisible(s.visibility));
 }
 
 async function fetchPublicReviews(authorId: string): Promise<Review[]> {
-  return [];
+  const reviews: Review[] = [];
+  return reviews.filter((r) => isPubliclyVisible(r.visibility));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -43,9 +45,6 @@ export default async function UserProfilePage({ params }: Props) {
     fetchPublicReviews(profile.id),
   ]);
 
-  const visibleShelves = shelves.filter((s) => isPubliclyVisible(s.visibility));
-  const visibleReviews = reviews.filter((r) => isPubliclyVisible(r.visibility));
-
   return (
     <main className="shell">
       <section>
@@ -54,11 +53,11 @@ export default async function UserProfilePage({ params }: Props) {
         {profile.bio ? <p>{profile.bio}</p> : null}
       </section>
 
-      {visibleShelves.length > 0 ? (
+      {shelves.length > 0 ? (
         <section>
           <h2>Shelves</h2>
           <ul>
-            {visibleShelves.map((shelf) => (
+            {shelves.map((shelf) => (
               <li key={shelf.id}>
                 <a href={`/u/${handle}/shelves/${shelf.slug}`}>{shelf.name}</a>
               </li>
@@ -67,11 +66,11 @@ export default async function UserProfilePage({ params }: Props) {
         </section>
       ) : null}
 
-      {visibleReviews.length > 0 ? (
+      {reviews.length > 0 ? (
         <section>
           <h2>Reviews</h2>
           <ul>
-            {visibleReviews.map((review) => (
+            {reviews.map((review) => (
               <li key={review.id}>
                 <a href={`/u/${handle}/reviews/${review.id}`}>{review.body.slice(0, 120)}</a>
               </li>
