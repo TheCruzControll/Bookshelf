@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type {
   AppRepositories,
+  AuthIdentityRepository,
   BlockRepository,
   ContactsRepository,
   FollowRepository,
@@ -23,6 +24,7 @@ type _AppRepositoriesHasImports = Assert<HasKey<AppRepositories, "imports">>;
 type _AppRepositoriesHasContacts = Assert<HasKey<AppRepositories, "contacts">>;
 type _AppRepositoriesHasLists = Assert<HasKey<AppRepositories, "lists">>;
 type _AppRepositoriesHasSessions = Assert<HasKey<AppRepositories, "sessions">>;
+type _AppRepositoriesHasAuthIdentities = Assert<HasKey<AppRepositories, "authIdentities">>;
 
 type _FollowRepositoryHasFollow = Assert<HasKey<FollowRepository, "follow">>;
 type _FollowRepositoryHasUnfollow = Assert<HasKey<FollowRepository, "unfollow">>;
@@ -69,9 +71,13 @@ type _ListRepositoryHasListItems = Assert<HasKey<ListRepository, "listItems">>;
 type _ListRepositoryHasReorderItems = Assert<HasKey<ListRepository, "reorderItems">>;
 
 type _SessionRepositoryHasCreate = Assert<HasKey<SessionRepository, "create">>;
-type _SessionRepositoryHasFindById = Assert<HasKey<SessionRepository, "findById">>;
-type _SessionRepositoryHasDeleteById = Assert<HasKey<SessionRepository, "deleteById">>;
-type _SessionRepositoryHasDeleteAllForUser = Assert<HasKey<SessionRepository, "deleteAllForUser">>;
+type _SessionRepositoryHasFindByTokenHash = Assert<HasKey<SessionRepository, "findByTokenHash">>;
+type _SessionRepositoryHasRevokeByTokenHash = Assert<HasKey<SessionRepository, "revokeByTokenHash">>;
+type _SessionRepositoryHasRevokeAllForProfile = Assert<HasKey<SessionRepository, "revokeAllForProfile">>;
+
+type _AuthIdentityRepositoryHasLink = Assert<HasKey<AuthIdentityRepository, "link">>;
+type _AuthIdentityRepositoryHasFindByProvider = Assert<HasKey<AuthIdentityRepository, "findByProvider">>;
+type _AuthIdentityRepositoryHasListByProfile = Assert<HasKey<AuthIdentityRepository, "listByProfile">>;
 
 type _ShelfRepositoryHasCreateSystemShelves = Assert<HasKey<ShelfRepository, "createSystemShelves">>;
 
@@ -84,6 +90,7 @@ export type {
   _AppRepositoriesHasContacts,
   _AppRepositoriesHasLists,
   _AppRepositoriesHasSessions,
+  _AppRepositoriesHasAuthIdentities,
   _FollowRepositoryHasFollow,
   _FollowRepositoryHasUnfollow,
   _FollowRepositoryHasFindFollow,
@@ -122,14 +129,17 @@ export type {
   _ListRepositoryHasListItems,
   _ListRepositoryHasReorderItems,
   _SessionRepositoryHasCreate,
-  _SessionRepositoryHasFindById,
-  _SessionRepositoryHasDeleteById,
-  _SessionRepositoryHasDeleteAllForUser,
+  _SessionRepositoryHasFindByTokenHash,
+  _SessionRepositoryHasRevokeByTokenHash,
+  _SessionRepositoryHasRevokeAllForProfile,
+  _AuthIdentityRepositoryHasLink,
+  _AuthIdentityRepositoryHasFindByProvider,
+  _AuthIdentityRepositoryHasListByProfile,
   _ShelfRepositoryHasCreateSystemShelves,
 };
 
 describe("ports structural smoke tests", () => {
-  it("AppRepositories keys include all eight new repositories", () => {
+  it("AppRepositories keys include all nine new repositories", () => {
     const keys: (keyof AppRepositories)[] = [
       "follows",
       "blocks",
@@ -139,8 +149,9 @@ describe("ports structural smoke tests", () => {
       "contacts",
       "lists",
       "sessions",
+      "authIdentities",
     ];
-    expect(keys).toHaveLength(8);
+    expect(keys).toHaveLength(9);
   });
 
   it("AppRepositories keys include all original repositories", () => {

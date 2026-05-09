@@ -257,10 +257,17 @@ export interface GoodreadsRow {
 }
 
 export interface Session {
-  id: EntityId;
-  userId: EntityId;
-  createdAt: Date;
+  tokenHash: string;
+  profileId: EntityId;
   expiresAt: Date;
+  revokedAt?: Date | undefined;
+  createdAt: Date;
+}
+
+export interface AuthIdentityRecord {
+  provider: string;
+  providerUserId: string;
+  profileId: EntityId;
 }
 
 export interface AccountDeletion {

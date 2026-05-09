@@ -1,6 +1,7 @@
 import type {
   AccountDeletion,
   ActivityEvent,
+  AuthIdentityRecord,
   Block,
   BlockAgainstHash,
   Book,
@@ -9,12 +10,14 @@ import type {
   Profile,
   Ranking,
   Review,
+  Session,
   Shelf,
   ShelfItem
 } from "@hone/domain";
 import type {
   accountDeletions,
   activityEvents,
+  authIdentities,
   blocks,
   blocksAgainstHash,
   books,
@@ -23,6 +26,7 @@ import type {
   profiles,
   rankings,
   reviews,
+  sessions,
   shelfItems,
   shelves
 } from "./schema";
@@ -39,6 +43,8 @@ type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
+type AuthIdentityRow = typeof authIdentities.$inferSelect;
+type SessionRow = typeof sessions.$inferSelect;
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
@@ -190,5 +196,23 @@ export function toBlockAgainstHash(row: BlockAgainstHashRow): BlockAgainstHash {
   return {
     hash: row.hash,
     expiresAt: row.expiresAt
+  };
+}
+
+export function toAuthIdentity(row: AuthIdentityRow): AuthIdentityRecord {
+  return {
+    provider: row.provider,
+    providerUserId: row.providerUserId,
+    profileId: row.profileId
+  };
+}
+
+export function toSession(row: SessionRow): Session {
+  return {
+    tokenHash: row.tokenHash,
+    profileId: row.profileId,
+    expiresAt: row.expiresAt,
+    revokedAt: row.revokedAt ?? undefined,
+    createdAt: row.createdAt
   };
 }

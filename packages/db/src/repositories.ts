@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
+  AuthIdentityRepository,
   BlockRepository,
   BookRepository,
   ContactsRepository,
@@ -23,21 +24,25 @@ import { SYSTEM_SHELVES } from "@hone/domain";
 import type { HoneDb } from "./client";
 import {
   activityEvents,
+  authIdentities,
   books,
   editions,
   follows,
   profiles,
   recommendationScores,
   reviews,
+  sessions,
   shelfItems,
   shelves
 } from "./schema";
 import {
   toActivityEvent,
+  toAuthIdentity,
   toBook,
   toEdition,
   toProfile,
   toReview,
+  toSession,
   toShelf,
   toShelfItem
 } from "./mappers";
@@ -396,10 +401,78 @@ class DrizzleListRepository implements ListRepository {
 
 class DrizzleSessionRepository implements SessionRepository {
   constructor(private readonly db: HoneDb) {}
-  async create(): Promise<never> { throw new Error("not implemented"); }
-  async findById(): Promise<null> { throw new Error("not implemented"); }
-  async deleteById(): Promise<void> { throw new Error("not implemented"); }
-  async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
+
+  async create(input: { tokenHash: string; profileId: EntityId; expiresAt: Date }) {
+    const [row] = await this.db
+      .insert(sessions)
+      .values({
+        tokenHash: input.tokenHash,
+        profileId: input.profileId,
+        expiresAt: input.expiresAt
+      })
+      .returning();
+    if (!row) throw new Error("Failed to create session");
+    return toSession(row);
+  }
+
+  async findByTokenHash(tokenHash: string) {
+    const row = await this.db.query.sessions.findFirst({
+      where: eq(sessions.tokenHash, tokenHash)
+    });
+    return row ? toSession(row) : null;
+  }
+
+  async revokeByTokenHash(tokenHash: string) {
+    await this.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(eq(sessions.tokenHash, tokenHash));
+  }
+
+  async revokeAllForProfile(profileId: EntityId) {
+    await this.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(eq(sessions.profileId, profileId));
+  }
+}
+
+class DrizzleAuthIdentityRepository implements AuthIdentityRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async link(input: { provider: string; providerUserId: string; profileId: EntityId }) {
+    const [row] = await this.db
+      .insert(authIdentities)
+      .values({
+        provider: input.provider,
+        providerUserId: input.providerUserId,
+        profileId: input.profileId
+      })
+      .onConflictDoUpdate({
+        target: [authIdentities.provider, authIdentities.providerUserId],
+        set: { profileId: input.profileId }
+      })
+      .returning();
+    if (!row) throw new Error("Failed to link auth identity");
+    return toAuthIdentity(row);
+  }
+
+  async findByProvider(input: { provider: string; providerUserId: string }) {
+    const row = await this.db.query.authIdentities.findFirst({
+      where: and(
+        eq(authIdentities.provider, input.provider),
+        eq(authIdentities.providerUserId, input.providerUserId)
+      )
+    });
+    return row ? toAuthIdentity(row) : null;
+  }
+
+  async listByProfile(profileId: EntityId) {
+    const rows = await this.db.query.authIdentities.findMany({
+      where: eq(authIdentities.profileId, profileId)
+    });
+    return rows.map(toAuthIdentity);
+  }
 }
 
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
@@ -418,6 +491,6 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     contacts: new DrizzleContactsRepository(db),
     lists: new DrizzleListRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    authIdentities: new DrizzleAuthIdentityRepository(db),
   };
 }
-

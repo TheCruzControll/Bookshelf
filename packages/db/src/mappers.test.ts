@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toAccountDeletion, toAuthIdentity, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toSession } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { blocks, blocksAgainstHash, follows, imports, rankings, shelves, tasteVectors } from "./schema";
 
@@ -819,5 +819,53 @@ describe("blocks_against_hash table schema and mapper", () => {
     const diffMs = bah.expiresAt.getTime() - now.getTime();
     expect(diffMs).toBeGreaterThanOrEqual(ninetyDaysMs - 1000);
     expect(diffMs).toBeLessThanOrEqual(ninetyDaysMs + 1000);
+  });
+
+  it("toAuthIdentity maps a row to an AuthIdentityRecord", () => {
+    const row = {
+      provider: "apple",
+      providerUserId: "apple-user-123",
+      profileId: "00000000-0000-0000-0000-000000000010"
+    };
+
+    const identity = toAuthIdentity(row as Parameters<typeof toAuthIdentity>[0]);
+    expect(identity.provider).toBe("apple");
+    expect(identity.providerUserId).toBe("apple-user-123");
+    expect(identity.profileId).toBe("00000000-0000-0000-0000-000000000010");
+  });
+
+  it("toSession maps a row to a Session domain object", () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 86400000);
+    const row = {
+      tokenHash: "sha256hashvalue",
+      profileId: "00000000-0000-0000-0000-000000000011",
+      expiresAt,
+      revokedAt: null,
+      createdAt: now
+    };
+
+    const session = toSession(row as Parameters<typeof toSession>[0]);
+    expect(session.tokenHash).toBe("sha256hashvalue");
+    expect(session.profileId).toBe("00000000-0000-0000-0000-000000000011");
+    expect(session.expiresAt).toBe(expiresAt);
+    expect(session.revokedAt).toBeUndefined();
+    expect(session.createdAt).toBe(now);
+  });
+
+  it("toSession maps revokedAt when present", () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 86400000);
+    const revokedAt = new Date(now.getTime() + 3600000);
+    const row = {
+      tokenHash: "sha256hashvalue",
+      profileId: "00000000-0000-0000-0000-000000000011",
+      expiresAt,
+      revokedAt,
+      createdAt: now
+    };
+
+    const session = toSession(row as Parameters<typeof toSession>[0]);
+    expect(session.revokedAt).toBe(revokedAt);
   });
 });

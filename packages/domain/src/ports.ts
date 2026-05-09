@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  AuthIdentityRecord,
   Block,
   Book,
   ContactsHash,
@@ -220,13 +221,26 @@ export interface ListRepository {
 
 export interface SessionRepository {
   create(input: {
-    id: EntityId;
-    userId: EntityId;
+    tokenHash: string;
+    profileId: EntityId;
     expiresAt: Date;
   }): Promise<Session>;
-  findById(id: EntityId): Promise<Session | null>;
-  deleteById(id: EntityId): Promise<void>;
-  deleteAllForUser(userId: EntityId): Promise<void>;
+  findByTokenHash(tokenHash: string): Promise<Session | null>;
+  revokeByTokenHash(tokenHash: string): Promise<void>;
+  revokeAllForProfile(profileId: EntityId): Promise<void>;
+}
+
+export interface AuthIdentityRepository {
+  link(input: {
+    provider: string;
+    providerUserId: string;
+    profileId: EntityId;
+  }): Promise<AuthIdentityRecord>;
+  findByProvider(input: {
+    provider: string;
+    providerUserId: string;
+  }): Promise<AuthIdentityRecord | null>;
+  listByProfile(profileId: EntityId): Promise<AuthIdentityRecord[]>;
 }
 
 export interface AppRepositories {
@@ -244,6 +258,7 @@ export interface AppRepositories {
   contacts: ContactsRepository;
   lists: ListRepository;
   sessions: SessionRepository;
+  authIdentities: AuthIdentityRepository;
 }
 
 export interface BlockFilter {
