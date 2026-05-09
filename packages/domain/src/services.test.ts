@@ -22,7 +22,8 @@ describe("ShelfService", () => {
     const shelves: ShelfRepository = {
       listShelves: vi.fn(),
       addBook: vi.fn().mockResolvedValue(shelfItem),
-      rankShelfItem: vi.fn()
+      rankShelfItem: vi.fn(),
+      update: vi.fn()
     };
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
@@ -54,7 +55,8 @@ describe("ShelfService", () => {
     const shelves: ShelfRepository = {
       listShelves: vi.fn(),
       addBook: vi.fn().mockResolvedValue(shelfItem),
-      rankShelfItem: vi.fn()
+      rankShelfItem: vi.fn(),
+      update: vi.fn()
     };
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-2", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
@@ -79,10 +81,10 @@ describe("ShelfService", () => {
 describe("AppServices", () => {
   it("exposes a shelves service", () => {
     const repositories: AppRepositories = {
-      profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn() },
+      profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), update: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-      shelves: { listShelves: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn() },
-      reviews: { create: vi.fn() },
+      shelves: { listShelves: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), update: vi.fn() },
+      reviews: { create: vi.fn(), update: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn() },
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },

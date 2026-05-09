@@ -93,10 +93,12 @@ describe("profiles schemas", () => {
       handle: "maya",
       displayName: "Maya",
       defaultVisibility: "public",
+      version: 1,
       createdAt: NOW,
       updatedAt: NOW,
     });
     expect(result.handle).toBe("maya");
+    expect(result.version).toBe(1);
   });
 
   it("CreateProfileInputSchema applies default visibility of public", () => {
@@ -201,10 +203,12 @@ describe("ranking schemas", () => {
       bookId: UUID,
       body: "Excellent read",
       visibility: "public",
+      version: 1,
       createdAt: NOW,
       updatedAt: NOW,
     });
     expect(result.body).toBe("Excellent read");
+    expect(result.version).toBe(1);
   });
 });
 

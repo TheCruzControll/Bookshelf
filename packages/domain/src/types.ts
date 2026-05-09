@@ -54,6 +54,7 @@ export interface Profile {
   bio?: string | undefined;
   avatarUrl?: string | undefined;
   defaultVisibility: Visibility;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +100,7 @@ export interface Shelf {
   curatorTier?: number | undefined;
   description?: string | undefined;
   publishedAt?: Date | undefined;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -123,6 +125,7 @@ export interface Review {
   editionId?: EntityId | undefined;
   body: string;
   visibility: Visibility;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }

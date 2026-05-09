@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { follows, shelves } from "./schema";
+import { follows, shelves, profiles, reviews } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -55,6 +55,7 @@ describe("db mappers smoke test", () => {
       bio: null,
       avatarUrl: null,
       defaultVisibility: "public" as const,
+      version: 1,
       createdAt: now,
       updatedAt: now
     };
@@ -64,6 +65,7 @@ describe("db mappers smoke test", () => {
     expect(profile.bio).toBeUndefined();
     expect(profile.avatarUrl).toBeUndefined();
     expect(profile.defaultVisibility).toBe("public");
+    expect(profile.version).toBe(1);
   });
 
   it("toProfile maps optional fields when present", () => {
@@ -75,6 +77,7 @@ describe("db mappers smoke test", () => {
       bio: "Loves books",
       avatarUrl: "https://example.com/avatar.jpg",
       defaultVisibility: "followers" as const,
+      version: 3,
       createdAt: now,
       updatedAt: now
     };
@@ -83,6 +86,7 @@ describe("db mappers smoke test", () => {
     expect(profile.bio).toBe("Loves books");
     expect(profile.avatarUrl).toBe("https://example.com/avatar.jpg");
     expect(profile.defaultVisibility).toBe("followers");
+    expect(profile.version).toBe(3);
   });
 
   it("toShelf maps a row to a Shelf domain object", () => {
@@ -99,6 +103,7 @@ describe("db mappers smoke test", () => {
       curatorTier: null,
       description: null,
       publishedAt: null,
+      version: 1,
       createdAt: now,
       updatedAt: now
     };
@@ -113,6 +118,7 @@ describe("db mappers smoke test", () => {
     expect(shelf.curatorTier).toBeUndefined();
     expect(shelf.description).toBeUndefined();
     expect(shelf.publishedAt).toBeUndefined();
+    expect(shelf.version).toBe(1);
   });
 
   it("toEdition maps a row to an Edition domain object", () => {
@@ -260,6 +266,7 @@ describe("db mappers smoke test", () => {
       editionId: null,
       body: "A masterpiece of science fiction.",
       visibility: "public" as const,
+      version: 1,
       createdAt: now,
       updatedAt: now
     };
@@ -271,6 +278,7 @@ describe("db mappers smoke test", () => {
     expect(review.editionId).toBeUndefined();
     expect(review.body).toBe("A masterpiece of science fiction.");
     expect(review.visibility).toBe("public");
+    expect(review.version).toBe(1);
   });
 
   it("toReview maps editionId when present", () => {
@@ -282,12 +290,14 @@ describe("db mappers smoke test", () => {
       editionId: "00000000-0000-0000-0000-000000000004",
       body: "Great.",
       visibility: "followers" as const,
+      version: 2,
       createdAt: now,
       updatedAt: now
     };
 
     const review = toReview(row as Parameters<typeof toReview>[0]);
     expect(review.editionId).toBe("00000000-0000-0000-0000-000000000004");
+    expect(review.version).toBe(2);
   });
 
   it("toActivityEvent maps a row to an ActivityEvent domain object", () => {
@@ -347,6 +357,7 @@ describe("visibility 4-tier enum mapping", () => {
         bio: null,
         avatarUrl: null,
         defaultVisibility: tier as Visibility,
+        version: 1,
         createdAt: now,
         updatedAt: now
       };
@@ -369,6 +380,7 @@ describe("visibility 4-tier enum mapping", () => {
         curatorTier: null,
         description: null,
         publishedAt: null,
+        version: 1,
         createdAt: now,
         updatedAt: now
       };
@@ -386,6 +398,7 @@ describe("visibility 4-tier enum mapping", () => {
         editionId: null,
         body: "Great book",
         visibility: tier as Visibility,
+        version: 1,
         createdAt: now,
         updatedAt: now
       };
@@ -407,6 +420,7 @@ describe("visibility 4-tier enum mapping", () => {
       curatorTier: null,
       description: null,
       publishedAt: null,
+      version: 1,
       createdAt: now,
       updatedAt: now
     };
@@ -438,6 +452,7 @@ describe("shelves list extension fields", () => {
         curatorTier: null,
         description: null,
         publishedAt: null,
+        version: 1,
         createdAt: now,
         updatedAt: now
       };
@@ -461,6 +476,7 @@ describe("shelves list extension fields", () => {
         curatorTier: null,
         description: null,
         publishedAt: null,
+        version: 1,
         createdAt: now,
         updatedAt: now
       };
@@ -483,6 +499,7 @@ describe("shelves list extension fields", () => {
       curatorTier: 1,
       description: "Our top picks for science fiction in 2024.",
       publishedAt,
+      version: 1,
       createdAt: now,
       updatedAt: now
     };
@@ -515,5 +532,77 @@ describe("follows table schema", () => {
   it("follows table does not have a surrogate id column", () => {
     const cols = Object.keys(follows);
     expect(cols).not.toContain("id");
+  });
+});
+
+describe("version columns", () => {
+  const now = new Date();
+
+  it("profiles schema includes version column", () => {
+    const cols = Object.keys(profiles);
+    expect(cols).toContain("version");
+  });
+
+  it("shelves schema includes version column", () => {
+    const cols = Object.keys(shelves);
+    expect(cols).toContain("version");
+  });
+
+  it("reviews schema includes version column", () => {
+    const cols = Object.keys(reviews);
+    expect(cols).toContain("version");
+  });
+
+  it("toProfile maps version field", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000030",
+      handle: "user",
+      displayName: "User",
+      bio: null,
+      avatarUrl: null,
+      defaultVisibility: "public" as const,
+      version: 5,
+      createdAt: now,
+      updatedAt: now
+    };
+    const profile = toProfile(row as Parameters<typeof toProfile>[0]);
+    expect(profile.version).toBe(5);
+  });
+
+  it("toShelf maps version field", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000031",
+      ownerId: "00000000-0000-0000-0000-000000000030",
+      name: "Reading",
+      slug: "reading",
+      visibility: "public" as const,
+      isSystem: true,
+      kind: "system" as const,
+      authorType: "user" as const,
+      curatorTier: null,
+      description: null,
+      publishedAt: null,
+      version: 7,
+      createdAt: now,
+      updatedAt: now
+    };
+    const shelf = toShelf(row as Parameters<typeof toShelf>[0]);
+    expect(shelf.version).toBe(7);
+  });
+
+  it("toReview maps version field", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000032",
+      authorId: "00000000-0000-0000-0000-000000000030",
+      bookId: "00000000-0000-0000-0000-000000000001",
+      editionId: null,
+      body: "Excellent.",
+      visibility: "public" as const,
+      version: 3,
+      createdAt: now,
+      updatedAt: now
+    };
+    const review = toReview(row as Parameters<typeof toReview>[0]);
+    expect(review.version).toBe(3);
   });
 });

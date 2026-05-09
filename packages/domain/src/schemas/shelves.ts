@@ -51,6 +51,7 @@ export const ShelfSchema = z.object({
   curatorTier: z.number().int().nonnegative().optional(),
   description: z.string().optional(),
   publishedAt: z.date().optional(),
+  version: z.number().int().positive(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

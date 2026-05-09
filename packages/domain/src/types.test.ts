@@ -114,11 +114,13 @@ describe("domain types smoke test", () => {
       handle: "tester",
       displayName: "Test User",
       defaultVisibility: "public",
+      version: 1,
       createdAt: now,
       updatedAt: now,
     };
     expect(profile.handle).toBe("tester");
     expect(profile.defaultVisibility).toBe("public");
+    expect(profile.version).toBe(1);
   });
 
   it("Book shape is structurally valid", () => {

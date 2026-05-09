@@ -18,6 +18,7 @@ export const ReviewSchema = z.object({
   editionId: EntityIdSchema.optional(),
   body: z.string().min(1),
   visibility: z.enum(["public", "followers", "mutuals", "private"]),
+  version: z.number().int().positive(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

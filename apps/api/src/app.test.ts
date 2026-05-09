@@ -16,14 +16,15 @@ function makeShelfItem() {
 
 function makeRepositories(): AppRepositories {
   return {
-    profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn() },
+    profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), update: vi.fn() },
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
     shelves: {
       listShelves: vi.fn(),
       addBook: vi.fn().mockResolvedValue(makeShelfItem()),
-      rankShelfItem: vi.fn()
+      rankShelfItem: vi.fn(),
+      update: vi.fn()
     },
-    reviews: { create: vi.fn() },
+    reviews: { create: vi.fn(), update: vi.fn() },
     activity: {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
       getFriendFeed: vi.fn()

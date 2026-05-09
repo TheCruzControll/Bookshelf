@@ -52,6 +52,15 @@ export interface ProfileRepository {
     displayName: string;
     defaultVisibility: Visibility;
   }): Promise<Profile>;
+  update(input: {
+    id: EntityId;
+    version: number;
+    handle?: string | undefined;
+    displayName?: string | undefined;
+    bio?: string | undefined;
+    avatarUrl?: string | undefined;
+    defaultVisibility?: Visibility | undefined;
+  }): Promise<Profile>;
 }
 
 export interface BookRepository {
@@ -73,6 +82,14 @@ export interface ShelfRepository {
     shelfItemId: EntityId;
     rank: number;
   }): Promise<ShelfItem>;
+  update(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    version: number;
+    name?: string | undefined;
+    visibility?: Visibility | undefined;
+    description?: string | undefined;
+  }): Promise<Shelf>;
 }
 
 export interface ReviewRepository {
@@ -82,6 +99,13 @@ export interface ReviewRepository {
     editionId?: EntityId | undefined;
     body: string;
     visibility: Visibility;
+  }): Promise<Review>;
+  update(input: {
+    id: EntityId;
+    authorId: EntityId;
+    version: number;
+    body?: string | undefined;
+    visibility?: Visibility | undefined;
   }): Promise<Review>;
 }
 

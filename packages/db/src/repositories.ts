@@ -41,6 +41,14 @@ import {
   toShelfItem
 } from "./mappers";
 
+export class VersionConflictError extends Error {
+  readonly code = "VERSION_CONFLICT" as const;
+  constructor(entity: string, id: string) {
+    super(`Stale ${entity} edit: version mismatch for id ${id}`);
+    this.name = "VersionConflictError";
+  }
+}
+
 export class DrizzleProfileRepository implements ProfileRepository {
   constructor(private readonly db: HoneDb) {}
 
@@ -62,6 +70,19 @@ export class DrizzleProfileRepository implements ProfileRepository {
     const [row] = await this.db.insert(profiles).values(input).returning();
     if (!row) {
       throw new Error("Failed to create profile");
+    }
+    return toProfile(row);
+  }
+
+  async update(input: Parameters<ProfileRepository["update"]>[0]) {
+    const { id, version, ...fields } = input;
+    const [row] = await this.db
+      .update(profiles)
+      .set({ ...fields, version: version + 1, updatedAt: new Date() })
+      .where(and(eq(profiles.id, id), eq(profiles.version, version)))
+      .returning();
+    if (!row) {
+      throw new VersionConflictError("profile", id);
     }
     return toProfile(row);
   }
@@ -141,6 +162,25 @@ export class DrizzleShelfRepository implements ShelfRepository {
     }
     return toShelfItem(row);
   }
+
+  async update(input: Parameters<ShelfRepository["update"]>[0]) {
+    const { id, ownerId, version, ...fields } = input;
+    const [row] = await this.db
+      .update(shelves)
+      .set({ ...fields, version: version + 1, updatedAt: new Date() })
+      .where(
+        and(
+          eq(shelves.id, id),
+          eq(shelves.ownerId, ownerId),
+          eq(shelves.version, version)
+        )
+      )
+      .returning();
+    if (!row) {
+      throw new VersionConflictError("shelf", id);
+    }
+    return toShelf(row);
+  }
 }
 
 export class DrizzleReviewRepository implements ReviewRepository {
@@ -150,6 +190,25 @@ export class DrizzleReviewRepository implements ReviewRepository {
     const [row] = await this.db.insert(reviews).values(input).returning();
     if (!row) {
       throw new Error("Failed to create review");
+    }
+    return toReview(row);
+  }
+
+  async update(input: Parameters<ReviewRepository["update"]>[0]) {
+    const { id, authorId, version, ...fields } = input;
+    const [row] = await this.db
+      .update(reviews)
+      .set({ ...fields, version: version + 1, updatedAt: new Date() })
+      .where(
+        and(
+          eq(reviews.id, id),
+          eq(reviews.authorId, authorId),
+          eq(reviews.version, version)
+        )
+      )
+      .returning();
+    if (!row) {
+      throw new VersionConflictError("review", id);
     }
     return toReview(row);
   }
@@ -194,6 +253,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
       handle: "unknown",
       displayName: "Unknown reader",
       defaultVisibility: "public",
+      version: 1,
       createdAt: event.occurredAt,
       updatedAt: event.occurredAt
     }}));
@@ -318,4 +378,3 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     sessions: new DrizzleSessionRepository(db),
   };
 }
-

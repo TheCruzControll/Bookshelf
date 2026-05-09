@@ -10,6 +10,7 @@ export const ProfileSchema = z.object({
   bio: z.string().max(500).optional(),
   avatarUrl: z.string().url().optional(),
   defaultVisibility: VisibilitySchema,
+  version: z.number().int().positive(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
