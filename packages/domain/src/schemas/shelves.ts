@@ -80,6 +80,7 @@ export const AddShelfItemInputSchema = z.object({
 
 export const UpdateShelfInputSchema = z.object({
   id: EntityIdSchema,
+  version: z.number().int().positive(),
   name: z.string().min(1).max(100).optional(),
   visibility: VisibilitySchema.optional(),
   description: z.string().optional(),

@@ -166,11 +166,17 @@ export class DrizzleShelfRepository implements ShelfRepository {
 
     const [row] = await this.db
       .update(shelves)
-      .set(updateData)
-      .where(and(eq(shelves.id, input.id), eq(shelves.ownerId, input.ownerId)))
+      .set({ ...updateData, version: input.version + 1 })
+      .where(
+        and(
+          eq(shelves.id, input.id),
+          eq(shelves.ownerId, input.ownerId),
+          eq(shelves.version, input.version)
+        )
+      )
       .returning();
     if (!row) {
-      throw new Error("Shelf not found");
+      throw new Error("Stale shelf version or shelf not found");
     }
     return toShelf(row);
   }
@@ -253,6 +259,28 @@ export class DrizzleReviewRepository implements ReviewRepository {
     }
     return toReview(row);
   }
+
+  async update(input: Parameters<ReviewRepository["update"]>[0]) {
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.body !== undefined) updateData.body = input.body;
+    if (input.visibility !== undefined) updateData.visibility = input.visibility;
+
+    const [row] = await this.db
+      .update(reviews)
+      .set({ ...updateData, version: input.version + 1 })
+      .where(
+        and(
+          eq(reviews.id, input.id),
+          eq(reviews.authorId, input.authorId),
+          eq(reviews.version, input.version)
+        )
+      )
+      .returning();
+    if (!row) {
+      throw new Error("Stale review version or review not found");
+    }
+    return toReview(row);
+  }
 }
 
 export class DrizzleActivityRepository implements ActivityRepository {
@@ -294,6 +322,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
       handle: "unknown",
       displayName: "Unknown reader",
       defaultVisibility: "public",
+      version: 1,
       createdAt: event.occurredAt,
       updatedAt: event.occurredAt
     }}));

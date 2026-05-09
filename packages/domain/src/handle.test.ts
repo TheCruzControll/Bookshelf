@@ -13,8 +13,9 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     defaultVisibility: "public",
     createdAt: now,
     updatedAt: now,
+    version: 1,
     ...overrides,
-  };
+  } as Profile;
 }
 
 function makeProfileRepo(overrides?: Partial<ProfileRepository>): ProfileRepository {

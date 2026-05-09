@@ -114,6 +114,7 @@ describe("domain types smoke test", () => {
       handle: "tester",
       displayName: "Test User",
       defaultVisibility: "public",
+      version: 1,
       createdAt: now,
       updatedAt: now,
     };
