@@ -11,11 +11,11 @@
 
 ## Cache usage
 
-Any per-user or per-resource cache **must** use `ctx.cache` from the tRPC context.
+Any per-user, per-resource, or infrastructure cache **must** use `ctx.cache` from the tRPC context or app dependencies.
 Never use module-scoped `Map`s or other module-level singletons for caching.
 
 `ctx.cache` is a `Cache` instance (`@hone/cache`) wired at app startup based on
-the `CACHE_DRIVER` env variable (`memory` | `redis`). Procedures access it via:
+the `CACHE_DRIVER` env variable (`memory` | `redis`). Procedures and middleware access it via:
 
 ```ts
 const value = await ctx.cache?.get<MyType>("some-key");
