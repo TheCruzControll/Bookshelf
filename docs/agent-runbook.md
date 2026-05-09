@@ -35,6 +35,7 @@ Before the agents can run end-to-end, do this once:
 4. **Bootstrap issues:**
    - From a local checkout: `pnpm tsx tools/orchestrator/bootstrap-issues.ts`
    - Creates ~93 issues with deps and labels. Idempotent on re-run via `[X-NN]` title prefixes.
+   - Tunable via env vars: `BOOTSTRAP_CREATE_DELAY_MS` (default 1500ms, throttle between creates to avoid secondary rate limits) and `BOOTSTRAP_MAX_RETRIES` (default 6, exponential backoff on 403 secondary-limit errors).
 5. **Kick off:**
    - `gh workflow run agent-orchestrator.yml`
    - The Orchestrator labels Wave 0 issues `lifecycle:ready` and dispatches the lowest-numbered W0 issue to the Implementer.
