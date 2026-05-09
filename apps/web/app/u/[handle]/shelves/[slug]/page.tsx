@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { Profile, Shelf, ShelfItem, Book } from "@hone/domain";
 import { isPubliclyVisible } from "../../../visibility";
+import { indexRobots } from "../../../../robots-meta";
 
 export const revalidate = 60;
 
@@ -26,6 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${slug} — @${handle} — Hone`,
     description: `${handle}'s shelf on Hone.`,
+    robots: indexRobots,
   };
 }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { Profile, Shelf, Review } from "@hone/domain";
 import { isPubliclyVisible } from "../visibility";
+import { indexRobots } from "../../robots-meta";
 
 export const revalidate = 60;
 
@@ -28,6 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `@${handle} — Hone`,
     description: `${handle}'s reading profile on Hone.`,
+    robots: indexRobots,
   };
 }
 

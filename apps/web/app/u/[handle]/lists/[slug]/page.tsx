@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { Profile, List, ListItem, Book } from "@hone/domain";
 import { isPubliclyVisible } from "../../../visibility";
+import { indexRobots } from "../../../../robots-meta";
 
 export const revalidate = 60;
 
@@ -26,6 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `List — @${handle} — Hone`,
     description: `A list by ${handle} on Hone.`,
+    robots: indexRobots,
   };
 }
 

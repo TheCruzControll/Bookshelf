@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { AffiliateLocale } from "@hone/domain";
 import { BookBuySection } from "./BookBuySection";
+import { indexRobots } from "../../robots-meta";
 
 interface BookDetailPageProps {
   params: Promise<{ id: string }>;
@@ -13,7 +14,8 @@ function isAffiliateLocale(value: string | undefined): value is AffiliateLocale 
 
 export const metadata: Metadata = {
   title: "Book Detail — Hone",
-  description: "Buy and read this book through your preferred retailer."
+  description: "Buy and read this book through your preferred retailer.",
+  robots: indexRobots,
 };
 
 export default async function BookDetailPage({ params, searchParams }: BookDetailPageProps) {
