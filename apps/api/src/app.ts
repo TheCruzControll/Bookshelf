@@ -1,8 +1,11 @@
 import { Hono } from "hono";
+import { trpcServer } from "@hono/trpc-server";
 import { z } from "zod";
 import type { AppRepositories, AuthProvider } from "@hone/domain";
 import { AppServices } from "@hone/domain";
 import { clearSentryUser, setSentryUser } from "@hone/observability";
+import { createTrpcContext } from "./trpc/context";
+import { appRouter } from "./trpc/router";
 
 export interface ApiDependencies {
   repositories?: AppRepositories;
@@ -39,6 +42,14 @@ export function createApi(dependencies: ApiDependencies = {}) {
     c.json({
       ok: true,
       service: "hone-api"
+    })
+  );
+
+  app.use(
+    "/trpc/*",
+    trpcServer({
+      router: appRouter,
+      createContext: createTrpcContext(dependencies)
     })
   );
 
