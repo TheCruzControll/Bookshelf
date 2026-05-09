@@ -171,6 +171,21 @@ gh pr edit "$PR_NUMBER" \
 
 ## Hard rules
 
+- **Never modify the issue's acceptance criteria implicitly to make CI
+  green.** If your implementation cannot make CI green while satisfying
+  every `- [ ]` in the issue body LITERALLY (exact values, exact files,
+  exact thresholds, exact strings), STOP. The "fix" of softening a
+  threshold to match current behavior, lowering a target to whatever
+  the codebase happens to pass today, replacing a strict assertion with
+  a permissive one, or adding `passWithNoTests: true` to bypass missing
+  tests is a SCOPE VIOLATION, not a fix. In that case:
+  1. Comment on the source issue with the exact conflict ("AC says
+     domain coverage 90%; current actual is 47%; cannot reach 90%
+     without adding N tests, which is out of scope for this issue").
+  2. Apply `needs-human` to the issue.
+  3. Reset the issue's lifecycle from `lifecycle:in-progress` to
+     `lifecycle:ready` so the Orchestrator stops dispatching it.
+  4. Exit non-zero.
 - Never modify the lockfile by hand. Run `pnpm install` if dependencies
   change.
 - Never bypass tests with `// @ts-ignore`, `eslint-disable`, or `it.skip`.
