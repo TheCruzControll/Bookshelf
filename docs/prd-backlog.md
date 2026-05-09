@@ -261,6 +261,22 @@ Required order:
 - **No realtime cross-device sync in v1.** No websockets. Refresh on app
   foreground / pull-to-refresh.
 
+### Score Derivation (formula and ties)
+
+- **V1 formula: bucket-anchored linear interpolation.** Each star bucket
+  maps to a fixed score band (1★ → 0.00–2.00 ... 5★ → 8.00–10.00). Books
+  inside a band are evenly spaced by rank position within the band. See
+  `docs/ranking-flow-spec.md` for the precise rule.
+- **Crossover allowed.** If comparisons push a book above the top of its
+  starting band, it crosses into the next band and is scored there. The
+  starting star is an anchor, not a hard cap.
+- **Comparison UI: 3 outcomes.** Left wins, right wins, can't decide.
+- **`Can't decide` triggers one disambiguation attempt** against a
+  different candidate from the same bucket and approximate position. If
+  still undecided, the new book is placed at a tied rank with the most
+  recent comparison candidate; both share the same derived score. Future
+  ranking flows on either tied book can naturally break the tie.
+
 ### Score Recalculation Propagation
 
 - **Frozen at publish time on feed events.** Feed event row stores

@@ -102,7 +102,13 @@ The UI does not show:
 - `Why this comparison?` labels.
 - Nearby placement context.
 
-User chooses the side/page that is more their taste.
+User chooses one of three outcomes:
+
+- **Left wins** (new book is more my taste than the comparison)
+- **Right wins** (the comparison is more my taste than the new book)
+- **Can't decide** (a tie)
+
+`Can't decide` triggers one disambiguation attempt: Hone picks a different candidate from the same bucket and approximate position and shows a new comparison. If the user is undecided again, the new book is placed at the same rank as the most recent comparison candidate (a tied position; both books share the same derived score). Subsequent ranking flows on either tied book can naturally break the tie.
 
 ## Candidate Selection
 
@@ -139,15 +145,40 @@ The number of comparisons should scale logarithmically with ranked-book count, n
 
 Rank order is the source of truth. The score is a projection of that order.
 
-Rules:
+**V1 formula: bucket-anchored linear interpolation.**
+
+Each star bucket maps to a score band:
+
+- 5★ → 8.00–10.00
+- 4★ → 6.00–8.00
+- 3★ → 4.00–6.00
+- 2★ → 2.00–4.00
+- 1★ → 0.00–2.00
+
+Inside a band, books are scored by their position within that band's rank
+sub-list, evenly spaced between the band edges. Best book in the 4★ band
+is at 8.00; worst at 6.00; books in between linearly interpolated.
+
+**Crossover.** If comparisons place the new book above the top of its
+starting band (or below the bottom), the book *crosses* into the
+neighboring band and is scored there. The starting star is an anchor,
+not a hard cap.
+
+**Ties.** When two books share a rank position (because the user marked
+their comparison `Can't decide` twice), they share a score. Tied books
+appear at the same line on the taste profile.
+
+Other rules:
 
 - User does not manually enter a 0-10 score.
 - Score is calculated from final rank position.
 - Score displays up to 2 decimal places.
-- If a book moves because of rerank/rereview or status transition, scores may recalculate.
+- If a book moves because of rerank/rereview, status transition, or a new
+  ranking that affects band ordering, scores may recalculate.
 - If scores are locked, UI shows `?` in completed score slots.
 
-V1 can use a simple position-derived scoring model. Advanced confidence modeling and normalization can be deferred.
+Advanced confidence modeling, smoothing for low-data users, and
+normalization across users are explicitly deferred.
 
 ## Popup After Placement
 
