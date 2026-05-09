@@ -37,6 +37,7 @@ import {
 } from "./lists";
 import {
   NotificationPlatformSchema,
+  NotificationSettingSchema,
   NotificationTokenSchema,
   RegisterTokenInputSchema,
 } from "./notifications";
@@ -318,13 +319,21 @@ describe("notifications schemas", () => {
 
   it("NotificationTokenSchema parses valid token", () => {
     const result = NotificationTokenSchema.parse({
-      id: UUID,
-      userId: UUID2,
+      profileId: UUID,
       platform: "fcm",
       token: "abc123",
-      createdAt: NOW,
-      updatedAt: NOW,
+      lastSeen: NOW,
     });
     expect(result.token).toBe("abc123");
+  });
+
+  it("NotificationSettingSchema parses valid setting", () => {
+    const result = NotificationSettingSchema.parse({
+      profileId: UUID,
+      key: "push_new_follower",
+      value: true,
+    });
+    expect(result.key).toBe("push_new_follower");
+    expect(result.value).toBe(true);
   });
 });

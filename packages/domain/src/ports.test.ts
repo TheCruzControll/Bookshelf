@@ -47,7 +47,10 @@ type _RankingRepositoryHasDelete = Assert<HasKey<RankingRepository, "delete">>;
 
 type _NotificationRepositoryHasRegisterToken = Assert<HasKey<NotificationRepository, "registerToken">>;
 type _NotificationRepositoryHasRemoveToken = Assert<HasKey<NotificationRepository, "removeToken">>;
-type _NotificationRepositoryHasListTokensForUser = Assert<HasKey<NotificationRepository, "listTokensForUser">>;
+type _NotificationRepositoryHasListTokensForProfile = Assert<HasKey<NotificationRepository, "listTokensForProfile">>;
+type _NotificationRepositoryHasGetSetting = Assert<HasKey<NotificationRepository, "getSetting">>;
+type _NotificationRepositoryHasSetSetting = Assert<HasKey<NotificationRepository, "setSetting">>;
+type _NotificationRepositoryHasListSettings = Assert<HasKey<NotificationRepository, "listSettings">>;
 
 type _ImportRepositoryHasCreate = Assert<HasKey<ImportRepository, "create">>;
 type _ImportRepositoryHasFindById = Assert<HasKey<ImportRepository, "findById">>;
@@ -109,7 +112,10 @@ export type {
   _RankingRepositoryHasDelete,
   _NotificationRepositoryHasRegisterToken,
   _NotificationRepositoryHasRemoveToken,
-  _NotificationRepositoryHasListTokensForUser,
+  _NotificationRepositoryHasListTokensForProfile,
+  _NotificationRepositoryHasGetSetting,
+  _NotificationRepositoryHasSetSetting,
+  _NotificationRepositoryHasListSettings,
   _ImportRepositoryHasCreate,
   _ImportRepositoryHasFindById,
   _ImportRepositoryHasFindByOwnerAndHash,

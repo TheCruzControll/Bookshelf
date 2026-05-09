@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
+import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, notificationSettings, notificationTokens, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -1205,5 +1205,60 @@ describe("email_index table schema and mapper", () => {
     const result = toEmailIndex(row as Parameters<typeof toEmailIndex>[0]);
     expect(result.saltVersion).toBe(5);
     expect(result.emailHash).toBe("emailhashnewsalt");
+  });
+
+  it("toNotificationToken maps a notification_tokens row to a NotificationToken domain object", () => {
+    const now = new Date();
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      platform: "apns" as const,
+      token: "abc123devicetoken",
+      lastSeen: now
+    };
+
+    const result = toNotificationToken(row as Parameters<typeof toNotificationToken>[0]);
+    expect(result.profileId).toBe(row.profileId);
+    expect(result.platform).toBe("apns");
+    expect(result.token).toBe("abc123devicetoken");
+    expect(result.lastSeen).toBe(now);
+  });
+
+  it("toNotificationToken maps fcm platform correctly", () => {
+    const now = new Date();
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000002",
+      platform: "fcm" as const,
+      token: "fcmtoken456",
+      lastSeen: now
+    };
+
+    const result = toNotificationToken(row as Parameters<typeof toNotificationToken>[0]);
+    expect(result.platform).toBe("fcm");
+    expect(result.token).toBe("fcmtoken456");
+  });
+
+  it("toNotificationSetting maps a notification_settings row to a NotificationSetting domain object", () => {
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      key: "push_new_follower",
+      value: true
+    };
+
+    const result = toNotificationSetting(row as Parameters<typeof toNotificationSetting>[0]);
+    expect(result.profileId).toBe(row.profileId);
+    expect(result.key).toBe("push_new_follower");
+    expect(result.value).toBe(true);
+  });
+
+  it("toNotificationSetting maps jsonb value correctly for object values", () => {
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000002",
+      key: "quiet_hours",
+      value: { start: "22:00", end: "08:00" }
+    };
+
+    const result = toNotificationSetting(row as Parameters<typeof toNotificationSetting>[0]);
+    expect(result.key).toBe("quiet_hours");
+    expect(result.value).toEqual({ start: "22:00", end: "08:00" });
   });
 });

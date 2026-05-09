@@ -8,6 +8,8 @@ import type {
   Edition,
   EmailIndex,
   Import,
+  NotificationSetting,
+  NotificationToken,
   OAuthIdentity,
   PhoneNumber,
   PhoneVerification,
@@ -29,6 +31,8 @@ import type {
   editions,
   emailIndex,
   imports,
+  notificationSettings,
+  notificationTokens,
   phoneNumbers,
   phoneVerifications,
   profiles,
@@ -42,6 +46,8 @@ import type {
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
 type ContactIndexRow = typeof contactsIndex.$inferSelect;
 type EmailIndexRow = typeof emailIndex.$inferSelect;
+type NotificationTokenRow = typeof notificationTokens.$inferSelect;
+type NotificationSettingRow = typeof notificationSettings.$inferSelect;
 type AuthIdentityRow = typeof authIdentities.$inferSelect;
 type BlockRow = typeof blocks.$inferSelect;
 type BlockAgainstHashRow = typeof blocksAgainstHash.$inferSelect;
@@ -265,5 +271,22 @@ export function toEmailIndex(row: EmailIndexRow): EmailIndex {
     emailHash: row.emailHash,
     saltVersion: row.saltVersion,
     expiresAt: row.expiresAt
+  };
+}
+
+export function toNotificationToken(row: NotificationTokenRow): NotificationToken {
+  return {
+    profileId: row.profileId,
+    platform: row.platform,
+    token: row.token,
+    lastSeen: row.lastSeen
+  };
+}
+
+export function toNotificationSetting(row: NotificationSettingRow): NotificationSetting {
+  return {
+    profileId: row.profileId,
+    key: row.key,
+    value: row.value
   };
 }
