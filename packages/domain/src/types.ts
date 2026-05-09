@@ -21,6 +21,10 @@ export type ReadingStatus =
   | "finished"
   | "dropped";
 
+export type ShelfKind = "system" | "custom" | "list";
+
+export type ShelfAuthorType = "user" | "internal_editorial" | "algorithmic";
+
 export type ActivityVerb =
   | "book_added"
   | "book_started"
@@ -90,6 +94,11 @@ export interface Shelf {
   slug: string;
   visibility: Visibility;
   isSystem: boolean;
+  kind: ShelfKind;
+  authorType: ShelfAuthorType;
+  curatorTier?: number | undefined;
+  description?: string | undefined;
+  publishedAt?: Date | undefined;
   createdAt: Date;
   updatedAt: Date;
 }

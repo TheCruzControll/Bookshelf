@@ -10,6 +10,18 @@ import {
   uuid
 } from "drizzle-orm/pg-core";
 
+export const shelfKindEnum = pgEnum("shelf_kind", [
+  "system",
+  "custom",
+  "list"
+]);
+
+export const shelfAuthorTypeEnum = pgEnum("shelf_author_type", [
+  "user",
+  "internal_editorial",
+  "algorithmic"
+]);
+
 export const visibilityEnum = pgEnum("visibility", [
   "public",
   "followers",
@@ -158,6 +170,11 @@ export const shelves = pgTable(
     slug: text("slug").notNull(),
     visibility: visibilityEnum("visibility").notNull().default("public"),
     isSystem: boolean("is_system").notNull().default(false),
+    kind: shelfKindEnum("kind").notNull().default("custom"),
+    authorType: shelfAuthorTypeEnum("author_type").notNull().default("user"),
+    curatorTier: integer("curator_tier"),
+    description: text("description"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -74,6 +74,11 @@ export function toShelf(row: ShelfRow): Shelf {
     slug: row.slug,
     visibility: row.visibility,
     isSystem: row.isSystem,
+    kind: row.kind,
+    authorType: row.authorType,
+    curatorTier: row.curatorTier ?? undefined,
+    description: row.description ?? undefined,
+    publishedAt: row.publishedAt ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
