@@ -146,6 +146,22 @@ psql "$DATABASE_URL" -c "\d+ <table_name>"
 
 Confirm the expected columns, types, and indexes are present.
 
+#### Example: Migration 0002 (`follows` restructure)
+
+Migration `0002_follows_replace_friendships` is a destructive schema migration that:
+- Drops the `friendships` table entirely
+- Removes the surrogate `id` column from `follows`
+- Changes `follows` primary key to composite `(follower_id, followee_id)`
+- Adds direction indexes for query performance
+
+**Before deploying this migration in production:**
+1. Ensure `DATABASE_URL` is correct for the environment
+2. Take a full database backup
+3. Test the migration against a staging environment first
+4. Coordinate the schema change with the API deployment — code reading `follows` must be deployed before or with this migration
+
+This migration is not backward-compatible with code written for the old `friendships` table. Rollback requires database restore.
+
 ### Rollback
 
 See Section 2 — Rollback (with schema change).
