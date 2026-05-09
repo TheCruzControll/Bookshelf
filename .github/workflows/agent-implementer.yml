@@ -50,6 +50,18 @@ jobs:
             --remove-label "lifecycle:blocked" \
             --add-label "lifecycle:in-progress" \
             --add-label "agent:implementer" -R "${{ github.repository }}"
+      - name: Post pickup comment on issue
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "${{ steps.issue.outputs.number }}" \
+            --body "🤖 **Implementer started** (Sonnet 4.6)
+
+          Run: $RUN_URL
+
+          A PR will be opened against this issue when the Implementer finishes. If the run fails, this issue will be reset to \`lifecycle:ready\` for re-dispatch." \
+            -R "${{ github.repository }}" || true
       - name: Read prompt
         id: prompt
         run: |

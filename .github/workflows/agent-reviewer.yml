@@ -32,6 +32,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+      - name: Post pickup comment on PR
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$PR_NUMBER" \
+            --body "🤖 **Reviewer started** (Haiku 4.5)
+
+          Run: $RUN_URL
+
+          The Reviewer will either approve (auto-merge can fire) or request changes (Implementer re-runs via the bounce-back loop)." \
+            -R "$REPO" || true
       - name: Read prompt
         id: prompt
         run: |
