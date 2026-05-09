@@ -285,3 +285,31 @@ export const recommendationScores = pgTable(
   })
 );
 
+export const phoneVerifications = pgTable(
+  "phone_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    phoneE164: text("phone_e164").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    phoneIdx: index("phone_verifications_phone_idx").on(table.phoneE164)
+  })
+);
+
+export const phoneNumbers = pgTable(
+  "phone_numbers",
+  {
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    e164Hash: text("e164_hash").notNull()
+  },
+  (table) => ({
+    profileIdx: uniqueIndex("phone_numbers_profile_idx").on(table.profileId),
+    hashIdx: index("phone_numbers_hash_idx").on(table.e164Hash)
+  })
+);
+

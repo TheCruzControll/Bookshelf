@@ -2,6 +2,8 @@ import type {
   ActivityEvent,
   Book,
   Edition,
+  PhoneNumber,
+  PhoneVerification,
   Profile,
   Review,
   Shelf,
@@ -11,6 +13,8 @@ import type {
   activityEvents,
   books,
   editions,
+  phoneNumbers,
+  phoneVerifications,
   profiles,
   reviews,
   shelfItems,
@@ -24,6 +28,8 @@ type ShelfRow = typeof shelves.$inferSelect;
 type ShelfItemRow = typeof shelfItems.$inferSelect;
 type ReviewRow = typeof reviews.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
+type PhoneVerificationRow = typeof phoneVerifications.$inferSelect;
+type PhoneNumberRow = typeof phoneNumbers.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -115,6 +121,23 @@ export function toActivityEvent(row: ActivityRow): ActivityEvent {
     reviewId: row.reviewId ?? undefined,
     visibility: row.visibility,
     occurredAt: row.occurredAt
+  };
+}
+
+export function toPhoneVerification(row: PhoneVerificationRow): PhoneVerification {
+  return {
+    id: row.id,
+    phoneE164: row.phoneE164,
+    codeHash: row.codeHash,
+    attempts: row.attempts,
+    expiresAt: row.expiresAt
+  };
+}
+
+export function toPhoneNumber(row: PhoneNumberRow): PhoneNumber {
+  return {
+    profileId: row.profileId,
+    e164Hash: row.e164Hash
   };
 }
 

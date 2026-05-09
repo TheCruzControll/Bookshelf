@@ -216,3 +216,16 @@ export interface Session {
   createdAt: Date;
   expiresAt: Date;
 }
+
+export interface PhoneVerification {
+  id: EntityId;
+  phoneE164: string;
+  codeHash: string;
+  attempts: number;
+  expiresAt: Date;
+}
+
+export interface PhoneNumber {
+  profileId: EntityId;
+  e164Hash: string;
+}

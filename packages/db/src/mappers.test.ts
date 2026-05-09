@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent } from "./mappers";
+import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toPhoneVerification, toPhoneNumber } from "./mappers";
 import type { Visibility } from "@hone/domain";
-import { follows } from "./schema";
+import { follows, phoneVerifications, phoneNumbers } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -364,6 +364,76 @@ describe("follows table schema", () => {
 
   it("follows table does not have a surrogate id column", () => {
     const cols = Object.keys(follows);
+    expect(cols).not.toContain("id");
+  });
+});
+
+describe("toPhoneVerification", () => {
+  it("maps a row to a PhoneVerification domain object", () => {
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000020",
+      phoneE164: "+14155552671",
+      codeHash: "abc123hashvalue",
+      attempts: 0,
+      expiresAt
+    };
+
+    const pv = toPhoneVerification(row as Parameters<typeof toPhoneVerification>[0]);
+    expect(pv.id).toBe(row.id);
+    expect(pv.phoneE164).toBe("+14155552671");
+    expect(pv.codeHash).toBe("abc123hashvalue");
+    expect(pv.attempts).toBe(0);
+    expect(pv.expiresAt).toBe(expiresAt);
+  });
+
+  it("maps non-zero attempts", () => {
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000021",
+      phoneE164: "+14155552672",
+      codeHash: "def456hashvalue",
+      attempts: 2,
+      expiresAt
+    };
+
+    const pv = toPhoneVerification(row as Parameters<typeof toPhoneVerification>[0]);
+    expect(pv.attempts).toBe(2);
+  });
+});
+
+describe("toPhoneNumber", () => {
+  it("maps a row to a PhoneNumber domain object", () => {
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000002",
+      e164Hash: "sha256hashofphone"
+    };
+
+    const pn = toPhoneNumber(row as Parameters<typeof toPhoneNumber>[0]);
+    expect(pn.profileId).toBe("00000000-0000-0000-0000-000000000002");
+    expect(pn.e164Hash).toBe("sha256hashofphone");
+  });
+});
+
+describe("phone_verifications table schema", () => {
+  it("has phone_e164, code_hash, attempts, expires_at columns", () => {
+    const cols = Object.keys(phoneVerifications);
+    expect(cols).toContain("phoneE164");
+    expect(cols).toContain("codeHash");
+    expect(cols).toContain("attempts");
+    expect(cols).toContain("expiresAt");
+  });
+});
+
+describe("phone_numbers table schema", () => {
+  it("has profile_id and e164_hash columns", () => {
+    const cols = Object.keys(phoneNumbers);
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("e164Hash");
+  });
+
+  it("does not have a surrogate id column", () => {
+    const cols = Object.keys(phoneNumbers);
     expect(cols).not.toContain("id");
   });
 });
