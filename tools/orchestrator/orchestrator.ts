@@ -394,6 +394,74 @@ async function closeIssuesFromMergedPr(prNumber: number): Promise<number[]> {
   return closed;
 }
 
+/**
+ * The bounce-back loop. When the Reviewer requests changes, it strips
+ * `agent:reviewer` from the PR and adds `agent:implementer`. The source
+ * issue stays at `lifecycle:in-review` (because the PR is still open),
+ * which means the normal dispatchParallel doesn't pick it up. This
+ * function fills that gap: scan open PRs labeled `agent:implementer`,
+ * find their `Closes #N` source issues, dispatch the Implementer for
+ * those issues, and strip the `agent:implementer` label so the next
+ * Orchestrator pass doesn't re-dispatch (the Implementer's prompt
+ * re-applies `agent:reviewer` to the PR after pushing).
+ */
+async function dispatchBounceBacks(): Promise<void> {
+  const res = await octokit.pulls.list({ owner, repo, state: 'open', per_page: 100 });
+  const targets = res.data.filter((pr) =>
+    pr.labels.some((l) => (typeof l === 'string' ? l : l.name) === 'agent:implementer'),
+  );
+  if (targets.length === 0) {
+    console.log('No bounce-back PRs to dispatch.');
+    return;
+  }
+
+  const activeRuns = await activeImplementerRunCount();
+  let slots = Math.max(0, MAX_CONCURRENT - activeRuns);
+  if (slots === 0) {
+    console.log(`Bounce-back: no slots (active=${activeRuns}, max=${MAX_CONCURRENT}).`);
+    return;
+  }
+
+  for (const pr of targets) {
+    if (slots === 0) break;
+
+    const body = pr.body ?? '';
+    const m = body.match(/(?:closes|fixes|resolves)\s+#(\d+)/i);
+    if (!m || !m[1]) {
+      console.log(`#${pr.number}: no Closes #N reference, skipping bounce-back`);
+      continue;
+    }
+    const issueNum = Number(m[1]);
+
+    try {
+      await octokit.actions.createWorkflowDispatch({
+        owner,
+        repo,
+        workflow_id: IMPLEMENTER_WORKFLOW,
+        ref: IMPLEMENTER_REF,
+        inputs: { issue_number: String(issueNum) },
+      });
+      // Strip agent:implementer immediately so the next pass doesn't
+      // re-dispatch while this one is still running. The Implementer's
+      // recovery step re-applies agent:reviewer to the PR after push.
+      try {
+        await octokit.issues.removeLabel({
+          owner,
+          repo,
+          issue_number: pr.number,
+          name: 'agent:implementer',
+        });
+      } catch {
+        // ignore — label may not be present after some race
+      }
+      console.log(`Bounce-back dispatched: PR #${pr.number} → Implementer for issue #${issueNum}`);
+      slots -= 1;
+    } catch (err) {
+      console.error(`Bounce-back dispatch failed for PR #${pr.number}:`, err);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const eventName = process.env.EVENT_NAME ?? 'manual';
   const prMerged = process.env.EVENT_PR_MERGED === 'true';
@@ -413,6 +481,10 @@ async function main(): Promise<void> {
   // Re-list after label changes.
   const fresh = await listAllIssues();
   await dispatchParallel(fresh);
+
+  // After dispatching ready issues, also handle PRs that the Reviewer
+  // bounced back to the Implementer.
+  await dispatchBounceBacks();
 
   console.log('Orchestrator pass complete.');
 }
