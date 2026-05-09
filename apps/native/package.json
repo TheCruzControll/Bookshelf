@@ -11,7 +11,7 @@
     "build": "expo export",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app",
-    "test": "tsc --noEmit"
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "@hone/domain": "workspace:*",

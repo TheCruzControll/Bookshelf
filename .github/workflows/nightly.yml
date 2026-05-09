@@ -1,0 +1,79 @@
+name: nightly
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hone_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/hone_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable corepack
+        run: corepack enable
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Migrate DB
+        run: pnpm db:migrate
+        continue-on-error: true
+      - name: Typecheck
+        id: typecheck
+        run: pnpm typecheck
+      - name: Lint
+        id: lint
+        run: pnpm lint
+      - name: Test (full suite with coverage)
+        id: test
+        run: pnpm turbo run test
+      - name: Open p0 issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          TYPECHECK_RESULT="${{ steps.typecheck.outcome }}"
+          LINT_RESULT="${{ steps.lint.outcome }}"
+          TEST_RESULT="${{ steps.test.outcome }}"
+          gh issue create \
+            --title "Nightly full-suite failure $(date -u +%Y-%m-%d)" \
+            --body "$(cat <<EOF
+          ## Nightly CI failure
+
+          The nightly full-suite run failed on $(date -u +%Y-%m-%dT%H:%M:%SZ).
+
+          | Step | Result |
+          |---|---|
+          | typecheck | ${TYPECHECK_RESULT} |
+          | lint | ${LINT_RESULT} |
+          | test (coverage) | ${TEST_RESULT} |
+
+          **Run:** ${RUN_URL}
+
+          This may indicate coverage threshold drift or a transitive type break that the per-PR turbo filter missed.
+          EOF
+          )" \
+            --label "priority:p0" \
+            -R "${{ github.repository }}"

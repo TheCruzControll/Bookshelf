@@ -1,12 +1,24 @@
 import type {
   ActivityEvent,
+  Block,
   Book,
+  ContactsHash,
   Edition,
   EntityId,
+  Follow,
+  Import,
+  ImportSource,
+  ImportStatus,
+  List,
+  ListItem,
+  NotificationPlatform,
+  NotificationToken,
+  Ranking,
   FeedItem,
   Profile,
   Recommendation,
   Review,
+  Session,
   Shelf,
   ShelfItem,
   Visibility
@@ -93,7 +105,111 @@ export interface BlockFilter {
 }
 
 export interface FollowRepository {
+  follow(input: { followerId: EntityId; followeeId: EntityId }): Promise<Follow>;
+  unfollow(input: { followerId: EntityId; followeeId: EntityId }): Promise<void>;
+  findFollow(input: { followerId: EntityId; followeeId: EntityId }): Promise<Follow | null>;
+  listFollowers(userId: EntityId, viewerId?: EntityId): Promise<Follow[]>;
+  listFollowing(userId: EntityId, viewerId?: EntityId): Promise<Follow[]>;
+  isMutual(input: { userA: EntityId; userB: EntityId }): Promise<boolean>;
   getViewerContext(viewerId: EntityId | null, targetId: EntityId): Promise<ViewerContext>;
+}
+
+export interface BlockRepository {
+  block(input: { blockerId: EntityId; blockedId: EntityId }): Promise<Block>;
+  unblock(input: { blockerId: EntityId; blockedId: EntityId }): Promise<void>;
+  findBlock(input: { blockerId: EntityId; blockedId: EntityId }): Promise<Block | null>;
+  listBlockedByUser(blockerId: EntityId): Promise<Block[]>;
+  isBlocked(input: { viewerId: EntityId; targetId: EntityId }): Promise<boolean>;
+}
+
+export interface RankingRepository {
+  upsert(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    rank: number;
+    score: number;
+  }): Promise<Ranking>;
+  findByOwnerAndBook(input: { ownerId: EntityId; bookId: EntityId }): Promise<Ranking | null>;
+  listByOwner(ownerId: EntityId, viewerId?: EntityId): Promise<Ranking[]>;
+  delete(input: { ownerId: EntityId; bookId: EntityId }): Promise<void>;
+}
+
+export interface NotificationRepository {
+  registerToken(input: {
+    userId: EntityId;
+    platform: NotificationPlatform;
+    token: string;
+  }): Promise<NotificationToken>;
+  removeToken(input: { userId: EntityId; token: string }): Promise<void>;
+  listTokensForUser(userId: EntityId): Promise<NotificationToken[]>;
+}
+
+export interface ImportRepository {
+  create(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    source: ImportSource;
+  }): Promise<Import>;
+  findById(id: EntityId): Promise<Import | null>;
+  listByOwner(ownerId: EntityId): Promise<Import[]>;
+  updateStatus(input: {
+    id: EntityId;
+    status: ImportStatus;
+    completedAt?: Date | undefined;
+  }): Promise<Import>;
+}
+
+export interface ContactsRepository {
+  upsertHashes(input: {
+    userId: EntityId;
+    hashes: Array<{ hash: string; saltVersion: number; expiresAt: Date }>;
+  }): Promise<void>;
+  findMatches(input: {
+    hashes: string[];
+    excludeUserId: EntityId;
+  }): Promise<EntityId[]>;
+  deleteForUser(userId: EntityId): Promise<void>;
+  deleteExpired(): Promise<void>;
+  listByUser(userId: EntityId): Promise<ContactsHash[]>;
+}
+
+export interface ListRepository {
+  create(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    title: string;
+    description?: string | undefined;
+    visibility: Visibility;
+  }): Promise<List>;
+  findById(id: EntityId, viewerId?: EntityId): Promise<List | null>;
+  listByOwner(ownerId: EntityId, viewerId?: EntityId): Promise<List[]>;
+  update(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    title?: string | undefined;
+    description?: string | undefined;
+    visibility?: Visibility | undefined;
+  }): Promise<List>;
+  delete(input: { id: EntityId; ownerId: EntityId }): Promise<void>;
+  addItem(input: {
+    listId: EntityId;
+    bookId: EntityId;
+    position: number;
+  }): Promise<ListItem>;
+  removeItem(input: { listId: EntityId; bookId: EntityId }): Promise<void>;
+  listItems(listId: EntityId): Promise<ListItem[]>;
+  reorderItems(input: { listId: EntityId; orderedBookIds: EntityId[] }): Promise<void>;
+}
+
+export interface SessionRepository {
+  create(input: {
+    id: EntityId;
+    userId: EntityId;
+    expiresAt: Date;
+  }): Promise<Session>;
+  findById(id: EntityId): Promise<Session | null>;
+  deleteById(id: EntityId): Promise<void>;
+  deleteAllForUser(userId: EntityId): Promise<void>;
 }
 
 export interface AppRepositories {
@@ -104,5 +220,12 @@ export interface AppRepositories {
   activity: ActivityRepository;
   recommendations: RecommendationRepository;
   follows: FollowRepository;
+  blocks: BlockRepository;
   blockFilter: BlockFilter;
+  rankings: RankingRepository;
+  notifications: NotificationRepository;
+  imports: ImportRepository;
+  contacts: ContactsRepository;
+  lists: ListRepository;
+  sessions: SessionRepository;
 }
