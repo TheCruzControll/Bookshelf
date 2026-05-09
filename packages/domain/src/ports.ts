@@ -91,6 +91,25 @@ export interface ShelfRepository {
     rank: number;
   }): Promise<ShelfItem>;
   createSystemShelves(ownerId: EntityId): Promise<Shelf[]>;
+  upsertItem(input: {
+    ownerId: EntityId;
+    shelfId: EntityId;
+    bookId: EntityId;
+    editionId?: EntityId | undefined;
+    status: "want_to_read" | "reading" | "finished" | "dropped";
+    notes?: string | undefined;
+  }): Promise<ShelfItem>;
+  moveItem(input: {
+    ownerId: EntityId;
+    shelfItemId: EntityId;
+    position: number;
+  }): Promise<ShelfItem>;
+  deleteItem(input: {
+    ownerId: EntityId;
+    shelfItemId: EntityId;
+  }): Promise<void>;
+  findItemById(id: EntityId): Promise<ShelfItem | null>;
+  maxPosition(shelfId: EntityId): Promise<number>;
 }
 
 export interface ReviewRepository {

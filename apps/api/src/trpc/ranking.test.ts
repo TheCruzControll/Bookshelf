@@ -47,7 +47,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       setHandle: vi.fn(),
     },
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-    shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
+    shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), upsertItem: vi.fn(), moveItem: vi.fn(), deleteItem: vi.fn(), findItemById: vi.fn(), maxPosition: vi.fn() },
     reviews: { create: vi.fn() },
     activity: { append: vi.fn(), getFriendFeed: vi.fn() },
     recommendations: { getForUser: vi.fn() },

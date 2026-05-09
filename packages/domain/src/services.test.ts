@@ -57,7 +57,12 @@ describe("ShelfService", () => {
       delete: vi.fn(),
       addBook: vi.fn().mockResolvedValue(shelfItem),
       rankShelfItem: vi.fn(),
-      createSystemShelves: vi.fn()
+      createSystemShelves: vi.fn(),
+      upsertItem: vi.fn(),
+      moveItem: vi.fn(),
+      deleteItem: vi.fn(),
+      findItemById: vi.fn(),
+      maxPosition: vi.fn(),
     };
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
@@ -94,7 +99,12 @@ describe("ShelfService", () => {
       delete: vi.fn(),
       addBook: vi.fn().mockResolvedValue(shelfItem),
       rankShelfItem: vi.fn(),
-      createSystemShelves: vi.fn()
+      createSystemShelves: vi.fn(),
+      upsertItem: vi.fn(),
+      moveItem: vi.fn(),
+      deleteItem: vi.fn(),
+      findItemById: vi.fn(),
+      maxPosition: vi.fn(),
     };
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-2", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
@@ -138,7 +148,12 @@ describe("ProfileService", () => {
       delete: vi.fn(),
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
-      createSystemShelves: vi.fn().mockResolvedValue(systemShelves)
+      createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
+      upsertItem: vi.fn(),
+      moveItem: vi.fn(),
+      deleteItem: vi.fn(),
+      findItemById: vi.fn(),
+      maxPosition: vi.fn(),
     };
 
     const service = new ProfileService(profileRepo, shelvesRepo);
@@ -181,7 +196,12 @@ describe("ProfileService", () => {
       delete: vi.fn(),
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
-      createSystemShelves: vi.fn().mockResolvedValue(systemShelves)
+      createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
+      upsertItem: vi.fn(),
+      moveItem: vi.fn(),
+      deleteItem: vi.fn(),
+      findItemById: vi.fn(),
+      maxPosition: vi.fn(),
     };
 
     const service = new ProfileService(profileRepo, shelvesRepo);
@@ -228,7 +248,12 @@ describe("ProfileService", () => {
       delete: vi.fn(),
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
-      createSystemShelves: vi.fn().mockResolvedValue(systemShelves)
+      createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
+      upsertItem: vi.fn(),
+      moveItem: vi.fn(),
+      deleteItem: vi.fn(),
+      findItemById: vi.fn(),
+      maxPosition: vi.fn(),
     };
 
     const service = new ProfileService(profileRepo, shelvesRepo);
@@ -248,7 +273,7 @@ describe("AppServices", () => {
     const repositories: AppRepositories = {
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-      shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
+      shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), upsertItem: vi.fn(), moveItem: vi.fn(), deleteItem: vi.fn(), findItemById: vi.fn(), maxPosition: vi.fn() },
       reviews: { create: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn() },
       recommendations: { getForUser: vi.fn() },
@@ -286,6 +311,11 @@ describe("ShelfService CRUD", () => {
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn(),
+      upsertItem: vi.fn(),
+      moveItem: vi.fn(),
+      deleteItem: vi.fn(),
+      findItemById: vi.fn(),
+      maxPosition: vi.fn(),
       ...overrides,
     };
   }
@@ -405,6 +435,7 @@ describe("RankingService", () => {
     };
     const rankingsRepo: RankingRepository = {
       upsert: vi.fn(),
+      findById: vi.fn(),
       findByOwnerAndBook: vi.fn(),
       listByOwner: vi.fn(),
       delete: vi.fn(),

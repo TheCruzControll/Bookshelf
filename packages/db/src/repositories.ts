@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, max, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -240,6 +240,71 @@ export class DrizzleShelfRepository implements ShelfRepository {
       .where(and(eq(shelves.ownerId, ownerId), eq(shelves.isSystem, true)));
 
     return all.map(toShelf);
+  }
+
+  async maxPosition(shelfId: EntityId): Promise<number> {
+    const [row] = await this.db
+      .select({ maxPos: max(shelfItems.position) })
+      .from(shelfItems)
+      .where(eq(shelfItems.shelfId, shelfId));
+    return row?.maxPos ?? -1;
+  }
+
+  async findItemById(id: EntityId) {
+    const row = await this.db.query.shelfItems.findFirst({
+      where: eq(shelfItems.id, id),
+    });
+    return row ? toShelfItem(row) : null;
+  }
+
+  async upsertItem(input: Parameters<ShelfRepository["upsertItem"]>[0]) {
+    const currentMax = await this.maxPosition(input.shelfId);
+    const nextPosition = currentMax + 1;
+
+    const [row] = await this.db
+      .insert(shelfItems)
+      .values({
+        shelfId: input.shelfId,
+        bookId: input.bookId,
+        editionId: input.editionId,
+        status: input.status,
+        notes: input.notes,
+        position: nextPosition,
+      })
+      .onConflictDoUpdate({
+        target: [shelfItems.shelfId, shelfItems.bookId],
+        set: {
+          status: input.status,
+          notes: input.notes,
+          editionId: input.editionId,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    if (!row) {
+      throw new Error("Failed to upsert shelf item");
+    }
+    return toShelfItem(row);
+  }
+
+  async moveItem(input: Parameters<ShelfRepository["moveItem"]>[0]) {
+    const [row] = await this.db
+      .update(shelfItems)
+      .set({ position: input.position, updatedAt: new Date() })
+      .where(eq(shelfItems.id, input.shelfItemId))
+      .returning();
+
+    if (!row) {
+      throw new Error("Shelf item not found");
+    }
+    return toShelfItem(row);
+  }
+
+  async deleteItem(input: Parameters<ShelfRepository["deleteItem"]>[0]) {
+    await this.db
+      .delete(shelfItems)
+      .where(eq(shelfItems.id, input.shelfItemId));
   }
 }
 
