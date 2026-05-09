@@ -177,6 +177,37 @@ function claimsRootConfig(claim: Set<string>): boolean {
   return false;
 }
 
+/**
+ * Files that nearly every Wave 1 schema/domain issue wants to mutate.
+ * When two such issues run in parallel, their PRs almost always conflict
+ * on these files (each adds a new entity / port / mapper / repository /
+ * service test fixture). Same shape as ROOT_CONFIG_FILES: only one such
+ * issue may be in-flight at a time across the whole DAG.
+ */
+const SHARED_DOMAIN_FILES = new Set([
+  'packages/db/src/schema.ts',
+  'packages/db/src/repositories.ts',
+  'packages/db/src/mappers.ts',
+  'packages/db/src/mappers.test.ts',
+  'packages/domain/src/types.ts',
+  'packages/domain/src/types.test.ts',
+  'packages/domain/src/ports.ts',
+  'packages/domain/src/ports.test.ts',
+  'packages/domain/src/services.ts',
+  'packages/domain/src/services.test.ts',
+  'packages/domain/src/index.ts',
+]);
+
+function claimsSharedDomain(claim: Set<string>): boolean {
+  if (claim.has('*')) return true;
+  for (const raw of claim) {
+    let path = raw.startsWith(REPO_ROOT_PREFIX) ? raw.slice(REPO_ROOT_PREFIX.length) : raw;
+    path = path.replace(/^\/+/, '');
+    if (SHARED_DOMAIN_FILES.has(path)) return true;
+  }
+  return false;
+}
+
 function lifecycleOf(issue: IssueLite): string | undefined {
   return issue.labels.find((l) => LIFECYCLE.includes(l as typeof LIFECYCLE[number]));
 }
@@ -320,17 +351,20 @@ async function dispatchParallel(issues: IssueLite[]): Promise<void> {
   }
 
   const active = await inProgressClaims(issues);
-  // Track whether any in-flight issue is touching root config — those run
-  // strictly serialized (only one at a time across the whole DAG) because
-  // parallel root-config edits cause near-guaranteed merge conflicts.
+  // Track whether any in-flight issue is touching root config or shared
+  // domain/schema files. Both classes run strictly serialized — only one
+  // such issue may be in-flight at a time across the whole DAG — because
+  // parallel edits to those files cause near-guaranteed merge conflicts
+  // (this was the cause of the ~12-PR conflict pile-up on 2026-05-09).
   let rootConfigInFlight = false;
+  let sharedDomainInFlight = false;
   for (const i of issues) {
     if (i.state !== 'open') continue;
     if (lifecycleOf(i) !== 'lifecycle:in-progress') continue;
-    if (claimsRootConfig(parseClaim(i.body, i.labels))) {
-      rootConfigInFlight = true;
-      break;
-    }
+    const claim = parseClaim(i.body, i.labels);
+    if (claimsRootConfig(claim)) rootConfigInFlight = true;
+    if (claimsSharedDomain(claim)) sharedDomainInFlight = true;
+    if (rootConfigInFlight && sharedDomainInFlight) break;
   }
   const dispatched: number[] = [];
 
@@ -342,6 +376,12 @@ async function dispatchParallel(issues: IssueLite[]): Promise<void> {
     const myClaimsRootConfig = claimsRootConfig(myFiles);
     if (myClaimsRootConfig && rootConfigInFlight) {
       console.log(`#${c.number}: skipping — another root-config issue already in flight`);
+      continue;
+    }
+
+    const myClaimsSharedDomain = claimsSharedDomain(myFiles);
+    if (myClaimsSharedDomain && sharedDomainInFlight) {
+      console.log(`#${c.number}: skipping — another shared-domain issue already in flight`);
       continue;
     }
 
@@ -357,6 +397,7 @@ async function dispatchParallel(issues: IssueLite[]): Promise<void> {
       // in the same pass.
       for (const f of myFiles) active.add(f);
       if (myClaimsRootConfig) rootConfigInFlight = true;
+      if (myClaimsSharedDomain) sharedDomainInFlight = true;
       // Optimistically flip lifecycle so subsequent passes don't double-dispatch.
       await setLifecycle(c, 'lifecycle:in-progress');
       await octokit.issues.addLabels({
