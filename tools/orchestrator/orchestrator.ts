@@ -333,7 +333,13 @@ async function inProgressClaims(issues: IssueLite[]): Promise<Set<string>> {
   const claims = new Set<string>();
   for (const i of issues) {
     if (i.state !== 'open') continue;
-    if (lifecycleOf(i) === 'lifecycle:in-progress') {
+    const lc = lifecycleOf(i);
+    // Treat both `in-progress` (Implementer running) and `in-review`
+    // (PR open, awaiting Reviewer/Tester) as in-flight. A claim that's
+    // only blocked while the issue is `in-progress` evaporates the moment
+    // the PR opens — leaving a window where the next dispatch pass can
+    // race the open PR on the same files.
+    if (lc === 'lifecycle:in-progress' || lc === 'lifecycle:in-review') {
       for (const f of parseClaim(i.body, i.labels)) claims.add(f);
     }
   }
@@ -367,7 +373,10 @@ async function dispatchParallel(issues: IssueLite[]): Promise<void> {
   let sharedDomainInFlight = false;
   for (const i of issues) {
     if (i.state !== 'open') continue;
-    if (lifecycleOf(i) !== 'lifecycle:in-progress') continue;
+    const lc = lifecycleOf(i);
+    // Both `in-progress` and `in-review` count as in-flight for
+    // serialization. See `inProgressClaims` for the rationale.
+    if (lc !== 'lifecycle:in-progress' && lc !== 'lifecycle:in-review') continue;
     const claim = parseClaim(i.body, i.labels);
     if (claimsRootConfig(claim)) rootConfigInFlight = true;
     if (claimsSharedDomain(claim)) sharedDomainInFlight = true;
