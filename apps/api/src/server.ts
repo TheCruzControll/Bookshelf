@@ -1,7 +1,11 @@
 import { serve } from "@hono/node-server";
+import { env } from "@hone/config-env";
+import { initSentry } from "@hone/observability";
 import { createApi } from "./app";
 
-const port = Number(process.env.PORT ?? 8787);
+initSentry(env);
+
+const port = env.PORT;
 
 serve({
   fetch: createApi().fetch,

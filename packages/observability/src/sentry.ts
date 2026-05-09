@@ -12,3 +12,15 @@ export function initSentry(env: SentryEnv): void {
     tracesSampleRate: env.SENTRY_ENVIRONMENT === "production" ? 0.2 : 1.0,
   });
 }
+
+export function setSentryUser(user: { id: string; email?: string }): void {
+  const sentryUser: Parameters<typeof Sentry.setUser>[0] = { id: user.id };
+  if (user.email !== undefined) {
+    sentryUser.email = user.email;
+  }
+  Sentry.setUser(sentryUser);
+}
+
+export function clearSentryUser(): void {
+  Sentry.setUser(null);
+}
