@@ -304,6 +304,7 @@ class DrizzleRankingRepository implements RankingRepository {
   async findByOwnerAndBook(): Promise<null> { throw new Error("not implemented"); }
   async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
   async delete(): Promise<void> { throw new Error("not implemented"); }
+  async startBucket(): Promise<never> { throw new Error("not implemented"); }
 }
 
 class DrizzleNotificationRepository implements NotificationRepository {

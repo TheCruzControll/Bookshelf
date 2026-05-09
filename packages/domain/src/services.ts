@@ -3,9 +3,10 @@ import type {
   AppRepositories,
   AuthProvider,
   ProfileRepository,
+  RankingRepository,
   ShelfRepository
 } from "./ports";
-import type { EntityId, Profile, Shelf, ShelfItem, Visibility } from "./types";
+import type { EntityId, Profile, Ranking, Shelf, ShelfItem, Visibility } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -165,10 +166,23 @@ export class ProfileService {
   }
 }
 
+export class RankingService {
+  constructor(private readonly rankings: RankingRepository) {}
+
+  async startBucket(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    bucket: number;
+  }): Promise<Ranking> {
+    return this.rankings.startBucket(input);
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
+  readonly rankings: RankingService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -183,5 +197,6 @@ export class AppServices {
       repositories.profiles,
       repositories.shelves
     );
+    this.rankings = new RankingService(repositories.rankings);
   }
 }

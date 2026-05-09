@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as fc from "fast-check";
 import {
   EntityIdSchema,
   AuthIdentitySchema,
@@ -24,6 +25,7 @@ import {
   RankingSchema,
   ReviewSchema,
   CreateReviewInputSchema,
+  StartBucketInputSchema,
 } from "./ranking";
 import {
   ActivityVerbSchema,
@@ -187,6 +189,45 @@ describe("ranking schemas", () => {
     const r10 = RankingSchema.parse({ id: UUID, ownerId: UUID2, bookId: UUID, rank: 1, score: 10, createdAt: NOW, updatedAt: NOW });
     expect(r0.score).toBe(0);
     expect(r10.score).toBe(10);
+  });
+
+  it("StartBucketInputSchema accepts all valid bucket values 1-5", () => {
+    for (const bucket of [1, 2, 3, 4, 5]) {
+      const result = StartBucketInputSchema.parse({ bookId: UUID, bucket });
+      expect(result.bucket).toBe(bucket);
+    }
+  });
+
+  it("StartBucketInputSchema rejects bucket 0", () => {
+    expect(() => StartBucketInputSchema.parse({ bookId: UUID, bucket: 0 })).toThrow();
+  });
+
+  it("StartBucketInputSchema rejects bucket 6", () => {
+    expect(() => StartBucketInputSchema.parse({ bookId: UUID, bucket: 6 })).toThrow();
+  });
+
+  it("StartBucketInputSchema rejects non-integer bucket", () => {
+    expect(() => StartBucketInputSchema.parse({ bookId: UUID, bucket: 3.5 })).toThrow();
+  });
+
+  it("StartBucketInputSchema property: only integers in [1,5] parse successfully", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 5 }), (bucket) => {
+        const result = StartBucketInputSchema.parse({ bookId: UUID, bucket });
+        return result.bucket === bucket;
+      })
+    );
+  });
+
+  it("StartBucketInputSchema property: integers outside [1,5] always fail", () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(fc.integer({ min: -100, max: 0 }), fc.integer({ min: 6, max: 100 })),
+        (bucket) => {
+          expect(() => StartBucketInputSchema.parse({ bookId: UUID, bucket })).toThrow();
+        }
+      )
+    );
   });
 
   it("CreateReviewInputSchema applies public visibility default", () => {
