@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { ShelfService, HandleService, AppServices, ProfileService, SYSTEM_SHELVES } from "./services";
-import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository } from "./ports";
-import type { Profile, Shelf, ShelfItem } from "./types";
+import { ShelfService, HandleService, AppServices, ProfileService, SYSTEM_SHELVES, ImportService, computeFileHash } from "./services";
+import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository, ImportRepository } from "./ports";
+import type { Import, Profile, Shelf, ShelfItem } from "./types";
 
 function makeShelfItem(overrides?: Partial<ShelfItem>): ShelfItem {
   const now = new Date();
@@ -250,7 +250,122 @@ describe("AppServices", () => {
     expect(services.shelves).toBeInstanceOf(ShelfService);
     expect(services.handles).toBeInstanceOf(HandleService);
     expect(services.profiles).toBeInstanceOf(ProfileService);
+    expect(services.imports).toBeInstanceOf(ImportService);
     expect(services.repositories).toBe(repositories);
     expect(services.auth).toBe(auth);
+  });
+});
+
+function makeImport(overrides?: Partial<Import>): Import {
+  const now = new Date();
+  return {
+    id: "00000000-0000-0000-0000-000000000050",
+    ownerId: "00000000-0000-0000-0000-000000000001",
+    source: "goodreads",
+    idempotencyHash: "a".repeat(64),
+    conflictCount: 0,
+    status: "pending",
+    createdAt: now,
+    ...overrides,
+  };
+}
+
+function makeImportRepository(overrides?: Partial<ImportRepository>): ImportRepository {
+  return {
+    create: vi.fn().mockResolvedValue(makeImport()),
+    findById: vi.fn().mockResolvedValue(null),
+    listByOwner: vi.fn().mockResolvedValue([]),
+    updateStatus: vi.fn().mockResolvedValue(makeImport()),
+    ...overrides,
+  };
+}
+
+describe("computeFileHash", () => {
+  it("returns a 64-character hex string (sha256)", () => {
+    const hash = computeFileHash("hello");
+    expect(hash).toHaveLength(64);
+    expect(hash).toMatch(/^[0-9a-f]+$/);
+  });
+
+  it("is deterministic for the same input", () => {
+    expect(computeFileHash("same content")).toBe(computeFileHash("same content"));
+  });
+
+  it("produces different hashes for different inputs", () => {
+    expect(computeFileHash("content-a")).not.toBe(computeFileHash("content-b"));
+  });
+
+  it("works with Uint8Array input", () => {
+    const bytes = new TextEncoder().encode("hello");
+    const hash = computeFileHash(bytes);
+    expect(hash).toHaveLength(64);
+    expect(hash).toMatch(/^[0-9a-f]+$/);
+  });
+
+  it("string and Uint8Array of same content produce the same hash", () => {
+    const content = "consistent";
+    const bytes = new TextEncoder().encode(content);
+    expect(computeFileHash(content)).toBe(computeFileHash(bytes));
+  });
+});
+
+describe("ImportService", () => {
+  it("createImport computes sha256 hash and delegates to repository", async () => {
+    const created = makeImport({ idempotencyHash: computeFileHash("csv content") });
+    const repo = makeImportRepository({ create: vi.fn().mockResolvedValue(created) });
+    const service = new ImportService(repo);
+
+    const result = await service.createImport({
+      id: "00000000-0000-0000-0000-000000000050",
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      source: "goodreads",
+      fileContent: "csv content",
+    });
+
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "00000000-0000-0000-0000-000000000050",
+        ownerId: "00000000-0000-0000-0000-000000000001",
+        source: "goodreads",
+        idempotencyHash: computeFileHash("csv content"),
+      })
+    );
+    expect(result).toBe(created);
+  });
+
+  it("transitionStatus delegates status update to repository", async () => {
+    const updated = makeImport({ status: "processing" });
+    const repo = makeImportRepository({ updateStatus: vi.fn().mockResolvedValue(updated) });
+    const service = new ImportService(repo);
+
+    const result = await service.transitionStatus({
+      id: "00000000-0000-0000-0000-000000000050",
+      status: "processing",
+    });
+
+    expect(repo.updateStatus).toHaveBeenCalledWith({
+      id: "00000000-0000-0000-0000-000000000050",
+      status: "processing",
+      completedAt: undefined,
+    });
+    expect(result).toBe(updated);
+  });
+
+  it("transitionStatus passes completedAt for terminal states", async () => {
+    const completedAt = new Date();
+    const updated = makeImport({ status: "completed", completedAt });
+    const repo = makeImportRepository({ updateStatus: vi.fn().mockResolvedValue(updated) });
+    const service = new ImportService(repo);
+
+    const result = await service.transitionStatus({
+      id: "00000000-0000-0000-0000-000000000050",
+      status: "completed",
+      completedAt,
+    });
+
+    expect(repo.updateStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "completed", completedAt })
+    );
+    expect(result).toBe(updated);
   });
 });

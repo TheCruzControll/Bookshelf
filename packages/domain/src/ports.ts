@@ -145,6 +145,7 @@ export interface ImportRepository {
     id: EntityId;
     ownerId: EntityId;
     source: ImportSource;
+    idempotencyHash?: string | undefined;
   }): Promise<Import>;
   findById(id: EntityId): Promise<Import | null>;
   listByOwner(ownerId: EntityId): Promise<Import[]>;

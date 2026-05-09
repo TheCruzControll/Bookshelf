@@ -1,11 +1,13 @@
+import { createHash } from "node:crypto";
 import type {
   ActivityRepository,
   AppRepositories,
   AuthProvider,
+  ImportRepository,
   ProfileRepository,
   ShelfRepository
 } from "./ports";
-import type { EntityId, Profile, Shelf, ShelfItem, Visibility } from "./types";
+import type { EntityId, Import, ImportSource, ImportStatus, Profile, Shelf, ShelfItem, Visibility } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -165,10 +167,42 @@ export class ProfileService {
   }
 }
 
+export function computeFileHash(content: string | Uint8Array): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+export class ImportService {
+  constructor(private readonly imports: ImportRepository) {}
+
+  async createImport(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    source: ImportSource;
+    fileContent: string | Uint8Array;
+  }): Promise<Import> {
+    const idempotencyHash = computeFileHash(input.fileContent);
+    return this.imports.create({
+      id: input.id,
+      ownerId: input.ownerId,
+      source: input.source,
+      idempotencyHash,
+    });
+  }
+
+  async transitionStatus(input: {
+    id: EntityId;
+    status: ImportStatus;
+    completedAt?: Date | undefined;
+  }): Promise<Import> {
+    return this.imports.updateStatus(input);
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
+  readonly imports: ImportService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -183,5 +217,6 @@ export class AppServices {
       repositories.profiles,
       repositories.shelves
     );
+    this.imports = new ImportService(repositories.imports);
   }
 }

@@ -26,6 +26,7 @@ import {
   books,
   editions,
   follows,
+  imports,
   profiles,
   recommendationScores,
   reviews,
@@ -36,6 +37,7 @@ import {
   toActivityEvent,
   toBook,
   toEdition,
+  toImport,
   toProfile,
   toReview,
   toShelf,
@@ -315,10 +317,54 @@ class DrizzleNotificationRepository implements NotificationRepository {
 
 class DrizzleImportRepository implements ImportRepository {
   constructor(private readonly db: HoneDb) {}
-  async create(): Promise<never> { throw new Error("not implemented"); }
-  async findById(): Promise<null> { throw new Error("not implemented"); }
-  async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
-  async updateStatus(): Promise<never> { throw new Error("not implemented"); }
+
+  async create(input: Parameters<ImportRepository["create"]>[0]) {
+    const [row] = await this.db
+      .insert(imports)
+      .values({
+        id: input.id,
+        ownerId: input.ownerId,
+        source: input.source,
+        idempotencyHash: input.idempotencyHash,
+        status: "pending",
+      })
+      .returning();
+    if (!row) {
+      throw new Error("Failed to create import");
+    }
+    return toImport(row);
+  }
+
+  async findById(id: EntityId) {
+    const row = await this.db.query.imports.findFirst({
+      where: eq(imports.id, id),
+    });
+    return row ? toImport(row) : null;
+  }
+
+  async listByOwner(ownerId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(imports)
+      .where(eq(imports.ownerId, ownerId))
+      .orderBy(desc(imports.createdAt));
+    return rows.map(toImport);
+  }
+
+  async updateStatus(input: Parameters<ImportRepository["updateStatus"]>[0]) {
+    const [row] = await this.db
+      .update(imports)
+      .set({
+        status: input.status,
+        completedAt: input.completedAt,
+      })
+      .where(eq(imports.id, input.id))
+      .returning();
+    if (!row) {
+      throw new Error("Import not found");
+    }
+    return toImport(row);
+  }
 }
 
 class DrizzleContactsRepository implements ContactsRepository {
