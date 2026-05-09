@@ -229,3 +229,7 @@ export interface AppRepositories {
   lists: ListRepository;
   sessions: SessionRepository;
 }
+
+export interface BlockFilter {
+  removeBlocked<T extends { id: EntityId }>(viewerId: EntityId, items: T[]): Promise<T[]>;
+}
