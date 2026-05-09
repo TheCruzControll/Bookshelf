@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent } from "./mappers";
-import type { Visibility } from "@hone/domain";
-import { follows } from "./schema";
+import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
+import { follows, shelves } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -94,6 +94,11 @@ describe("db mappers smoke test", () => {
       slug: "finished",
       visibility: "public" as const,
       isSystem: true,
+      kind: "system" as const,
+      authorType: "user" as const,
+      curatorTier: null,
+      description: null,
+      publishedAt: null,
       createdAt: now,
       updatedAt: now
     };
@@ -103,6 +108,11 @@ describe("db mappers smoke test", () => {
     expect(shelf.isSystem).toBe(true);
     expect(shelf.slug).toBe("finished");
     expect(shelf.ownerId).toBe(row.ownerId);
+    expect(shelf.kind).toBe("system");
+    expect(shelf.authorType).toBe("user");
+    expect(shelf.curatorTier).toBeUndefined();
+    expect(shelf.description).toBeUndefined();
+    expect(shelf.publishedAt).toBeUndefined();
   });
 
   it("toEdition maps a row to an Edition domain object", () => {
@@ -308,6 +318,11 @@ describe("visibility 4-tier enum mapping", () => {
         slug: "my-shelf",
         visibility: tier as Visibility,
         isSystem: false,
+        kind: "custom" as const,
+        authorType: "user" as const,
+        curatorTier: null,
+        description: null,
+        publishedAt: null,
         createdAt: now,
         updatedAt: now
       };
@@ -341,6 +356,11 @@ describe("visibility 4-tier enum mapping", () => {
       slug: "custom",
       visibility: "public" as Visibility,
       isSystem: false,
+      kind: "custom" as const,
+      authorType: "user" as const,
+      curatorTier: null,
+      description: null,
+      publishedAt: null,
       createdAt: now,
       updatedAt: now
     };
@@ -351,6 +371,90 @@ describe("visibility 4-tier enum mapping", () => {
   it("schema default for activity_events is followers", () => {
     const expectedDefault: Visibility = "followers";
     expect(expectedDefault).toBe("followers");
+  });
+});
+
+describe("shelves list extension fields", () => {
+  const now = new Date();
+
+  it("toShelf maps kind field correctly for all kinds", () => {
+    const kinds: ShelfKind[] = ["system", "custom", "list"];
+    for (const kind of kinds) {
+      const row = {
+        id: "00000000-0000-0000-0000-000000000020",
+        ownerId: "00000000-0000-0000-0000-000000000010",
+        name: "Test",
+        slug: "test",
+        visibility: "public" as const,
+        isSystem: false,
+        kind,
+        authorType: "user" as const,
+        curatorTier: null,
+        description: null,
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now
+      };
+      const shelf = toShelf(row as Parameters<typeof toShelf>[0]);
+      expect(shelf.kind).toBe(kind);
+    }
+  });
+
+  it("toShelf maps authorType field correctly for all author types", () => {
+    const authorTypes: ShelfAuthorType[] = ["user", "internal_editorial", "algorithmic"];
+    for (const authorType of authorTypes) {
+      const row = {
+        id: "00000000-0000-0000-0000-000000000021",
+        ownerId: "00000000-0000-0000-0000-000000000010",
+        name: "Test",
+        slug: "test",
+        visibility: "public" as const,
+        isSystem: false,
+        kind: "list" as const,
+        authorType,
+        curatorTier: null,
+        description: null,
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now
+      };
+      const shelf = toShelf(row as Parameters<typeof toShelf>[0]);
+      expect(shelf.authorType).toBe(authorType);
+    }
+  });
+
+  it("toShelf maps optional list fields when present", () => {
+    const publishedAt = new Date("2024-01-15T00:00:00Z");
+    const row = {
+      id: "00000000-0000-0000-0000-000000000022",
+      ownerId: "00000000-0000-0000-0000-000000000010",
+      name: "Best Sci-Fi 2024",
+      slug: "best-sci-fi-2024",
+      visibility: "public" as const,
+      isSystem: false,
+      kind: "list" as const,
+      authorType: "internal_editorial" as const,
+      curatorTier: 1,
+      description: "Our top picks for science fiction in 2024.",
+      publishedAt,
+      createdAt: now,
+      updatedAt: now
+    };
+    const shelf = toShelf(row as Parameters<typeof toShelf>[0]);
+    expect(shelf.kind).toBe("list");
+    expect(shelf.authorType).toBe("internal_editorial");
+    expect(shelf.curatorTier).toBe(1);
+    expect(shelf.description).toBe("Our top picks for science fiction in 2024.");
+    expect(shelf.publishedAt).toBe(publishedAt);
+  });
+
+  it("shelves schema includes kind and author_type columns", () => {
+    const cols = Object.keys(shelves);
+    expect(cols).toContain("kind");
+    expect(cols).toContain("authorType");
+    expect(cols).toContain("curatorTier");
+    expect(cols).toContain("description");
+    expect(cols).toContain("publishedAt");
   });
 });
 

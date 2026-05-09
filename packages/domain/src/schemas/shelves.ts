@@ -35,6 +35,10 @@ export const EditionSchema = z.object({
   sourceKey: z.string().optional(),
 });
 
+export const ShelfKindSchema = z.enum(["system", "custom", "list"]);
+
+export const ShelfAuthorTypeSchema = z.enum(["user", "internal_editorial", "algorithmic"]);
+
 export const ShelfSchema = z.object({
   id: EntityIdSchema,
   ownerId: EntityIdSchema,
@@ -42,6 +46,11 @@ export const ShelfSchema = z.object({
   slug: z.string().min(1).max(100),
   visibility: VisibilitySchema,
   isSystem: z.boolean(),
+  kind: ShelfKindSchema,
+  authorType: ShelfAuthorTypeSchema,
+  curatorTier: z.number().int().nonnegative().optional(),
+  description: z.string().optional(),
+  publishedAt: z.date().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -73,6 +82,8 @@ export type ReadingStatusInput = z.infer<typeof ReadingStatusSchema>;
 export type AuthorInput = z.infer<typeof AuthorSchema>;
 export type BookInput = z.infer<typeof BookSchema>;
 export type EditionInput = z.infer<typeof EditionSchema>;
+export type ShelfKindInput = z.infer<typeof ShelfKindSchema>;
+export type ShelfAuthorTypeInput = z.infer<typeof ShelfAuthorTypeSchema>;
 export type ShelfInput = z.infer<typeof ShelfSchema>;
 export type ShelfItemInput = z.infer<typeof ShelfItemSchema>;
 export type CreateShelfInput = z.infer<typeof CreateShelfInputSchema>;

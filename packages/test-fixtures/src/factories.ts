@@ -95,6 +95,8 @@ export function makeShelf(overrides: Partial<Shelf> = {}): Shelf {
     slug: `test-shelf-${id}`,
     visibility: "public",
     isSystem: false,
+    kind: "custom",
+    authorType: "user",
     createdAt: now(),
     updatedAt: now(),
     ...overrides,
