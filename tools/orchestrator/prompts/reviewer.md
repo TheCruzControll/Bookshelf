@@ -96,7 +96,18 @@ Exit cleanly.
 ## Step 5b — if approved
 
 ```
-gh pr review "$PR_NUMBER" --approve --body "LGTM (auto-review). Merging when Tester is green." -R "$REPO"
+# `gh pr review --approve` fails with 422 when BOT_PAT's identity is the
+# same user as the PR author (GitHub forbids self-approval). That's
+# expected — swallow the error so we still enable auto-merge. The
+# auto-merge gate is the required `agent-tester` check, NOT an approving
+# review (branch protection does not require approvals).
+gh pr review "$PR_NUMBER" --approve --body "LGTM (auto-review). Merging when Tester is green." -R "$REPO" || \
+  gh pr comment "$PR_NUMBER" --body "Reviewer agent approves (formal review skipped — self-approval restriction). Auto-merge enabled; will merge when Tester is green." -R "$REPO"
+
+# Always enable auto-merge regardless of whether the formal review was
+# accepted. If the PR is in draft, mark it ready first — auto-merge
+# can't be enabled on a draft.
+gh pr ready "$PR_NUMBER" -R "$REPO" 2>/dev/null || true
 gh pr merge "$PR_NUMBER" --auto --squash --delete-branch -R "$REPO"
 ```
 
