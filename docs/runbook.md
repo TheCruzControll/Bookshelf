@@ -146,6 +146,14 @@ psql "$DATABASE_URL" -c "\d+ <table_name>"
 
 Confirm the expected columns, types, and indexes are present.
 
+#### Example: Migration 0008 (version columns)
+
+Migration `0008_version_columns` is an additive schema migration that:
+- Adds `version integer DEFAULT 1 NOT NULL` to `profiles`, `shelves`, and `reviews` tables
+- Enables optimistic locking: repository update methods enforce `WHERE version = ?` and return zero rows on version mismatch, causing the API to return 409 Conflict
+
+**Backward compatibility:** old client code that does not send the `version` field in update requests will fail with a validation error. The `shelf.update` procedure requires `version` in the input schema. No server-side rollback needed; this is a safe additive change.
+
 #### Example: Migration 0002 (`follows` restructure)
 
 Migration `0002_follows_replace_friendships` is a destructive schema migration that:
