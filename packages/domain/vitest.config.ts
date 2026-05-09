@@ -5,11 +5,18 @@ export default mergeConfig(rootConfig, defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     coverage: {
+      exclude: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/*.config.ts",
+        "src/index.ts",
+        "src/ports.ts"
+      ],
       thresholds: {
-        lines: 50,
-        functions: 70,
-        branches: 85,
-        statements: 50
+        lines: 90,
+        functions: 90,
+        branches: 90,
+        statements: 90
       }
     }
   }
