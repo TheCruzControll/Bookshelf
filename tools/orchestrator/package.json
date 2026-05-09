@@ -1,0 +1,17 @@
+{
+  "name": "@hone/orchestrator-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bootstrap:issues": "tsx bootstrap-issues.ts",
+    "audit": "tsx audit.ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

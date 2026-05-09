@@ -1,0 +1,49 @@
+name: agent-orchestrator
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  issues:
+    types: [opened, edited, closed, reopened, labeled, unlabeled]
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: read
+  contents: read
+  actions: write
+
+concurrency:
+  group: orchestrator
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read prompt
+        id: prompt
+        run: |
+          {
+            echo 'PROMPT<<EOF_PROMPT'
+            cat tools/orchestrator/prompts/orchestrator.md
+            echo
+            echo "EOF_PROMPT"
+          } >> "$GITHUB_OUTPUT"
+      - uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "Bash"
+          timeout_minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_PR_MERGED: ${{ github.event.pull_request.merged }}
+          REPO: ${{ github.repository }}
+          MAX_CONCURRENT_IMPLEMENTERS: "3"

@@ -1,0 +1,126 @@
+name: agent-tester
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: tester-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hone_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/hone_test
+      TURBO_FILTER: "...[origin/${{ github.event.pull_request.base.ref }}]"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Fetch base ref
+        run: git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1
+      - name: Detect scope of change
+        id: scope
+        run: |
+          BASE="origin/${{ github.event.pull_request.base.ref }}"
+          CHANGED=$(git diff --name-only "$BASE"...HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          DOC_ONLY=true
+          for f in $CHANGED; do
+            case "$f" in
+              docs/*|*.md|README.md|CLAUDE.md) ;;
+              *) DOC_ONLY=false ;;
+            esac
+          done
+          echo "doc_only=$DOC_ONLY" >> "$GITHUB_OUTPUT"
+
+          # Empty diff or doc-only ⇒ skip heavy work.
+          if [ -z "$CHANGED" ] || [ "$DOC_ONLY" = "true" ]; then
+            echo "filter=" >> "$GITHUB_OUTPUT"
+          else
+            echo "filter=...[${BASE}]" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrate DB
+        if: steps.scope.outputs.doc_only != 'true'
+        run: pnpm db:migrate
+        continue-on-error: true
+      - name: Typecheck (affected packages)
+        id: typecheck
+        run: |
+          if [ -n "${{ steps.scope.outputs.filter }}" ]; then
+            pnpm turbo run typecheck --filter="${{ steps.scope.outputs.filter }}" 2>&1 | tee typecheck.log
+          else
+            pnpm typecheck 2>&1 | tee typecheck.log
+          fi
+      - name: Lint (affected packages, skipped on doc-only)
+        id: lint
+        if: steps.scope.outputs.doc_only != 'true'
+        run: |
+          pnpm turbo run lint --filter="${{ steps.scope.outputs.filter }}" 2>&1 | tee lint.log
+      - name: Test (affected packages, skipped on doc-only)
+        id: tests
+        if: steps.scope.outputs.doc_only != 'true'
+        run: |
+          # Turbo filter narrows to packages whose dep graph touches the diff.
+          # Inside each package, Vitest's --changed further restricts to files
+          # related to the diff, so a package with 1 changed source runs only
+          # its associated tests.
+          pnpm turbo run test --filter="${{ steps.scope.outputs.filter }}" -- --changed "origin/${{ github.event.pull_request.base.ref }}" 2>&1 | tee test.log
+      - name: List which tests ran
+        if: always() && steps.scope.outputs.doc_only != 'true'
+        run: |
+          echo "## Tests executed"
+          grep -E "^ ?(✓|×|FAIL|PASS|RUNS)" test.log || echo "No test markers found in log."
+      - name: Comment summary on PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "### agent-tester results"
+            echo
+            echo "Doc-only PR: ${{ steps.scope.outputs.doc_only }}"
+            echo
+            echo "| Step | Result |"
+            echo "|---|---|"
+            echo "| typecheck (affected) | ${{ steps.typecheck.outcome || 'skipped' }} |"
+            echo "| lint (affected) | ${{ steps.lint.outcome || 'skipped' }} |"
+            echo "| test (affected, --changed) | ${{ steps.tests.outcome || 'skipped' }} |"
+            echo
+            if [ -f test.log ]; then
+              echo "<details><summary>Last 80 lines of test output</summary>"
+              echo
+              echo '```'
+              tail -80 test.log
+              echo '```'
+              echo "</details>"
+            fi
+          } > summary.md
+          gh pr comment "$PR_NUMBER" --body-file summary.md -R "${{ github.repository }}" || true

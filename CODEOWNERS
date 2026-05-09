@@ -1,0 +1,9 @@
+# Default owners — adjust to real GitHub handles before turning on required reviews.
+*       @TheCruzControll
+
+# Agent infra
+/.github/workflows/   @TheCruzControll
+/tools/orchestrator/  @TheCruzControll
+
+# Specs and decisions
+/docs/                @TheCruzControll
