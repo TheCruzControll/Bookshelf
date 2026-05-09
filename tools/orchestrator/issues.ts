@@ -2226,6 +2226,48 @@ Web e2e covering deletion lifecycle (with mocked time advance).
     labels: [type_('test'), area('web'), epic('W'), wave(4)],
     deps: ['R-02', 'R-03'],
   },
+
+  // =========================================================================
+  // Epic Y — Caching infrastructure
+  // =========================================================================
+  {
+    id: 'Y-01',
+    title: '[Y-01] @hone/cache: Cache port + in-memory + Redis adapters',
+    body: `## Goal
+Shared cache abstraction usable by the rate limiter (D-04), rec engine (P-04), and any future cache consumer. Single port; in-memory adapter for dev/test; Redis adapter for prod.
+
+## Acceptance criteria
+- [ ] \`packages/cache\` package
+- [ ] \`Cache\` port exposes \`get\`, \`set(value, ttlMs)\`, \`del\`, \`mget\`, \`mset\`, \`incr(key, by, ttlMs)\` (incr supports the rate limiter's token-bucket use case)
+- [ ] In-memory adapter using a \`Map\` + per-key timeout for TTL
+- [ ] Redis adapter using \`ioredis\` with a single shared connection
+- [ ] Adapter selection at construction time; no global state
+- [ ] Vitest tests cover both adapters; the Redis adapter test uses testcontainers (skipped if Docker unavailable)
+
+## Files
+- /home/user/Bookshelf/packages/cache/`,
+    labels: [type_('infra'), area('domain'), epic('A'), wave(0)],
+    deps: ['A-08'],
+  },
+  {
+    id: 'Y-02',
+    title: '[Y-02] Wire @hone/cache into apps/api + config-env',
+    body: `## Goal
+Add cache configuration to the env schema; expose a singleton \`cache\` instance on the tRPC context so handlers can use it without per-handler wiring. D-04 rate limiter and P-04 rec cache, when their issues are picked up, must consume \`ctx.cache\` rather than ad-hoc in-memory state.
+
+## Acceptance criteria
+- [ ] Add \`CACHE_DRIVER\` (\`memory\` | \`redis\`, default \`memory\`) and \`REDIS_URL\` (optional, required when driver=redis) to \`packages/config-env\`
+- [ ] Single cache instance constructed at app startup based on \`CACHE_DRIVER\`
+- [ ] \`apps/api/src/trpc/context.ts\` exposes \`ctx.cache: Cache\`
+- [ ] Integration test: a tRPC procedure reads + writes via \`ctx.cache\`; runs once per driver in the test matrix
+- [ ] Document in \`CLAUDE.md\` that any per-user/per-resource cache should use \`ctx.cache\`, never module-scoped \`Map\`s
+
+## Files
+- /home/user/Bookshelf/packages/config-env/
+- /home/user/Bookshelf/apps/api/src/trpc/`,
+    labels: [type_('infra'), area('api'), epic('A'), wave(2)],
+    deps: ['Y-01', 'D-01'],
+  },
 ];
 
 export const issuesById: Record<string, IssueDef> = Object.fromEntries(

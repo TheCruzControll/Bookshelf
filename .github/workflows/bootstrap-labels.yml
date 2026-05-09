@@ -1,6 +1,11 @@
 name: bootstrap-labels
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tools/orchestrator/labels.json"
+      - ".github/workflows/bootstrap-labels.yml"
 
 permissions:
   issues: write

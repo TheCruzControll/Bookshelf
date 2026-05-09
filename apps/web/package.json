@@ -8,7 +8,9 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app",
-    "test": "tsc --noEmit"
+    "test": "tsc --noEmit",
+    "e2e": "playwright test",
+    "e2e:ci": "playwright test --reporter=github"
   },
   "dependencies": {
     "@hone/domain": "workspace:*",
@@ -17,6 +19,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.9.0"
