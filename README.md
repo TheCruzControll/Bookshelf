@@ -27,4 +27,13 @@ pnpm install
 pnpm dev
 ```
 
-Copy `.env.example` to `.env.local` or app-specific env files before connecting real infrastructure.
+### Environment variables
+
+All required environment variables are documented in [`.env.example`](./.env.example) at the repo root, grouped by feature area (database, auth, contacts, catalog, affiliate, observability).
+
+```bash
+cp .env.example .env.local
+# then fill in the values for the services you need locally
+```
+
+For local development with Docker Compose (Postgres only), the `DATABASE_URL` default in `.env.example` matches the `docker-compose.yml` credentials. All other variables can be left empty until you need the corresponding feature.
