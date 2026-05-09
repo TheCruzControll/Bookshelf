@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { Profile, List, ListItem, Book } from "@hone/domain";
 import { isPubliclyVisible } from "../../../visibility";
+import { buildListMeta } from "../../../og-meta";
 
 export const revalidate = 60;
 
@@ -22,11 +23,10 @@ async function fetchListItems(listId: string): Promise<Array<ListItem & { book?:
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { handle } = await params;
-  return {
-    title: `List — @${handle} — Hone`,
-    description: `A list by ${handle} on Hone.`,
-  };
+  const { handle, slug } = await params;
+  const profile = await fetchProfile(handle);
+  const list = profile ? await fetchList(slug) : null;
+  return buildListMeta(handle, list);
 }
 
 export default async function ListPage({ params }: Props) {

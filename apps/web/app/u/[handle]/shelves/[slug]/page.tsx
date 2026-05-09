@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { Profile, Shelf, ShelfItem, Book } from "@hone/domain";
 import { isPubliclyVisible } from "../../../visibility";
+import { buildShelfMeta } from "../../../og-meta";
 
 export const revalidate = 60;
 
@@ -23,10 +24,9 @@ async function fetchShelfItems(shelfId: string): Promise<Array<ShelfItem & { boo
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle, slug } = await params;
-  return {
-    title: `${slug} — @${handle} — Hone`,
-    description: `${handle}'s shelf on Hone.`,
-  };
+  const profile = await fetchProfile(handle);
+  const shelf = profile ? await fetchShelfBySlug(profile.id, slug) : null;
+  return buildShelfMeta(handle, slug, shelf);
 }
 
 export default async function ShelfPage({ params }: Props) {
