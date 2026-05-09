@@ -53,6 +53,8 @@ export const StartBucketOutputSchema = z.object({
 export const CompareInputSchema = z.object({
   rankingId: EntityIdSchema,
   winner: z.enum(["new", "existing"]).optional(),
+  reviewBody: z.string().min(1).optional(),
+  reviewVisibility: z.enum(["public", "followers", "mutuals", "private"]).optional(),
 });
 
 export const CompareOutputSchema = z.discriminatedUnion("done", [
@@ -64,6 +66,7 @@ export const CompareOutputSchema = z.discriminatedUnion("done", [
   z.object({
     done: z.literal(true),
     position: z.number().int().nonnegative(),
+    reviewId: EntityIdSchema.optional(),
   }),
 ]);
 

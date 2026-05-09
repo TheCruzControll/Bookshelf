@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import {
   AppServices,
+  ReviewService,
   CompareInputSchema,
   CompareOutputSchema,
   StartBucketInputSchema,
@@ -99,7 +100,18 @@ export const rankingRouter = router({
 
       if (state.lo >= state.hi) {
         await ctx.cache?.del(cacheKey);
-        return { done: true as const, position: state.lo };
+        let reviewId: string | undefined;
+        if (input.reviewBody) {
+          const reviewService = new ReviewService(ctx.repositories.reviews, ctx.repositories.activity);
+          const review = await reviewService.createReview({
+            authorId: ctx.identity.userId,
+            bookId: state.bookId,
+            body: input.reviewBody,
+            visibility: input.reviewVisibility ?? "public",
+          });
+          reviewId = review.id;
+        }
+        return { done: true as const, position: state.lo, reviewId };
       }
 
       const mid = Math.floor((state.lo + state.hi) / 2);
