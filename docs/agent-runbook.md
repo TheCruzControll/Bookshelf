@@ -47,8 +47,8 @@ Before the agents can run end-to-end, do this once:
 
 ## Daily operations
 
-- **Check progress:** the Actions tab shows recent runs of all workflows. Issues filtered by `lifecycle:in-progress`, `lifecycle:in-review` show what's flowing.
-- **Inspect a stuck issue:** `gh issue view N` — labels indicate state. If `lifecycle:in-progress` for >1 hour with no PR, kill the Implementer run via `gh run cancel <run-id>` and reset the issue: `gh issue edit N --remove-label lifecycle:in-progress --add-label lifecycle:ready`.
+- **Check progress:** the Actions tab shows recent runs of all workflows. Issues filtered by `lifecycle:in-progress`, `lifecycle:in-review` show what's flowing. The Implementer posts a pickup comment on the issue and the Reviewer posts one on the PR immediately after starting; these comments include a link to the run logs.
+- **Inspect a stuck issue:** `gh issue view N` — labels indicate state. If `lifecycle:in-progress` for >1 hour with no PR and no pickup comment from the Implementer, the agent may have failed before the first tool call (e.g., OAuth token issue, Claude API limit); check the run logs link from the pickup comment or via `gh workflow view agent-implementer.yml`. Kill the run via `gh run cancel <run-id>` and reset the issue: `gh issue edit N --remove-label lifecycle:in-progress --add-label lifecycle:ready`.
 - **Adjust parallelism:** edit `MAX_CONCURRENT_IMPLEMENTERS` in `agent-orchestrator.yml`. Default 3. Push to a new branch + PR so the change goes through review. Higher numbers = faster wall-clock but more API spend and more rebase conflicts.
 - **Conflict during parallel runs:** when two Implementers' PRs both claim files outside their declared `## Files` sections, the second to merge will rebase-fail. The Implementer's recovery step resets the issue to `lifecycle:ready`; the next Orchestrator pass re-dispatches. If conflicts are frequent, tighten the `## Files` declarations on the offending issues.
 - **Re-run Reviewer on a PR:** push an empty commit to the PR branch (`git commit --allow-empty -m "retry review"; git push`) — Reviewer triggers on `synchronize`.
@@ -59,7 +59,7 @@ Before the agents can run end-to-end, do this once:
 
 ## Failure modes
 
-- **Implementer fails halfway** → its `Recover on failure` step removes `lifecycle:in-progress` and restores `lifecycle:ready`, posts a comment on the issue with the run URL. The Orchestrator's next pass will re-dispatch.
+- **Implementer fails early or silently** → the Implementer posts a pickup comment on the issue immediately after starting; if you see no pickup comment after several minutes, the run likely failed before the first tool call (e.g., OAuth token issue, Claude API limit). Check the run logs via the Actions tab or the pickup comment link (if it was posted). The Implementer's `Recover on failure` step removes `lifecycle:in-progress` and restores `lifecycle:ready`, posts a comment on the issue with the run URL. The Orchestrator's next pass will re-dispatch.
 - **Reviewer requests changes** → Reviewer applies `agent:implementer`, removes `agent:reviewer`. Orchestrator re-dispatches the Implementer for that PR's source issue.
 - **Tester fails** → auto-merge is gated; the PR sits in `lifecycle:in-review` until the Implementer fixes. A subsequent Implementer run on the same issue will push to the same branch.
 - **Cycle detected** → Orchestrator labels every issue in the cycle `needs-human` and stops dispatching.
