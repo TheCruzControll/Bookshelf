@@ -1,0 +1,42 @@
+name: agent-undraft
+
+# When agent-tester succeeds on a draft PR, mark the PR ready-for-review so
+# auto-merge can fire. Implementers occasionally open PRs as draft and leave
+# them there; that blocks the entire pipeline because the auto-merge gate
+# (agent-tester) only triggers events when the PR is non-draft.
+on:
+  workflow_run:
+    workflows: [agent-tester]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  undraft:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Find PR and mark ready if draft
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          PR=$(gh pr list --repo "$REPO" --state open --search "$HEAD_SHA" \
+            --json number,headRefOid \
+            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n1)
+          if [ -z "$PR" ]; then
+            echo "No open PR found for SHA $HEAD_SHA — nothing to do."
+            exit 0
+          fi
+          IS_DRAFT=$(gh pr view "$PR" --repo "$REPO" --json isDraft --jq '.isDraft')
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "Marking #$PR ready for review (agent-tester succeeded)"
+            gh pr ready "$PR" --repo "$REPO"
+          else
+            echo "#$PR is already ready — nothing to do."
+          fi
