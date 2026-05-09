@@ -6,6 +6,7 @@ import { shelfRouter } from "./shelf";
 export { router, publicProcedure };
 
 export const appRouter = router({
+  health: publicProcedure.query(() => ({ ok: true, service: "hone-api" })),
   profile: profileRouter,
   ranking: rankingRouter,
   shelf: shelfRouter,
