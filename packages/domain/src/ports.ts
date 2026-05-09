@@ -132,12 +132,12 @@ export interface RankingRepository {
 
 export interface NotificationRepository {
   registerToken(input: {
-    userId: EntityId;
+    profileId: EntityId;
     platform: NotificationPlatform;
     token: string;
   }): Promise<NotificationToken>;
-  removeToken(input: { userId: EntityId; token: string }): Promise<void>;
-  listTokensForUser(userId: EntityId): Promise<NotificationToken[]>;
+  removeToken(input: { profileId: EntityId; token: string }): Promise<void>;
+  listTokensForUser(profileId: EntityId): Promise<NotificationToken[]>;
 }
 
 export interface ImportRepository {

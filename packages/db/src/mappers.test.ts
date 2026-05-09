@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toNotificationToken, toNotificationSettings } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { follows, imports, rankings, shelves } from "./schema";
 
@@ -690,5 +690,68 @@ describe("imports table schema and mapper", () => {
 
     const imp = toImport(row as Parameters<typeof toImport>[0]);
     expect(imp.conflictCount).toBe(7);
+  });
+});
+
+describe("notification mappers", () => {
+  it("toNotificationToken maps a row to a NotificationToken domain object", () => {
+    const now = new Date();
+    const lastSeen = new Date(now.getTime() + 1000);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000020",
+      profileId: "00000000-0000-0000-0000-000000000002",
+      platform: "apns" as const,
+      token: "device-token-abc",
+      lastSeen,
+      createdAt: now
+    };
+
+    const token = toNotificationToken(row as Parameters<typeof toNotificationToken>[0]);
+    expect(token.id).toBe(row.id);
+    expect(token.profileId).toBe(row.profileId);
+    expect(token.platform).toBe("apns");
+    expect(token.token).toBe("device-token-abc");
+    expect(token.lastSeen).toBe(lastSeen);
+    expect(token.createdAt).toBe(now);
+  });
+
+  it("toNotificationToken works for fcm platform", () => {
+    const now = new Date();
+    const row = {
+      id: "00000000-0000-0000-0000-000000000021",
+      profileId: "00000000-0000-0000-0000-000000000002",
+      platform: "fcm" as const,
+      token: "fcm-token-xyz",
+      lastSeen: now,
+      createdAt: now
+    };
+
+    const token = toNotificationToken(row as Parameters<typeof toNotificationToken>[0]);
+    expect(token.platform).toBe("fcm");
+    expect(token.token).toBe("fcm-token-xyz");
+  });
+
+  it("toNotificationSettings maps a row to a NotificationSettings domain object", () => {
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000002",
+      key: "push_new_follower",
+      value: { enabled: true }
+    };
+
+    const settings = toNotificationSettings(row as Parameters<typeof toNotificationSettings>[0]);
+    expect(settings.profileId).toBe(row.profileId);
+    expect(settings.key).toBe("push_new_follower");
+    expect(settings.value).toEqual({ enabled: true });
+  });
+
+  it("toNotificationSettings passes through arbitrary jsonb values", () => {
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000002",
+      key: "digest_frequency",
+      value: "weekly"
+    };
+
+    const settings = toNotificationSettings(row as Parameters<typeof toNotificationSettings>[0]);
+    expect(settings.value).toBe("weekly");
   });
 });

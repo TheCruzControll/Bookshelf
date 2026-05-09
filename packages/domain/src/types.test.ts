@@ -202,11 +202,11 @@ describe("domain types smoke test", () => {
     const now = new Date();
     const token: NotificationToken = {
       id: "00000000-0000-0000-0000-000000000015",
-      userId: "00000000-0000-0000-0000-000000000001",
+      profileId: "00000000-0000-0000-0000-000000000001",
       platform: "apns",
       token: "abc123devicetoken",
       createdAt: now,
-      updatedAt: now,
+      lastSeen: now,
     };
     expect(token.platform).toBe("apns");
   });

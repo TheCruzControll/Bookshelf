@@ -3,6 +3,8 @@ import type {
   Book,
   Edition,
   Import,
+  NotificationSettings,
+  NotificationToken,
   Profile,
   Ranking,
   Review,
@@ -14,6 +16,8 @@ import type {
   books,
   editions,
   imports,
+  notificationSettings,
+  notificationTokens,
   profiles,
   rankings,
   reviews,
@@ -30,6 +34,8 @@ type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
+type NotificationTokenRow = typeof notificationTokens.$inferSelect;
+type NotificationSettingsRow = typeof notificationSettings.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -159,3 +165,25 @@ export function toRanking(row: RankingRow): Ranking {
   };
 }
 
+export function toNotificationToken(
+  row: NotificationTokenRow
+): NotificationToken {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    platform: row.platform,
+    token: row.token,
+    lastSeen: row.lastSeen,
+    createdAt: row.createdAt
+  };
+}
+
+export function toNotificationSettings(
+  row: NotificationSettingsRow
+): NotificationSettings {
+  return {
+    profileId: row.profileId,
+    key: row.key,
+    value: row.value
+  };
+}
