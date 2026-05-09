@@ -1,12 +1,14 @@
+import { createHash } from "node:crypto";
 import type {
   ActivityRepository,
   AppRepositories,
   AuthProvider,
+  ImportRepository,
   ProfileRepository,
   RankingRepository,
   ShelfRepository
 } from "./ports";
-import type { EntityId, Profile, Ranking, Shelf, ShelfItem, Visibility } from "./types";
+import type { EntityId, Import, ImportSource, ImportStatus, Profile, Ranking, Shelf, ShelfItem, Visibility } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -178,11 +180,83 @@ export class RankingService {
   }
 }
 
+export const VALID_STATUS_TRANSITIONS: Record<ImportStatus, ImportStatus[]> = {
+  pending: ["processing", "failed"],
+  processing: ["needs_review", "completed", "failed"],
+  needs_review: ["processing", "completed", "failed"],
+  completed: [],
+  failed: [],
+};
+
+export function hashFileContent(content: string | Uint8Array): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+export class ImportService {
+  constructor(private readonly imports: ImportRepository) {}
+
+  async createImport(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    source: ImportSource;
+    fileContent: string | Uint8Array;
+  }): Promise<{ import: Import; duplicate: boolean }> {
+    const idempotencyHash = hashFileContent(input.fileContent);
+    const existing = await this.imports.findByOwnerAndHash({
+      ownerId: input.ownerId,
+      hash: idempotencyHash,
+    });
+    if (existing) {
+      return { import: existing, duplicate: true };
+    }
+    const created = await this.imports.create({
+      id: input.id,
+      ownerId: input.ownerId,
+      source: input.source,
+      idempotencyHash,
+    });
+    return { import: created, duplicate: false };
+  }
+
+  async transitionStatus(input: {
+    id: EntityId;
+    toStatus: ImportStatus;
+  }): Promise<Import> {
+    const existing = await this.imports.findById(input.id);
+    if (!existing) {
+      throw Object.assign(new Error("Import not found"), { code: "IMPORT_NOT_FOUND" });
+    }
+    const allowed = VALID_STATUS_TRANSITIONS[existing.status];
+    if (!allowed.includes(input.toStatus)) {
+      throw Object.assign(
+        new Error(`Invalid status transition: ${existing.status} -> ${input.toStatus}`),
+        { code: "INVALID_STATUS_TRANSITION" }
+      );
+    }
+    const completedAt =
+      input.toStatus === "completed" || input.toStatus === "failed" ? new Date() : undefined;
+    return this.imports.updateStatus({
+      id: input.id,
+      status: input.toStatus,
+      completedAt,
+    });
+  }
+
+  async findById(id: EntityId): Promise<Import | null> {
+    return this.imports.findById(id);
+  }
+
+  async listByOwner(ownerId: EntityId): Promise<Import[]> {
+    return this.imports.listByOwner(ownerId);
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
   readonly rankings: RankingService;
+  readonly imports: ImportService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -198,5 +272,6 @@ export class AppServices {
       repositories.shelves
     );
     this.rankings = new RankingService(repositories.rankings);
+    this.imports = new ImportService(repositories.imports);
   }
 }
