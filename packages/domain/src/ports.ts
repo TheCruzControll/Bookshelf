@@ -18,6 +18,7 @@ import type {
   Profile,
   Recommendation,
   Review,
+  OAuthIdentity,
   Session,
   Shelf,
   ShelfItem,
@@ -228,15 +229,25 @@ export interface ListRepository {
   reorderItems(input: { listId: EntityId; orderedBookIds: EntityId[] }): Promise<void>;
 }
 
+export interface AuthIdentityRepository {
+  create(input: {
+    provider: string;
+    providerUserId: string;
+    profileId: EntityId;
+  }): Promise<OAuthIdentity>;
+  findByProvider(input: { provider: string; providerUserId: string }): Promise<OAuthIdentity | null>;
+  listByProfile(profileId: EntityId): Promise<OAuthIdentity[]>;
+}
+
 export interface SessionRepository {
   create(input: {
-    id: EntityId;
-    userId: EntityId;
+    tokenHash: string;
+    profileId: EntityId;
     expiresAt: Date;
   }): Promise<Session>;
-  findById(id: EntityId): Promise<Session | null>;
-  deleteById(id: EntityId): Promise<void>;
-  deleteAllForUser(userId: EntityId): Promise<void>;
+  findByTokenHash(tokenHash: string): Promise<Session | null>;
+  revokeByTokenHash(tokenHash: string): Promise<void>;
+  revokeAllForProfile(profileId: EntityId): Promise<void>;
 }
 
 export interface AppRepositories {
@@ -253,6 +264,7 @@ export interface AppRepositories {
   imports: ImportRepository;
   contacts: ContactsRepository;
   lists: ListRepository;
+  authIdentities: AuthIdentityRepository;
   sessions: SessionRepository;
 }
 

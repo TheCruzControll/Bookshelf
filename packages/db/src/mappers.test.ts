@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, shelves, tasteVectors } from "./schema";
+import { authIdentities, blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -966,5 +966,105 @@ describe("phone_numbers table schema and mapper", () => {
     const pn = toPhoneNumber(row as Parameters<typeof toPhoneNumber>[0]);
     expect(pn.profileId).toBe("00000000-0000-0000-0000-000000000001");
     expect(pn.e164Hash).toBe("hmac_sha256_hash_value");
+  });
+});
+
+describe("auth_identities table schema and mapper", () => {
+  it("authIdentities schema includes required columns", () => {
+    const cols = Object.keys(authIdentities);
+    expect(cols).toContain("provider");
+    expect(cols).toContain("providerUserId");
+    expect(cols).toContain("profileId");
+  });
+
+  it("authIdentities schema does not have a surrogate id column", () => {
+    const cols = Object.keys(authIdentities);
+    expect(cols).not.toContain("id");
+  });
+
+  it("toOAuthIdentity maps a row to an OAuthIdentity domain object", () => {
+    const row = {
+      provider: "apple",
+      providerUserId: "apple.user.001",
+      profileId: "00000000-0000-0000-0000-000000000001"
+    };
+
+    const identity = toOAuthIdentity(row as Parameters<typeof toOAuthIdentity>[0]);
+    expect(identity.provider).toBe("apple");
+    expect(identity.providerUserId).toBe("apple.user.001");
+    expect(identity.profileId).toBe("00000000-0000-0000-0000-000000000001");
+  });
+
+  it("toOAuthIdentity maps google provider correctly", () => {
+    const row = {
+      provider: "google",
+      providerUserId: "google.user.999",
+      profileId: "00000000-0000-0000-0000-000000000002"
+    };
+
+    const identity = toOAuthIdentity(row as Parameters<typeof toOAuthIdentity>[0]);
+    expect(identity.provider).toBe("google");
+    expect(identity.providerUserId).toBe("google.user.999");
+    expect(identity.profileId).toBe("00000000-0000-0000-0000-000000000002");
+  });
+});
+
+describe("sessions table schema and mapper", () => {
+  const now = new Date();
+
+  it("sessions schema includes required columns", () => {
+    const cols = Object.keys(sessions);
+    expect(cols).toContain("tokenHash");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("expiresAt");
+    expect(cols).toContain("revokedAt");
+  });
+
+  it("sessions schema does not have a surrogate id column", () => {
+    const cols = Object.keys(sessions);
+    expect(cols).not.toContain("id");
+  });
+
+  it("toSession maps a row to a Session domain object", () => {
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const row = {
+      tokenHash: "sha256_token_hash_value",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      expiresAt,
+      revokedAt: null
+    };
+
+    const session = toSession(row as Parameters<typeof toSession>[0]);
+    expect(session.tokenHash).toBe("sha256_token_hash_value");
+    expect(session.profileId).toBe("00000000-0000-0000-0000-000000000001");
+    expect(session.expiresAt).toBe(expiresAt);
+    expect(session.revokedAt).toBeUndefined();
+  });
+
+  it("toSession maps revokedAt when present", () => {
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const revokedAt = new Date();
+    const row = {
+      tokenHash: "sha256_revoked_token_hash",
+      profileId: "00000000-0000-0000-0000-000000000002",
+      expiresAt,
+      revokedAt
+    };
+
+    const session = toSession(row as Parameters<typeof toSession>[0]);
+    expect(session.revokedAt).toBe(revokedAt);
+  });
+
+  it("toSession maps revokedAt as undefined when null", () => {
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const row = {
+      tokenHash: "sha256_active_token_hash",
+      profileId: "00000000-0000-0000-0000-000000000003",
+      expiresAt,
+      revokedAt: null
+    };
+
+    const session = toSession(row as Parameters<typeof toSession>[0]);
+    expect(session.revokedAt).toBeUndefined();
   });
 });
