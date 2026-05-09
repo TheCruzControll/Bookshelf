@@ -20,7 +20,9 @@
     "baseUrl": ".",
     "paths": {
       "@hone/domain": ["packages/domain/src/index.ts"],
-      "@hone/db": ["packages/db/src/index.ts"]
+      "@hone/db": ["packages/db/src/index.ts"],
+      "@hone/config-env": ["packages/config-env/src/index.ts"],
+      "@hone/observability": ["packages/observability/src/index.ts"]
     }
   }
 }

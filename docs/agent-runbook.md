@@ -12,6 +12,8 @@ This runbook covers operating, debugging, and recovering them.
 | Reviewer | `agent-reviewer.yml` | on `pull_request.opened/synchronize/ready_for_review` | reviews diff against issue scope and locked decisions; on approve calls `gh pr merge --auto --squash` |
 | Tester | `agent-tester.yml` | on `pull_request.*` | typecheck + lint + test against a Postgres service container; the `agent-tester` check is the auto-merge gate |
 | Documenter | `agent-documenter.yml` | on `pull_request.closed` (merged), weekly cron, manual dispatch | reads merged diff, opens follow-up doc PR if architecture/product/API/runbook docs need updates |
+| Spec-Watcher | `agent-spec-watcher.yml` | on `pull_request.closed` (merged) for `type:doc` PRs touching spec docs, manual dispatch | reads spec diff and proposes new atomic issues labeled `needs-triage` + `needs-human` for human approval before they enter the DAG |
+| Rebaser | `agent-rebaser.yml` | on `push` to `main`, `pull_request.opened`, manual dispatch | non-Claude TS script (`tools/orchestrator/rebaser.ts`) — for every open agent PR that's behind/dirty against main, calls GitHub's update-branch endpoint or does a manual merge; auto-resolves conflicts in the configured `AUTO_RESOLVABLE_FILES` set (default: `pnpm-lock.yaml`) by taking main's version and re-running `pnpm install`; flags anything else `merge-conflict` + `needs-human` |
 
 Auto-merge is wired so that Reviewer's approval plus a green Tester check
 triggers GitHub's auto-merge with squash. The Orchestrator then closes the
@@ -48,6 +50,8 @@ Before the agents can run end-to-end, do this once:
 - **Conflict during parallel runs:** when two Implementers' PRs both claim files outside their declared `## Files` sections, the second to merge will rebase-fail. The Implementer's recovery step resets the issue to `lifecycle:ready`; the next Orchestrator pass re-dispatches. If conflicts are frequent, tighten the `## Files` declarations on the offending issues.
 - **Re-run Reviewer on a PR:** push an empty commit to the PR branch (`git commit --allow-empty -m "retry review"; git push`) — Reviewer triggers on `synchronize`.
 - **Force a Documenter run for a merged PR:** `gh workflow run agent-documenter.yml -f pr_number=<n>`.
+- **Force a Spec-Watcher run for a merged spec PR:** `gh workflow run agent-spec-watcher.yml -f pr_number=<n>`.
+- **Triage a spec-watcher proposal:** view the `needs-triage` issue, validate scope and the cited spec line, then either `gh issue close <n>` (reject) or remove `needs-triage` + `needs-human` and add proper `wave:`, `epic:`, `area:`, `type:`, and `lifecycle:ready`/`lifecycle:blocked` labels to enter the DAG.
 - **Audit invariants:** `pnpm tsx tools/orchestrator/audit.ts` — verifies every open issue has exactly one `lifecycle:*`, one `wave:*`, one `type:*`; no `lifecycle:ready` issue has unsatisfied deps; no two issues are simultaneously `lifecycle:in-progress`.
 
 ## Failure modes
