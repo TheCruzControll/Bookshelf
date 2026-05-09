@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toHandleHistory } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { follows, imports, rankings, shelves } from "./schema";
 
@@ -690,5 +690,24 @@ describe("imports table schema and mapper", () => {
 
     const imp = toImport(row as Parameters<typeof toImport>[0]);
     expect(imp.conflictCount).toBe(7);
+  });
+
+  it("toHandleHistory maps a row to a HandleHistory domain object", () => {
+    const now = new Date();
+    const retainUntil = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 3);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000001",
+      profileId: "00000000-0000-0000-0000-000000000002",
+      oldHandle: "olduser",
+      retainUntil,
+      createdAt: now,
+    };
+
+    const entry = toHandleHistory(row as Parameters<typeof toHandleHistory>[0]);
+    expect(entry.id).toBe(row.id);
+    expect(entry.profileId).toBe(row.profileId);
+    expect(entry.oldHandle).toBe("olduser");
+    expect(entry.retainUntil).toBe(retainUntil);
+    expect(entry.createdAt).toBe(now);
   });
 });

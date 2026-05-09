@@ -84,6 +84,14 @@ export const CreateProfileOutputSchema = z.object({
   shelves: z.array(SystemShelfResponseSchema),
 });
 
+export const ResolveOldHandleInputSchema = z.object({
+  oldHandle: HandleSchema,
+});
+
+export const ResolveOldHandleOutputSchema = z.object({
+  currentHandle: z.string().nullable(),
+});
+
 export type VisibilityInput = z.infer<typeof VisibilitySchema>;
 export type ProfileInput = z.infer<typeof ProfileSchema>;
 export type CreateProfileInput = z.infer<typeof CreateProfileInputSchema>;
@@ -96,3 +104,5 @@ export type CheckHandleOutput = z.infer<typeof CheckHandleOutputSchema>;
 export type SetHandleInput = z.infer<typeof SetHandleInputSchema>;
 export type SetHandleOutput = z.infer<typeof SetHandleOutputSchema>;
 export type CreateProfileOutput = z.infer<typeof CreateProfileOutputSchema>;
+export type ResolveOldHandleInput = z.infer<typeof ResolveOldHandleInputSchema>;
+export type ResolveOldHandleOutput = z.infer<typeof ResolveOldHandleOutputSchema>;

@@ -2,6 +2,7 @@ import type {
   ActivityEvent,
   Book,
   Edition,
+  HandleHistory,
   Import,
   Profile,
   Ranking,
@@ -13,6 +14,7 @@ import type {
   activityEvents,
   books,
   editions,
+  handleHistory,
   imports,
   profiles,
   rankings,
@@ -30,6 +32,7 @@ type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
+type HandleHistoryRow = typeof handleHistory.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -156,6 +159,16 @@ export function toRanking(row: RankingRow): Ranking {
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+export function toHandleHistory(row: HandleHistoryRow): HandleHistory {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    oldHandle: row.oldHandle,
+    retainUntil: row.retainUntil,
+    createdAt: row.createdAt
   };
 }
 

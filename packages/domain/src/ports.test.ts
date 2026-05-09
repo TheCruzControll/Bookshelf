@@ -4,6 +4,7 @@ import type {
   BlockRepository,
   ContactsRepository,
   FollowRepository,
+  HandleHistoryRepository,
   ImportRepository,
   ListRepository,
   NotificationRepository,
@@ -23,6 +24,11 @@ type _AppRepositoriesHasImports = Assert<HasKey<AppRepositories, "imports">>;
 type _AppRepositoriesHasContacts = Assert<HasKey<AppRepositories, "contacts">>;
 type _AppRepositoriesHasLists = Assert<HasKey<AppRepositories, "lists">>;
 type _AppRepositoriesHasSessions = Assert<HasKey<AppRepositories, "sessions">>;
+type _AppRepositoriesHasHandleHistory = Assert<HasKey<AppRepositories, "handleHistory">>;
+
+type _HandleHistoryRepositoryHasRecord = Assert<HasKey<HandleHistoryRepository, "record">>;
+type _HandleHistoryRepositoryHasFindCurrentByOldHandle = Assert<HasKey<HandleHistoryRepository, "findCurrentByOldHandle">>;
+type _HandleHistoryRepositoryHasDeleteExpired = Assert<HasKey<HandleHistoryRepository, "deleteExpired">>;
 
 type _FollowRepositoryHasFollow = Assert<HasKey<FollowRepository, "follow">>;
 type _FollowRepositoryHasUnfollow = Assert<HasKey<FollowRepository, "unfollow">>;
@@ -124,10 +130,14 @@ export type {
   _SessionRepositoryHasDeleteById,
   _SessionRepositoryHasDeleteAllForUser,
   _ShelfRepositoryHasCreateSystemShelves,
+  _AppRepositoriesHasHandleHistory,
+  _HandleHistoryRepositoryHasRecord,
+  _HandleHistoryRepositoryHasFindCurrentByOldHandle,
+  _HandleHistoryRepositoryHasDeleteExpired,
 };
 
 describe("ports structural smoke tests", () => {
-  it("AppRepositories keys include all eight new repositories", () => {
+  it("AppRepositories keys include all nine new repositories", () => {
     const keys: (keyof AppRepositories)[] = [
       "follows",
       "blocks",
@@ -137,8 +147,9 @@ describe("ports structural smoke tests", () => {
       "contacts",
       "lists",
       "sessions",
+      "handleHistory",
     ];
-    expect(keys).toHaveLength(8);
+    expect(keys).toHaveLength(9);
   });
 
   it("AppRepositories keys include all original repositories", () => {

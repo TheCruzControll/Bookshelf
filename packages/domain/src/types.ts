@@ -256,3 +256,11 @@ export interface Session {
   createdAt: Date;
   expiresAt: Date;
 }
+
+export interface HandleHistory {
+  id: EntityId;
+  profileId: EntityId;
+  oldHandle: string;
+  retainUntil: Date;
+  createdAt: Date;
+}

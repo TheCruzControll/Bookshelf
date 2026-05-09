@@ -46,6 +46,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
     lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
     sessions: { create: vi.fn(), findById: vi.fn(), deleteById: vi.fn(), deleteAllForUser: vi.fn() },
+    handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn().mockResolvedValue(null), deleteExpired: vi.fn() },
     ...overrides,
   };
 }
@@ -306,5 +307,109 @@ describe("profile.createProfile", () => {
       body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm", defaultVisibility: "public" }),
     });
     expect(repos.shelves.createSystemShelves).toHaveBeenCalledWith(baseProfile.id);
+  });
+});
+
+describe("profile.resolveOldHandle", () => {
+  const now = new Date();
+  const futureDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 3);
+  const baseProfile = {
+    id: "00000000-0000-0000-0000-000000000001",
+    handle: "newhandle",
+    displayName: "Book Worm",
+    defaultVisibility: "public" as const,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const historyEntry = {
+    id: "00000000-0000-0000-0000-000000000099",
+    profileId: baseProfile.id,
+    oldHandle: "oldhandle",
+    retainUntil: futureDate,
+    createdAt: now,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns currentHandle when old handle is found in history", async () => {
+    const repos = makeRepositories({
+      handleHistory: {
+        record: vi.fn(),
+        findCurrentByOldHandle: vi.fn().mockResolvedValue(historyEntry),
+        deleteExpired: vi.fn(),
+      },
+      profiles: {
+        findById: vi.fn().mockResolvedValue(baseProfile),
+        findByHandle: vi.fn(),
+        create: vi.fn(),
+        isHandleTaken: vi.fn().mockResolvedValue(false),
+        setHandle: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request(
+      "/trpc/profile.resolveOldHandle?input=" + encodeURIComponent(JSON.stringify({ oldHandle: "oldhandle" }))
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.currentHandle).toBe("newhandle");
+  });
+
+  it("returns null currentHandle when old handle is not in history", async () => {
+    const repos = makeRepositories({
+      handleHistory: {
+        record: vi.fn(),
+        findCurrentByOldHandle: vi.fn().mockResolvedValue(null),
+        deleteExpired: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request(
+      "/trpc/profile.resolveOldHandle?input=" + encodeURIComponent(JSON.stringify({ oldHandle: "nonexistent" }))
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.currentHandle).toBeNull();
+  });
+
+  it("normalizes old handle to lowercase before lookup", async () => {
+    const repos = makeRepositories({
+      handleHistory: {
+        record: vi.fn(),
+        findCurrentByOldHandle: vi.fn().mockResolvedValue(null),
+        deleteExpired: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    await app.request(
+      "/trpc/profile.resolveOldHandle?input=" + encodeURIComponent(JSON.stringify({ oldHandle: "OldHandle" }))
+    );
+    expect(repos.handleHistory.findCurrentByOldHandle).toHaveBeenCalledWith("oldhandle");
+  });
+
+  it("returns null when profile no longer exists for history entry", async () => {
+    const repos = makeRepositories({
+      handleHistory: {
+        record: vi.fn(),
+        findCurrentByOldHandle: vi.fn().mockResolvedValue(historyEntry),
+        deleteExpired: vi.fn(),
+      },
+      profiles: {
+        findById: vi.fn().mockResolvedValue(null),
+        findByHandle: vi.fn(),
+        create: vi.fn(),
+        isHandleTaken: vi.fn().mockResolvedValue(false),
+        setHandle: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request(
+      "/trpc/profile.resolveOldHandle?input=" + encodeURIComponent(JSON.stringify({ oldHandle: "oldhandle" }))
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.currentHandle).toBeNull();
   });
 });

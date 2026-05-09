@@ -342,3 +342,22 @@ export const recommendationScores = pgTable(
   })
 );
 
+export const handleHistory = pgTable(
+  "handle_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    oldHandle: text("old_handle").notNull(),
+    retainUntil: timestamp("retain_until", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    oldHandleIdx: index("handle_history_old_handle_idx").on(table.oldHandle),
+    profileIdx: index("handle_history_profile_idx").on(table.profileId)
+  })
+);
+

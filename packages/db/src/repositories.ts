@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, lt, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -8,6 +8,7 @@ import type {
   EntityId,
   FeedItem,
   FollowRepository,
+  HandleHistoryRepository,
   ImportRepository,
   ListRepository,
   NotificationRepository,
@@ -26,6 +27,7 @@ import {
   books,
   editions,
   follows,
+  handleHistory,
   profiles,
   recommendationScores,
   reviews,
@@ -36,6 +38,7 @@ import {
   toActivityEvent,
   toBook,
   toEdition,
+  toHandleHistory,
   toProfile,
   toReview,
   toShelf,
@@ -351,6 +354,41 @@ class DrizzleSessionRepository implements SessionRepository {
   async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
 }
 
+export class DrizzleHandleHistoryRepository implements HandleHistoryRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async record(input: { profileId: EntityId; oldHandle: string; retainUntil: Date }) {
+    const [row] = await this.db
+      .insert(handleHistory)
+      .values({
+        profileId: input.profileId,
+        oldHandle: input.oldHandle,
+        retainUntil: input.retainUntil
+      })
+      .returning();
+    if (!row) throw new Error("Failed to record handle history");
+    return toHandleHistory(row);
+  }
+
+  async findCurrentByOldHandle(oldHandle: string) {
+    const now = new Date();
+    const row = await this.db.query.handleHistory.findFirst({
+      where: and(
+        eq(handleHistory.oldHandle, oldHandle),
+        gt(handleHistory.retainUntil, now)
+      )
+    });
+    return row ? toHandleHistory(row) : null;
+  }
+
+  async deleteExpired() {
+    const now = new Date();
+    await this.db
+      .delete(handleHistory)
+      .where(lt(handleHistory.retainUntil, now));
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -367,6 +405,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     contacts: new DrizzleContactsRepository(db),
     lists: new DrizzleListRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    handleHistory: new DrizzleHandleHistoryRepository(db),
   };
 }
 
