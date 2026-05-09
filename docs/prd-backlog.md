@@ -153,6 +153,15 @@ render, every search result, and every contacts-match surface.
 - **Internal editorial:** Hone team uses regular list-creation flow with a
   `verified` badge. Day 1 needs ~5–10 published editorial lists; ongoing
   weekly cadence minimum.
+- **Editorial-team membership: profile role flag.** `profiles.role` is a
+  three-state column: `user` (default for everyone on signup), `editorial`
+  (Hone team — can publish lists with `author_type=internal_editorial`),
+  `admin` (can run admin-only scripts like catalog refresh). Promotion is
+  manual SQL/admin action; no email allowlist or invite-link mechanism
+  in v1. Server enforces on `list.publish`: a non-editorial/non-admin
+  user attempting `author_type=internal_editorial` is rejected.
+  Verified badge UI renders wherever a list with that author type is
+  shown.
 - **Algorithmic lists:** hand-written SQL queries refreshed on schedule.
   v1 set: "Trending in Your Circle," "New on Hone," "Highly Ranked This
   Month," "Popular in Your Top Genre," "What Your Mutuals Are Reading Right
