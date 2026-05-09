@@ -2,6 +2,7 @@ import type {
   ActivityEvent,
   Book,
   Edition,
+  Import,
   Profile,
   Ranking,
   Review,
@@ -12,6 +13,7 @@ import type {
   activityEvents,
   books,
   editions,
+  imports,
   profiles,
   rankings,
   reviews,
@@ -27,6 +29,7 @@ type ShelfItemRow = typeof shelfItems.$inferSelect;
 type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
+type ImportRow = typeof imports.$inferSelect;
 
 export function toProfile(row: ProfileRow): Profile {
   return {
@@ -125,6 +128,19 @@ export function toActivityEvent(row: ActivityRow): ActivityEvent {
     reviewId: row.reviewId ?? undefined,
     visibility: row.visibility,
     occurredAt: row.occurredAt
+  };
+}
+
+export function toImport(row: ImportRow): Import {
+  return {
+    id: row.id,
+    ownerId: row.ownerId,
+    source: row.source as Import["source"],
+    idempotencyHash: row.idempotencyHash ?? undefined,
+    conflictCount: row.conflictCount,
+    status: row.status as Import["status"],
+    createdAt: row.createdAt,
+    completedAt: row.completedAt ?? undefined
   };
 }
 

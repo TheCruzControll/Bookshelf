@@ -210,6 +210,8 @@ export interface Import {
   id: EntityId;
   ownerId: EntityId;
   source: ImportSource;
+  idempotencyHash?: string | undefined;
+  conflictCount: number;
   status: ImportStatus;
   createdAt: Date;
   completedAt?: Date | undefined;

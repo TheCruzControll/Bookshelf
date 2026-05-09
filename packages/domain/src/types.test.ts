@@ -217,6 +217,7 @@ describe("domain types smoke test", () => {
       id: "00000000-0000-0000-0000-000000000016",
       ownerId: "00000000-0000-0000-0000-000000000001",
       source: "goodreads",
+      conflictCount: 0,
       status: "pending",
       createdAt: now,
     };
