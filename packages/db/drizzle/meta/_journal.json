@@ -64,6 +64,13 @@
       "when": 1747267200000,
       "tag": "0008_version_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1747353600000,
+      "tag": "0009_auth_identities_sessions",
+      "breakpoints": true
     }
   ]
 }

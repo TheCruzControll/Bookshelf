@@ -228,13 +228,13 @@ export interface ListRepository {
 
 export interface SessionRepository {
   create(input: {
-    id: EntityId;
-    userId: EntityId;
+    tokenHash: string;
+    profileId: EntityId;
     expiresAt: Date;
   }): Promise<Session>;
-  findById(id: EntityId): Promise<Session | null>;
-  deleteById(id: EntityId): Promise<void>;
-  deleteAllForUser(userId: EntityId): Promise<void>;
+  findByTokenHash(tokenHash: string): Promise<Session | null>;
+  revokeByTokenHash(tokenHash: string): Promise<void>;
+  deleteAllForProfile(profileId: EntityId): Promise<void>;
 }
 
 export interface AppRepositories {

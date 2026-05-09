@@ -6,15 +6,18 @@ import type {
   Book,
   Edition,
   Import,
+  OAuthLink,
   Profile,
   Ranking,
   Review,
+  Session,
   Shelf,
   ShelfItem
 } from "@hone/domain";
 import type {
   accountDeletions,
   activityEvents,
+  authIdentities,
   blocks,
   blocksAgainstHash,
   books,
@@ -23,11 +26,13 @@ import type {
   profiles,
   rankings,
   reviews,
+  sessions,
   shelfItems,
   shelves
 } from "./schema";
 
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
+type AuthIdentityRow = typeof authIdentities.$inferSelect;
 type BlockRow = typeof blocks.$inferSelect;
 type BlockAgainstHashRow = typeof blocksAgainstHash.$inferSelect;
 type ProfileRow = typeof profiles.$inferSelect;
@@ -39,6 +44,7 @@ type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
+type SessionRow = typeof sessions.$inferSelect;
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
@@ -193,5 +199,24 @@ export function toBlockAgainstHash(row: BlockAgainstHashRow): BlockAgainstHash {
   return {
     hash: row.hash,
     expiresAt: row.expiresAt
+  };
+}
+
+export function toOAuthLink(row: AuthIdentityRow): OAuthLink {
+  return {
+    provider: row.provider,
+    providerUserId: row.providerUserId,
+    profileId: row.profileId,
+    createdAt: row.createdAt
+  };
+}
+
+export function toSession(row: SessionRow): Session {
+  return {
+    tokenHash: row.tokenHash,
+    profileId: row.profileId,
+    expiresAt: row.expiresAt,
+    revokedAt: row.revokedAt ?? undefined,
+    createdAt: row.createdAt
   };
 }

@@ -404,3 +404,45 @@ export const tasteVectors = pgTable(
     profileIdx: index("taste_vectors_profile_idx").on(table.profileId)
   })
 );
+
+export const oauthProviderEnum = pgEnum("oauth_provider", ["apple", "google"]);
+
+export const authIdentities = pgTable(
+  "auth_identities",
+  {
+    provider: oauthProviderEnum("provider").notNull(),
+    providerUserId: text("provider_user_id").notNull(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    pkIdx: uniqueIndex("auth_identities_provider_user_idx").on(
+      table.provider,
+      table.providerUserId
+    ),
+    profileIdx: index("auth_identities_profile_idx").on(table.profileId)
+  })
+);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    profileIdx: index("sessions_profile_idx").on(table.profileId),
+    expiresAtIdx: index("sessions_expires_at_idx").on(table.expiresAt)
+  })
+);

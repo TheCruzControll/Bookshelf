@@ -259,11 +259,21 @@ export interface GoodreadsRow {
   status: ReadingStatus;
 }
 
-export interface Session {
-  id: EntityId;
-  userId: EntityId;
+export type OAuthProvider = "apple" | "google";
+
+export interface OAuthLink {
+  provider: OAuthProvider;
+  providerUserId: string;
+  profileId: EntityId;
   createdAt: Date;
+}
+
+export interface Session {
+  tokenHash: string;
+  profileId: EntityId;
   expiresAt: Date;
+  revokedAt?: Date | undefined;
+  createdAt: Date;
 }
 
 export interface AccountDeletion {

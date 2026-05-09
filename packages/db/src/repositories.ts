@@ -426,9 +426,9 @@ class DrizzleListRepository implements ListRepository {
 class DrizzleSessionRepository implements SessionRepository {
   constructor(private readonly db: HoneDb) {}
   async create(): Promise<never> { throw new Error("not implemented"); }
-  async findById(): Promise<null> { throw new Error("not implemented"); }
-  async deleteById(): Promise<void> { throw new Error("not implemented"); }
-  async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
+  async findByTokenHash(): Promise<null> { throw new Error("not implemented"); }
+  async revokeByTokenHash(): Promise<void> { throw new Error("not implemented"); }
+  async deleteAllForProfile(): Promise<void> { throw new Error("not implemented"); }
 }
 
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {

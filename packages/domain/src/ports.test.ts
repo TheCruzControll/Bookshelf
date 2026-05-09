@@ -69,9 +69,9 @@ type _ListRepositoryHasListItems = Assert<HasKey<ListRepository, "listItems">>;
 type _ListRepositoryHasReorderItems = Assert<HasKey<ListRepository, "reorderItems">>;
 
 type _SessionRepositoryHasCreate = Assert<HasKey<SessionRepository, "create">>;
-type _SessionRepositoryHasFindById = Assert<HasKey<SessionRepository, "findById">>;
-type _SessionRepositoryHasDeleteById = Assert<HasKey<SessionRepository, "deleteById">>;
-type _SessionRepositoryHasDeleteAllForUser = Assert<HasKey<SessionRepository, "deleteAllForUser">>;
+type _SessionRepositoryHasFindByTokenHash = Assert<HasKey<SessionRepository, "findByTokenHash">>;
+type _SessionRepositoryHasRevokeByTokenHash = Assert<HasKey<SessionRepository, "revokeByTokenHash">>;
+type _SessionRepositoryHasDeleteAllForProfile = Assert<HasKey<SessionRepository, "deleteAllForProfile">>;
 
 type _ShelfRepositoryHasCreateSystemShelves = Assert<HasKey<ShelfRepository, "createSystemShelves">>;
 
@@ -122,9 +122,9 @@ export type {
   _ListRepositoryHasListItems,
   _ListRepositoryHasReorderItems,
   _SessionRepositoryHasCreate,
-  _SessionRepositoryHasFindById,
-  _SessionRepositoryHasDeleteById,
-  _SessionRepositoryHasDeleteAllForUser,
+  _SessionRepositoryHasFindByTokenHash,
+  _SessionRepositoryHasRevokeByTokenHash,
+  _SessionRepositoryHasDeleteAllForProfile,
   _ShelfRepositoryHasCreateSystemShelves,
 };
 
