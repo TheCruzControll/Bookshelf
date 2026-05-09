@@ -47,6 +47,8 @@ const t = initTRPC.context<TrpcContext>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
-export const appRouter = router({});
+export const appRouter = router({
+  health: publicProcedure.query(() => ({ ok: true, service: "hone-api" }))
+});
 
 export type AppRouter = typeof appRouter;
