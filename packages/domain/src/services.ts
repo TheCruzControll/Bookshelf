@@ -346,6 +346,9 @@ export class AuthService {
   normalizeAppleEmail(claims: AppleTokenClaims): string | undefined {
     const raw = claims.email;
     if (!raw) return undefined;
+    if (claims.is_private_email === true || claims.is_private_email === "true") {
+      return raw;
+    }
     return raw.toLowerCase().trim();
   }
 
@@ -363,7 +366,10 @@ export class AuthService {
       profileId = existing.profileId;
       isNewUser = false;
     } else {
-      const hex = randomBytes(16).toString("hex");
+      const bytes = randomBytes(16);
+      bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const hex = bytes.toString("hex");
       const newProfileId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
       await this.authIdentities.create({
         provider: "apple",
