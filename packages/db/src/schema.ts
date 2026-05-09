@@ -294,13 +294,17 @@ export const activityEvents = pgTable(
     visibility: visibilityEnum("visibility").notNull().default("followers"),
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .notNull()
-      .defaultNow()
+      .defaultNow(),
+    scoreAtPublish: numeric("score_at_publish"),
+    scoreLockedAtPublish: boolean("score_locked_at_publish"),
+    groupKey: text("group_key")
   },
   (table) => ({
     actorTimeIdx: index("activity_events_actor_time_idx").on(
       table.actorId,
       table.occurredAt
-    )
+    ),
+    groupKeyIdx: index("activity_events_group_key_idx").on(table.groupKey)
   })
 );
 
