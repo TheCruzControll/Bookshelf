@@ -1,4 +1,9 @@
+import { createHash } from "node:crypto";
 import type { GoodreadsRow, ReadingStatus } from "./types";
+
+export function computeImportIdempotencyHash(fileContent: string): string {
+  return createHash("sha256").update(fileContent, "utf8").digest("hex");
+}
 
 const COLUMN_ALIASES: Record<string, string> = {
   "book id": "book id",

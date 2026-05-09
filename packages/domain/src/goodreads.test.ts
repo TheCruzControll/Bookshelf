@@ -3,7 +3,7 @@ import * as fc from "fast-check";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseGoodreadsCsv } from "./goodreads";
+import { computeImportIdempotencyHash, parseGoodreadsCsv } from "./goodreads";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -340,5 +340,51 @@ describe("parseGoodreadsCsv", () => {
         )
       );
     });
+  });
+});
+
+describe("computeImportIdempotencyHash", () => {
+  it("returns a 64-character hex string (sha256)", () => {
+    const hash = computeImportIdempotencyHash("hello");
+    expect(hash).toHaveLength(64);
+    expect(hash).toMatch(/^[0-9a-f]+$/);
+  });
+
+  it("returns the same hash for the same input", () => {
+    const csv = "Book Id,Title\n1,Dune";
+    expect(computeImportIdempotencyHash(csv)).toBe(computeImportIdempotencyHash(csv));
+  });
+
+  it("returns different hashes for different inputs", () => {
+    const h1 = computeImportIdempotencyHash("csv-a");
+    const h2 = computeImportIdempotencyHash("csv-b");
+    expect(h1).not.toBe(h2);
+  });
+
+  it("is idempotent: hash(x) === hash(x) regardless of input content", () => {
+    fc.assert(
+      fc.property(fc.string(), (content) => {
+        return computeImportIdempotencyHash(content) === computeImportIdempotencyHash(content);
+      })
+    );
+  });
+
+  it("produces a valid sha256 hex digest for any fixture file", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(
+          "matched.csv",
+          "needs-review.csv",
+          "unmatched.csv",
+          "conflict.csv",
+          "re-upload.csv"
+        ),
+        (fixtureName) => {
+          const csv = loadFixture(fixtureName);
+          const hash = computeImportIdempotencyHash(csv);
+          return hash.length === 64 && /^[0-9a-f]+$/.test(hash);
+        }
+      )
+    );
   });
 });
