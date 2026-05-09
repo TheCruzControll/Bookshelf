@@ -173,6 +173,8 @@ describe("db mappers smoke test", () => {
       editionId: null,
       status: "finished" as const,
       rank: null,
+      notes: null,
+      position: null,
       addedAt: now,
       updatedAt: now
     };
@@ -184,6 +186,8 @@ describe("db mappers smoke test", () => {
     expect(item.editionId).toBeUndefined();
     expect(item.status).toBe("finished");
     expect(item.rank).toBeUndefined();
+    expect(item.notes).toBeUndefined();
+    expect(item.position).toBeUndefined();
     expect(item.addedAt).toBe(now);
   });
 
@@ -196,6 +200,8 @@ describe("db mappers smoke test", () => {
       editionId: "00000000-0000-0000-0000-000000000004",
       status: "reading" as const,
       rank: 3,
+      notes: null,
+      position: null,
       addedAt: now,
       updatedAt: now
     };
@@ -203,6 +209,46 @@ describe("db mappers smoke test", () => {
     const item = toShelfItem(row as Parameters<typeof toShelfItem>[0]);
     expect(item.editionId).toBe("00000000-0000-0000-0000-000000000004");
     expect(item.rank).toBe(3);
+  });
+
+  it("toShelfItem maps notes and position when present", () => {
+    const now = new Date();
+    const row = {
+      id: "00000000-0000-0000-0000-000000000005",
+      shelfId: "00000000-0000-0000-0000-000000000003",
+      bookId: "00000000-0000-0000-0000-000000000001",
+      editionId: null,
+      status: "finished" as const,
+      rank: null,
+      notes: "A great pick for summer reading.",
+      position: 2,
+      addedAt: now,
+      updatedAt: now
+    };
+
+    const item = toShelfItem(row as Parameters<typeof toShelfItem>[0]);
+    expect(item.notes).toBe("A great pick for summer reading.");
+    expect(item.position).toBe(2);
+  });
+
+  it("toShelfItem maps notes as undefined when null", () => {
+    const now = new Date();
+    const row = {
+      id: "00000000-0000-0000-0000-000000000005",
+      shelfId: "00000000-0000-0000-0000-000000000003",
+      bookId: "00000000-0000-0000-0000-000000000001",
+      editionId: null,
+      status: "want_to_read" as const,
+      rank: null,
+      notes: null,
+      position: null,
+      addedAt: now,
+      updatedAt: now
+    };
+
+    const item = toShelfItem(row as Parameters<typeof toShelfItem>[0]);
+    expect(item.notes).toBeUndefined();
+    expect(item.position).toBeUndefined();
   });
 
   it("toReview maps a row to a Review domain object", () => {

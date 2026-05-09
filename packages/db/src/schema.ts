@@ -203,6 +203,8 @@ export const shelfItems = pgTable(
     editionId: uuid("edition_id").references(() => editions.id),
     status: readingStatusEnum("status").notNull(),
     rank: integer("rank"),
+    notes: text("notes"),
+    position: integer("position"),
     addedAt: timestamp("added_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
