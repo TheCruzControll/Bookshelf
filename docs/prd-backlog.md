@@ -246,7 +246,34 @@ Required order:
 - **Re-signup with same identifier inside grace = recovery.** Outside grace
   = fresh account, no content carry-over.
 
-### Public URLs and SEO
+### Affiliate Links (V1)
+
+- **Retailers shipped at v1:** Bookshop.org US, Bookshop.org UK,
+  Amazon Associates US, Amazon Associates UK. Apple Books, Audible, and
+  Libro.fm deferred to v1.5 — each requires a per-retailer book-lookup
+  pipeline that's distinct engineering work.
+- **URL templates:**
+  - Bookshop: `https://bookshop.org/a/{aff_id}/{ISBN13}` (US),
+    `https://uk.bookshop.org/a/{aff_id}/{ISBN13}` (UK)
+  - Amazon: `https://www.{domain}/dp/{ASIN}/?tag={aff_tag}` where
+    `domain` is `amazon.com` (US) or `amazon.co.uk` (UK), and `ASIN` is
+    the book's ISBN-10 (Amazon accepts ISBN-10 as ASIN for almost all
+    books).
+- **Locale routing (v1):** browser `Accept-Language` on web, system
+  locale on native. Default US for any non-UK locale (English-only at
+  v1). Profile-setting override deferred to v1.5.
+- **Click tracking transport split:**
+  - Web: path-based redirect `GET /r/{book_id}/{retailer}` →
+    server logs, 302s to affiliate URL. URL stays clean.
+  - Mobile: API call `GET /api/affiliate-link/{book_id}/{retailer}` →
+    server logs, returns `{url, retailer}` → app calls
+    `Linking.openURL(url)` so iOS/Android universal links open the
+    destination app directly with no browser flicker.
+  - Both transports call the same `recordAffiliateClick(book_id,
+    retailer, locale)` server function. Click log is privacy-preserving:
+    aggregate (book, retailer, day, count) — no per-user records.
+
+
 
 - **Handle-based URLs:** `hone.app/u/maya` (profile),
   `hone.app/u/maya/lists/best-sci-fi-2024` (list),
