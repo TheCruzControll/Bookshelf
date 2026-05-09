@@ -12,6 +12,9 @@
 - `profile.setHandle(handle)` — set a user's handle (idempotent)
 - `profile.createProfile(handle, displayName, defaultVisibility)` — create profile and auto-seed four system shelves (Reading, Want to Read, Finished, Dropped) with PRD-spec visibility defaults
 
+**Shelf:**
+- `shelf.update(id, version, name?, visibility?, description?)` — update shelf metadata with optimistic locking (version must match current; stale version returns 409)
+
 ## Cache usage
 
 Any per-user, per-resource, or infrastructure cache **must** use `ctx.cache` from the tRPC context or app dependencies.
