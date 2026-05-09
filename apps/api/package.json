@@ -12,6 +12,7 @@
     "test": "vitest run --coverage"
   },
   "dependencies": {
+    "@hone/cache": "workspace:*",
     "@hone/config-env": "workspace:*",
     "@hone/db": "workspace:*",
     "@hone/domain": "workspace:*",

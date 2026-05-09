@@ -41,6 +41,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@hone/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
       '@hone/config-env':
         specifier: workspace:*
         version: link:../../packages/config-env

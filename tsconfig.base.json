@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
@@ -19,11 +23,21 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@hone/domain": ["packages/domain/src/index.ts"],
-      "@hone/db": ["packages/db/src/index.ts"],
-      "@hone/config-env": ["packages/config-env/src/index.ts"],
-      "@hone/observability": ["packages/observability/src/index.ts"]
+      "@hone/domain": [
+        "packages/domain/src/index.ts"
+      ],
+      "@hone/db": [
+        "packages/db/src/index.ts"
+      ],
+      "@hone/config-env": [
+        "packages/config-env/src/index.ts"
+      ],
+      "@hone/observability": [
+        "packages/observability/src/index.ts"
+      ],
+      "@hone/cache": [
+        "packages/cache/src/index.ts"
+      ]
     }
   }
 }
-

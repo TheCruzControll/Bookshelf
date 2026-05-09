@@ -36,9 +36,20 @@ const envSchema = z.object({
     .enum(["development", "staging", "production"])
     .default("development"),
 
+  CACHE_DRIVER: z.enum(["memory", "redis"]).default("memory"),
+  REDIS_URL: z.string().url().optional(),
+
   PORT: z.coerce.number().int().positive().default(8787),
   NEXT_PUBLIC_API_URL: z.string().url().default("http://localhost:8787"),
   EXPO_PUBLIC_API_URL: z.string().url().default("http://localhost:8787"),
+}).superRefine((data, ctx) => {
+  if (data.CACHE_DRIVER === "redis" && !data.REDIS_URL) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_URL"],
+      message: "REDIS_URL is required when CACHE_DRIVER=redis",
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;
