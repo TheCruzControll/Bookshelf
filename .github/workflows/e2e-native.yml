@@ -1,0 +1,61 @@
+name: e2e-native
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maestro:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Install Expo CLI
+        run: pnpm add -g expo-cli
+
+      - name: Start iOS simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -m1 'iPhone' | sed 's/.*(\(.*\)) .*/\1/')
+          xcrun simctl boot "$DEVICE" || true
+          echo "SIMULATOR_UDID=$DEVICE" >> "$GITHUB_ENV"
+
+      - name: Build Expo app for simulator
+        working-directory: apps/native
+        run: npx expo run:ios --no-build-cache --device "$SIMULATOR_UDID"
+        env:
+          EXPO_NO_DOTENV: 1
+
+      - name: Run Maestro smoke tests
+        working-directory: apps/native
+        run: maestro test e2e/cold-launch.yaml
+
+      - name: Upload Maestro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-report
+          path: ~/.maestro/tests/
+          retention-days: 7
