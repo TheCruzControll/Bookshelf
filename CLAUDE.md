@@ -4,6 +4,9 @@
 
 ### tRPC Procedures
 
+**Health:**
+- `health` — query that returns `{ ok: true, service: "hone-api" }` for health checks and readiness probes
+
 **Profile:**
 - `profile.checkHandle(handle)` — validate handle availability
 - `profile.setHandle(handle)` — set a user's handle (idempotent)
