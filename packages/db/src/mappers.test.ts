@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { blocks, blocksAgainstHash, follows, imports, profiles, rankings, reviews, shelves, tasteVectors } from "./schema";
+import { blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -903,5 +903,68 @@ describe("version column schema and mapper", () => {
 
   it("version defaults to 1 in schema for reviews", () => {
     expect(reviews.version).toBeDefined();
+  });
+});
+
+describe("phone_verifications table schema and mapper", () => {
+  it("phoneVerifications schema includes required columns", () => {
+    const cols = Object.keys(phoneVerifications);
+    expect(cols).toContain("phoneE164");
+    expect(cols).toContain("codeHash");
+    expect(cols).toContain("attempts");
+    expect(cols).toContain("expiresAt");
+  });
+
+  it("toPhoneVerification maps a row to a PhoneVerification domain object", () => {
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const row = {
+      phoneE164: "+14155552671",
+      codeHash: "abc123hash",
+      attempts: 0,
+      expiresAt
+    };
+
+    const pv = toPhoneVerification(row as Parameters<typeof toPhoneVerification>[0]);
+    expect(pv.phoneE164).toBe("+14155552671");
+    expect(pv.codeHash).toBe("abc123hash");
+    expect(pv.attempts).toBe(0);
+    expect(pv.expiresAt).toBe(expiresAt);
+  });
+
+  it("toPhoneVerification maps attempts when non-zero", () => {
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const row = {
+      phoneE164: "+14155552671",
+      codeHash: "differenthash",
+      attempts: 2,
+      expiresAt
+    };
+
+    const pv = toPhoneVerification(row as Parameters<typeof toPhoneVerification>[0]);
+    expect(pv.attempts).toBe(2);
+  });
+});
+
+describe("phone_numbers table schema and mapper", () => {
+  it("phoneNumbers schema includes required columns", () => {
+    const cols = Object.keys(phoneNumbers);
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("e164Hash");
+  });
+
+  it("phoneNumbers schema does not have an extra id column", () => {
+    const cols = Object.keys(phoneNumbers);
+    expect(cols).not.toContain("id");
+  });
+
+  it("toPhoneNumber maps a row to a PhoneNumber domain object", () => {
+    const row = {
+      profileId: "00000000-0000-0000-0000-000000000001",
+      e164Hash: "hmac_sha256_hash_value"
+    };
+
+    const pn = toPhoneNumber(row as Parameters<typeof toPhoneNumber>[0]);
+    expect(pn.profileId).toBe("00000000-0000-0000-0000-000000000001");
+    expect(pn.e164Hash).toBe("hmac_sha256_hash_value");
   });
 });
