@@ -8,6 +8,7 @@ import type {
   EntityId,
   FeedItem,
   FollowRepository,
+  HandleHistoryRepository,
   ImportRepository,
   ListRepository,
   NotificationRepository,
@@ -26,6 +27,7 @@ import {
   books,
   editions,
   follows,
+  handleHistory,
   imports,
   profiles,
   recommendationScores,
@@ -37,6 +39,7 @@ import {
   toActivityEvent,
   toBook,
   toEdition,
+  toHandleHistory,
   toImport,
   toProfile,
   toReview,
@@ -483,6 +486,37 @@ class DrizzleSessionRepository implements SessionRepository {
   async deleteAllForUser(): Promise<void> { throw new Error("not implemented"); }
 }
 
+export class DrizzleHandleHistoryRepository implements HandleHistoryRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async record(input: Parameters<HandleHistoryRepository["record"]>[0]) {
+    const [row] = await this.db
+      .insert(handleHistory)
+      .values({
+        profileId: input.profileId,
+        oldHandle: input.oldHandle,
+        expiresAt: input.expiresAt,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!row) {
+      const existing = await this.db.query.handleHistory.findFirst({
+        where: eq(handleHistory.oldHandle, input.oldHandle),
+      });
+      if (!existing) throw new Error("Failed to record handle history");
+      return toHandleHistory(existing);
+    }
+    return toHandleHistory(row);
+  }
+
+  async findByOldHandle(oldHandle: string) {
+    const row = await this.db.query.handleHistory.findFirst({
+      where: eq(handleHistory.oldHandle, oldHandle),
+    });
+    return row ? toHandleHistory(row) : null;
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -499,6 +533,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     contacts: new DrizzleContactsRepository(db),
     lists: new DrizzleListRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    handleHistory: new DrizzleHandleHistoryRepository(db),
   };
 }
 

@@ -284,3 +284,11 @@ export interface PhoneNumber {
   profileId: EntityId;
   e164Hash: string;
 }
+
+export interface HandleHistory {
+  id: EntityId;
+  profileId: EntityId;
+  oldHandle: string;
+  retiredAt: Date;
+  expiresAt: Date;
+}

@@ -2,6 +2,7 @@ import type {
   ActivityRepository,
   AppRepositories,
   AuthProvider,
+  HandleHistoryRepository,
   ProfileRepository,
   RankingRepository,
   ShelfRepository
@@ -161,8 +162,13 @@ export const RESERVED_HANDLES = new Set([
   "explore",
 ]);
 
+export const HANDLE_HISTORY_RETENTION_YEARS = 3;
+
 export class HandleService {
-  constructor(private readonly profiles: ProfileRepository) {}
+  constructor(
+    private readonly profiles: ProfileRepository,
+    private readonly handleHistory: HandleHistoryRepository
+  ) {}
 
   isReserved(handle: string): boolean {
     return RESERVED_HANDLES.has(handle.toLowerCase());
@@ -208,7 +214,18 @@ export class HandleService {
         suggestions,
       });
     }
-    return this.profiles.setHandle({ userId, handle: handle.toLowerCase() });
+    const existing = await this.profiles.findById(userId);
+    const newProfile = await this.profiles.setHandle({ userId, handle: handle.toLowerCase() });
+    if (existing?.handle && existing.handle !== handle.toLowerCase()) {
+      const expiresAt = new Date();
+      expiresAt.setFullYear(expiresAt.getFullYear() + HANDLE_HISTORY_RETENTION_YEARS);
+      await this.handleHistory.record({
+        profileId: userId,
+        oldHandle: existing.handle,
+        expiresAt,
+      });
+    }
+    return newProfile;
   }
 }
 
@@ -256,7 +273,7 @@ export class AppServices {
       repositories.shelves,
       repositories.activity
     );
-    this.handles = new HandleService(repositories.profiles);
+    this.handles = new HandleService(repositories.profiles, repositories.handleHistory);
     this.profiles = new ProfileService(
       repositories.profiles,
       repositories.shelves

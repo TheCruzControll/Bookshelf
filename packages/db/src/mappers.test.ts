@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toHandleHistory } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
-import { blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, shelves, tasteVectors } from "./schema";
+import { blocks, blocksAgainstHash, follows, handleHistory, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
@@ -966,5 +966,35 @@ describe("phone_numbers table schema and mapper", () => {
     const pn = toPhoneNumber(row as Parameters<typeof toPhoneNumber>[0]);
     expect(pn.profileId).toBe("00000000-0000-0000-0000-000000000001");
     expect(pn.e164Hash).toBe("hmac_sha256_hash_value");
+  });
+});
+
+describe("handle_history table schema and mapper", () => {
+  it("handleHistory schema includes required columns", () => {
+    const cols = Object.keys(handleHistory);
+    expect(cols).toContain("id");
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("oldHandle");
+    expect(cols).toContain("retiredAt");
+    expect(cols).toContain("expiresAt");
+  });
+
+  it("toHandleHistory maps a row to a HandleHistory domain object", () => {
+    const now = new Date();
+    const expiresAt = new Date(now.getFullYear() + 3, now.getMonth(), now.getDate());
+    const row = {
+      id: "00000000-0000-0000-0000-000000000099",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      oldHandle: "oldhandle",
+      retiredAt: now,
+      expiresAt,
+    };
+
+    const hh = toHandleHistory(row as Parameters<typeof toHandleHistory>[0]);
+    expect(hh.id).toBe("00000000-0000-0000-0000-000000000099");
+    expect(hh.profileId).toBe("00000000-0000-0000-0000-000000000001");
+    expect(hh.oldHandle).toBe("oldhandle");
+    expect(hh.retiredAt).toBe(now);
+    expect(hh.expiresAt).toBe(expiresAt);
   });
 });

@@ -5,6 +5,7 @@ import type {
   BlockAgainstHash,
   Book,
   Edition,
+  HandleHistory,
   Import,
   PhoneNumber,
   PhoneVerification,
@@ -21,6 +22,7 @@ import type {
   blocksAgainstHash,
   books,
   editions,
+  handleHistory,
   imports,
   phoneNumbers,
   phoneVerifications,
@@ -45,6 +47,7 @@ type ReviewRow = typeof reviews.$inferSelect;
 type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
+type HandleHistoryRow = typeof handleHistory.$inferSelect;
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
@@ -215,5 +218,15 @@ export function toPhoneNumber(row: PhoneNumberRow): PhoneNumber {
   return {
     profileId: row.profileId,
     e164Hash: row.e164Hash
+  };
+}
+
+export function toHandleHistory(row: HandleHistoryRow): HandleHistory {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    oldHandle: row.oldHandle,
+    retiredAt: row.retiredAt,
+    expiresAt: row.expiresAt
   };
 }

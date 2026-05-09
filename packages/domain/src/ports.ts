@@ -6,6 +6,7 @@ import type {
   Edition,
   EntityId,
   Follow,
+  HandleHistory,
   Import,
   ImportSource,
   ImportStatus,
@@ -239,6 +240,15 @@ export interface SessionRepository {
   deleteAllForUser(userId: EntityId): Promise<void>;
 }
 
+export interface HandleHistoryRepository {
+  record(input: {
+    profileId: EntityId;
+    oldHandle: string;
+    expiresAt: Date;
+  }): Promise<HandleHistory>;
+  findByOldHandle(oldHandle: string): Promise<HandleHistory | null>;
+}
+
 export interface AppRepositories {
   profiles: ProfileRepository;
   books: BookRepository;
@@ -254,6 +264,7 @@ export interface AppRepositories {
   contacts: ContactsRepository;
   lists: ListRepository;
   sessions: SessionRepository;
+  handleHistory: HandleHistoryRepository;
 }
 
 export interface BlockFilter {

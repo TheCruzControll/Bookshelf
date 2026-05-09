@@ -3,10 +3,10 @@ import rootConfig from "../../vitest.config";
 
 export default mergeConfig(rootConfig, defineConfig({
   test: {
-    include: ["app/**/*.test.ts", "app/**/*.test.tsx"],
+    include: ["app/**/*.test.ts", "app/**/*.test.tsx", "*.test.ts", "*.test.tsx"],
     passWithNoTests: true,
     coverage: {
-      include: ["app/**/*.ts", "app/**/*.tsx"],
+      include: ["app/**/*.ts", "app/**/*.tsx", "middleware.ts"],
       thresholds: {
         // TODO(coverage): raise to 60 per docs/testing-strategy.md once unit-testable logic exists in app/
         lines: 0,

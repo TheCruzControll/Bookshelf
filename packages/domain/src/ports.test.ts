@@ -4,6 +4,7 @@ import type {
   BlockRepository,
   ContactsRepository,
   FollowRepository,
+  HandleHistoryRepository,
   ImportRepository,
   ListRepository,
   NotificationRepository,
@@ -23,6 +24,10 @@ type _AppRepositoriesHasImports = Assert<HasKey<AppRepositories, "imports">>;
 type _AppRepositoriesHasContacts = Assert<HasKey<AppRepositories, "contacts">>;
 type _AppRepositoriesHasLists = Assert<HasKey<AppRepositories, "lists">>;
 type _AppRepositoriesHasSessions = Assert<HasKey<AppRepositories, "sessions">>;
+type _AppRepositoriesHasHandleHistory = Assert<HasKey<AppRepositories, "handleHistory">>;
+
+type _HandleHistoryRepositoryHasRecord = Assert<HasKey<HandleHistoryRepository, "record">>;
+type _HandleHistoryRepositoryHasFindByOldHandle = Assert<HasKey<HandleHistoryRepository, "findByOldHandle">>;
 
 type _FollowRepositoryHasFollow = Assert<HasKey<FollowRepository, "follow">>;
 type _FollowRepositoryHasUnfollow = Assert<HasKey<FollowRepository, "unfollow">>;
@@ -128,6 +133,9 @@ export type {
   _SessionRepositoryHasDeleteById,
   _SessionRepositoryHasDeleteAllForUser,
   _ShelfRepositoryHasCreateSystemShelves,
+  _AppRepositoriesHasHandleHistory,
+  _HandleHistoryRepositoryHasRecord,
+  _HandleHistoryRepositoryHasFindByOldHandle,
 };
 
 describe("ports structural smoke tests", () => {
