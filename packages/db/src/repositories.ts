@@ -188,7 +188,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
     const rows = await this.db
       .select()
       .from(activityEvents)
-      .where(eq(activityEvents.visibility, "friends"))
+      .where(eq(activityEvents.visibility, "followers"))
       .orderBy(desc(activityEvents.occurredAt))
       .limit(input.limit);
 
@@ -200,7 +200,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
       id: event.actorId,
       handle: "unknown",
       displayName: "Unknown reader",
-      defaultVisibility: "friends",
+      defaultVisibility: "public",
       createdAt: event.occurredAt,
       updatedAt: event.occurredAt
     }}));
