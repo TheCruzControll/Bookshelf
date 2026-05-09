@@ -128,6 +128,11 @@ export interface RankingRepository {
   findByOwnerAndBook(input: { ownerId: EntityId; bookId: EntityId }): Promise<Ranking | null>;
   listByOwner(ownerId: EntityId, viewerId?: EntityId): Promise<Ranking[]>;
   delete(input: { ownerId: EntityId; bookId: EntityId }): Promise<void>;
+  startBucket(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    bucket: number;
+  }): Promise<Ranking>;
 }
 
 export interface NotificationRepository {
