@@ -35,8 +35,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-      - name: Fetch base ref
-        run: git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1
+      - name: Fetch base ref (full)
+        # Three-dot diff (`base...HEAD`) needs the merge-base in local history.
+        # Shallow fetches break this on PRs with non-trivial divergence — fetch
+        # the full base branch.
+        run: git fetch origin "${{ github.event.pull_request.base.ref }}"
       - name: Detect scope of change
         id: scope
         run: |

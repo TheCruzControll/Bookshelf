@@ -14,7 +14,17 @@ concurrency:
 
 jobs:
   review:
-    if: github.event.pull_request.user.login == 'hone-implementer[bot]' || github.event.pull_request.user.login == 'hone-documenter[bot]' || contains(github.event.pull_request.labels.*.name, 'agent:reviewer')
+    # Trigger when (a) the PR title matches the Implementer pattern `[#NN] ...`,
+    # (b) the PR is from one of the bot accounts, or (c) the PR carries
+    # `agent:reviewer`. Since BOT_PAT is owned by a real user, Implementer PRs
+    # show that user as author rather than a bot, so the title regex is the
+    # primary filter. Doc PRs always carry the label, so they hit (c).
+    if: |
+      startsWith(github.event.pull_request.title, '[#') ||
+      startsWith(github.event.pull_request.title, 'docs: updates from #') ||
+      contains(github.event.pull_request.labels.*.name, 'agent:reviewer') ||
+      github.event.pull_request.user.login == 'hone-implementer[bot]' ||
+      github.event.pull_request.user.login == 'hone-documenter[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

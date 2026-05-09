@@ -119,13 +119,21 @@ EOF
 )" -R "$REPO"
 ```
 
-Apply labels: remove `agent:implementer`, add `agent:reviewer` and
-`lifecycle:in-review`. Remove `lifecycle:in-progress`.
+Apply labels to BOTH the issue AND the PR. The Reviewer workflow keys on
+the PR's labels — without `agent:reviewer` on the PR, the Reviewer will
+skip and the swarm halts.
 
 ```
+PR_NUMBER=$(gh pr view --json number -q .number -R "$REPO")
+
 gh issue edit "$ISSUE_NUMBER" \
   --remove-label "agent:implementer" \
   --remove-label "lifecycle:in-progress" \
+  --add-label "agent:reviewer" \
+  --add-label "lifecycle:in-review" \
+  -R "$REPO"
+
+gh pr edit "$PR_NUMBER" \
   --add-label "agent:reviewer" \
   --add-label "lifecycle:in-review" \
   -R "$REPO"
