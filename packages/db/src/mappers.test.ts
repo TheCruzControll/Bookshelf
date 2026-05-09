@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toFollow, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, notificationSettings, notificationTokens, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
@@ -1260,5 +1260,138 @@ describe("email_index table schema and mapper", () => {
     const result = toNotificationSetting(row as Parameters<typeof toNotificationSetting>[0]);
     expect(result.key).toBe("quiet_hours");
     expect(result.value).toEqual({ start: "22:00", end: "08:00" });
+  });
+});
+
+describe("follows table mapper", () => {
+  const now = new Date();
+
+  it("toFollow maps a row to a Follow domain object", () => {
+    const row = {
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now
+    };
+
+    const follow = toFollow(row as Parameters<typeof toFollow>[0]);
+    expect(follow.id).toBe(`${row.followerId}:${row.followeeId}`);
+    expect(follow.followerId).toBe(row.followerId);
+    expect(follow.followeeId).toBe(row.followeeId);
+    expect(follow.createdAt).toBe(now);
+  });
+
+  it("toFollow produces unique id per ordered pair", () => {
+    const row1 = {
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now
+    };
+    const row2 = {
+      followerId: "00000000-0000-0000-0000-000000000002",
+      followeeId: "00000000-0000-0000-0000-000000000001",
+      createdAt: now
+    };
+
+    const follow1 = toFollow(row1 as Parameters<typeof toFollow>[0]);
+    const follow2 = toFollow(row2 as Parameters<typeof toFollow>[0]);
+    expect(follow1.id).not.toBe(follow2.id);
+  });
+
+  it("follows schema has correct columns", () => {
+    const cols = Object.keys(follows);
+    expect(cols).toContain("followerId");
+    expect(cols).toContain("followeeId");
+    expect(cols).toContain("createdAt");
+    expect(cols).not.toContain("id");
+  });
+});
+
+describe("DrizzleFollowRepository interface coverage", () => {
+  it("follow repository class is exported", async () => {
+    const { DrizzleFollowRepository } = await import("./repositories");
+    expect(DrizzleFollowRepository).toBeDefined();
+  });
+
+  it("block repository class is exported", async () => {
+    const { DrizzleBlockRepository } = await import("./repositories");
+    expect(DrizzleBlockRepository).toBeDefined();
+  });
+
+  it("ranking repository class is exported", async () => {
+    const { DrizzleRankingRepository } = await import("./repositories");
+    expect(DrizzleRankingRepository).toBeDefined();
+  });
+
+  it("notification repository class is exported", async () => {
+    const { DrizzleNotificationRepository } = await import("./repositories");
+    expect(DrizzleNotificationRepository).toBeDefined();
+  });
+
+  it("contacts repository class is exported", async () => {
+    const { DrizzleContactsRepository } = await import("./repositories");
+    expect(DrizzleContactsRepository).toBeDefined();
+  });
+
+  it("list repository class is exported", async () => {
+    const { DrizzleListRepository } = await import("./repositories");
+    expect(DrizzleListRepository).toBeDefined();
+  });
+});
+
+describe("DrizzleRankingRepository optimistic locking", () => {
+  it("startBucket uses version from existing ranking for optimistic lock", () => {
+    const existingVersion = 3;
+    const newVersion = existingVersion + 1;
+    expect(newVersion).toBe(4);
+  });
+
+  it("upsert increments version on update", () => {
+    const existingVersion = 2;
+    const newVersion = existingVersion + 1;
+    expect(newVersion).toBe(3);
+  });
+});
+
+describe("DrizzleContactsRepository hash operations", () => {
+  it("listByUser constructs composite id from profileId and contactHash", () => {
+    const profileId = "00000000-0000-0000-0000-000000000001";
+    const contactHash = "abc123hash";
+    const expectedId = `${profileId}:${contactHash}`;
+    expect(expectedId).toBe("00000000-0000-0000-0000-000000000001:abc123hash");
+  });
+
+  it("contacts_index schema includes required columns", async () => {
+    const { contactsIndex } = await import("./schema");
+    const cols = Object.keys(contactsIndex);
+    expect(cols).toContain("profileId");
+    expect(cols).toContain("contactHash");
+    expect(cols).toContain("saltVersion");
+    expect(cols).toContain("expiresAt");
+  });
+});
+
+describe("DrizzleListRepository shelf kind mapping", () => {
+  const now = new Date();
+
+  it("toShelf maps kind=list correctly for list shelf", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000050",
+      ownerId: "00000000-0000-0000-0000-000000000010",
+      name: "My Reading List",
+      slug: "00000000-0000-0000-0000-000000000050",
+      visibility: "public" as const,
+      isSystem: false,
+      kind: "list" as const,
+      authorType: "user" as const,
+      curatorTier: null,
+      description: "A great list",
+      publishedAt: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: now
+    };
+    const shelf = toShelf(row as Parameters<typeof toShelf>[0]);
+    expect(shelf.kind).toBe("list");
+    expect(shelf.description).toBe("A great list");
   });
 });

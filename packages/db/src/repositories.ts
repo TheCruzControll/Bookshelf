@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -25,11 +25,16 @@ import type { HoneDb } from "./client";
 import {
   activityEvents,
   authIdentities,
+  blocks,
   books,
+  contactsIndex,
   editions,
   follows,
   imports,
+  notificationSettings,
+  notificationTokens,
   profiles,
+  rankings,
   recommendationScores,
   reviews,
   sessions,
@@ -38,11 +43,17 @@ import {
 } from "./schema";
 import {
   toActivityEvent,
+  toBlock,
   toBook,
+  toContactIndex,
   toEdition,
+  toFollow,
   toImport,
+  toNotificationSetting,
+  toNotificationToken,
   toOAuthIdentity,
   toProfile,
+  toRanking,
   toReview,
   toSession,
   toShelf,
@@ -294,7 +305,10 @@ export class DrizzleActivityRepository implements ActivityRepository {
   constructor(private readonly db: HoneDb) {}
 
   async append(event: Parameters<ActivityRepository["append"]>[0]) {
-    const [row] = await this.db.insert(activityEvents).values(event).returning();
+    const [row] = await this.db.insert(activityEvents).values({
+      ...event,
+      scoreAtPublish: event.scoreAtPublish != null ? String(event.scoreAtPublish) : null,
+    }).returning();
     if (!row) {
       throw new Error("Failed to append activity event");
     }
@@ -364,46 +378,315 @@ export class DrizzleRecommendationRepository
   }
 }
 
-class DrizzleFollowRepository implements FollowRepository {
+export class DrizzleFollowRepository implements FollowRepository {
   constructor(private readonly db: HoneDb) {}
-  async follow(): Promise<never> { throw new Error("not implemented"); }
-  async unfollow(): Promise<void> { throw new Error("not implemented"); }
-  async findFollow(): Promise<null> { throw new Error("not implemented"); }
-  async listFollowers(): Promise<never[]> { throw new Error("not implemented"); }
-  async listFollowing(): Promise<never[]> { throw new Error("not implemented"); }
-  async isMutual(): Promise<boolean> { throw new Error("not implemented"); }
+
+  async follow(input: { followerId: EntityId; followeeId: EntityId }) {
+    const [row] = await this.db
+      .insert(follows)
+      .values({ followerId: input.followerId, followeeId: input.followeeId })
+      .onConflictDoNothing()
+      .returning();
+    if (!row) {
+      const existing = await this.findFollow(input);
+      if (!existing) throw new Error("Failed to create follow");
+      return existing;
+    }
+    return toFollow(row);
+  }
+
+  async unfollow(input: { followerId: EntityId; followeeId: EntityId }) {
+    await this.db
+      .delete(follows)
+      .where(
+        and(
+          eq(follows.followerId, input.followerId),
+          eq(follows.followeeId, input.followeeId)
+        )
+      );
+  }
+
+  async findFollow(input: { followerId: EntityId; followeeId: EntityId }) {
+    const row = await this.db.query.follows.findFirst({
+      where: and(
+        eq(follows.followerId, input.followerId),
+        eq(follows.followeeId, input.followeeId)
+      )
+    });
+    return row ? toFollow(row) : null;
+  }
+
+  async listFollowers(userId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(follows)
+      .where(eq(follows.followeeId, userId));
+    return rows.map(toFollow);
+  }
+
+  async listFollowing(userId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(follows)
+      .where(eq(follows.followerId, userId));
+    return rows.map(toFollow);
+  }
+
+  async isMutual(input: { userA: EntityId; userB: EntityId }) {
+    const [aFollowsB, bFollowsA] = await Promise.all([
+      this.db.query.follows.findFirst({
+        where: and(
+          eq(follows.followerId, input.userA),
+          eq(follows.followeeId, input.userB)
+        )
+      }),
+      this.db.query.follows.findFirst({
+        where: and(
+          eq(follows.followerId, input.userB),
+          eq(follows.followeeId, input.userA)
+        )
+      })
+    ]);
+    return aFollowsB !== undefined && bFollowsA !== undefined;
+  }
 }
 
-class DrizzleBlockRepository implements BlockRepository {
+export class DrizzleBlockRepository implements BlockRepository {
   constructor(private readonly db: HoneDb) {}
-  async block(): Promise<never> { throw new Error("not implemented"); }
-  async unblock(): Promise<void> { throw new Error("not implemented"); }
-  async findBlock(): Promise<null> { throw new Error("not implemented"); }
-  async listBlockedByUser(): Promise<never[]> { throw new Error("not implemented"); }
-  async isBlocked(): Promise<boolean> { throw new Error("not implemented"); }
+
+  async block(input: { blockerId: EntityId; blockedId: EntityId }) {
+    const [row] = await this.db
+      .insert(blocks)
+      .values({ blockerId: input.blockerId, blockedId: input.blockedId })
+      .onConflictDoNothing()
+      .returning();
+    if (!row) {
+      const existing = await this.findBlock(input);
+      if (!existing) throw new Error("Failed to create block");
+      return existing;
+    }
+    return toBlock(row);
+  }
+
+  async unblock(input: { blockerId: EntityId; blockedId: EntityId }) {
+    await this.db
+      .delete(blocks)
+      .where(
+        and(
+          eq(blocks.blockerId, input.blockerId),
+          eq(blocks.blockedId, input.blockedId)
+        )
+      );
+  }
+
+  async findBlock(input: { blockerId: EntityId; blockedId: EntityId }) {
+    const row = await this.db.query.blocks.findFirst({
+      where: and(
+        eq(blocks.blockerId, input.blockerId),
+        eq(blocks.blockedId, input.blockedId)
+      )
+    });
+    return row ? toBlock(row) : null;
+  }
+
+  async listBlockedByUser(blockerId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(blocks)
+      .where(eq(blocks.blockerId, blockerId));
+    return rows.map(toBlock);
+  }
+
+  async isBlocked(input: { viewerId: EntityId; targetId: EntityId }) {
+    const row = await this.db.query.blocks.findFirst({
+      where: or(
+        and(eq(blocks.blockerId, input.viewerId), eq(blocks.blockedId, input.targetId)),
+        and(eq(blocks.blockerId, input.targetId), eq(blocks.blockedId, input.viewerId))
+      )
+    });
+    return row !== undefined;
+  }
 }
 
-class DrizzleRankingRepository implements RankingRepository {
+export class DrizzleRankingRepository implements RankingRepository {
   constructor(private readonly db: HoneDb) {}
-  async upsert(): Promise<never> { throw new Error("not implemented"); }
-  async findById(): Promise<null> { throw new Error("not implemented"); }
-  async findByOwnerAndBook(): Promise<null> { throw new Error("not implemented"); }
-  async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
-  async delete(): Promise<void> { throw new Error("not implemented"); }
-  async startBucket(): Promise<never> { throw new Error("not implemented"); }
+
+  async upsert(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    rank: number;
+    score: number;
+  }) {
+    const existing = await this.findByOwnerAndBook({ ownerId: input.ownerId, bookId: input.bookId });
+    const newVersion = existing ? existing.version + 1 : 1;
+
+    const [row] = await this.db
+      .insert(rankings)
+      .values({
+        profileId: input.ownerId,
+        bookId: input.bookId,
+        position: input.rank,
+        score: String(input.score),
+        bucket: 1,
+        version: newVersion,
+      })
+      .onConflictDoUpdate({
+        target: [rankings.profileId, rankings.bookId],
+        set: {
+          position: input.rank,
+          score: String(input.score),
+          version: newVersion,
+          updatedAt: new Date(),
+        }
+      })
+      .returning();
+    if (!row) throw new Error("Failed to upsert ranking");
+    return toRanking(row);
+  }
+
+  async findById(id: EntityId) {
+    const row = await this.db.query.rankings.findFirst({
+      where: eq(rankings.id, id)
+    });
+    return row ? toRanking(row) : null;
+  }
+
+  async findByOwnerAndBook(input: { ownerId: EntityId; bookId: EntityId }) {
+    const row = await this.db.query.rankings.findFirst({
+      where: and(
+        eq(rankings.profileId, input.ownerId),
+        eq(rankings.bookId, input.bookId)
+      )
+    });
+    return row ? toRanking(row) : null;
+  }
+
+  async listByOwner(ownerId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(rankings)
+      .where(eq(rankings.profileId, ownerId))
+      .orderBy(asc(rankings.position));
+    return rows.map(toRanking);
+  }
+
+  async delete(input: { ownerId: EntityId; bookId: EntityId }) {
+    await this.db
+      .delete(rankings)
+      .where(
+        and(
+          eq(rankings.profileId, input.ownerId),
+          eq(rankings.bookId, input.bookId)
+        )
+      );
+  }
+
+  async startBucket(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    bucket: number;
+  }) {
+    const existing = await this.findByOwnerAndBook({ ownerId: input.ownerId, bookId: input.bookId });
+    if (!existing) throw new Error("Ranking not found");
+    const newVersion = existing.version + 1;
+
+    const [row] = await this.db
+      .update(rankings)
+      .set({ bucket: input.bucket, version: newVersion, updatedAt: new Date() })
+      .where(
+        and(
+          eq(rankings.profileId, input.ownerId),
+          eq(rankings.bookId, input.bookId),
+          eq(rankings.version, existing.version)
+        )
+      )
+      .returning();
+    if (!row) throw new Error("Stale ranking version or ranking not found");
+    return toRanking(row);
+  }
 }
 
-class DrizzleNotificationRepository implements NotificationRepository {
+export class DrizzleNotificationRepository implements NotificationRepository {
   constructor(private readonly db: HoneDb) {}
-  async registerToken(): Promise<never> { throw new Error("not implemented"); }
-  async removeToken(): Promise<void> { throw new Error("not implemented"); }
-  async listTokensForProfile(): Promise<never[]> { throw new Error("not implemented"); }
-  async getSetting(): Promise<null> { throw new Error("not implemented"); }
-  async setSetting(): Promise<never> { throw new Error("not implemented"); }
-  async listSettings(): Promise<never[]> { throw new Error("not implemented"); }
+
+  async registerToken(input: {
+    profileId: EntityId;
+    platform: "apns" | "fcm";
+    token: string;
+  }) {
+    const [row] = await this.db
+      .insert(notificationTokens)
+      .values({
+        profileId: input.profileId,
+        platform: input.platform,
+        token: input.token,
+        lastSeen: new Date()
+      })
+      .onConflictDoUpdate({
+        target: [notificationTokens.profileId, notificationTokens.platform, notificationTokens.token],
+        set: { lastSeen: new Date() }
+      })
+      .returning();
+    if (!row) throw new Error("Failed to register token");
+    return toNotificationToken(row);
+  }
+
+  async removeToken(input: { profileId: EntityId; token: string }) {
+    await this.db
+      .delete(notificationTokens)
+      .where(
+        and(
+          eq(notificationTokens.profileId, input.profileId),
+          eq(notificationTokens.token, input.token)
+        )
+      );
+  }
+
+  async listTokensForProfile(profileId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(notificationTokens)
+      .where(eq(notificationTokens.profileId, profileId));
+    return rows.map(toNotificationToken);
+  }
+
+  async getSetting(input: { profileId: EntityId; key: string }) {
+    const row = await this.db.query.notificationSettings.findFirst({
+      where: and(
+        eq(notificationSettings.profileId, input.profileId),
+        eq(notificationSettings.key, input.key)
+      )
+    });
+    return row ? toNotificationSetting(row) : null;
+  }
+
+  async setSetting(input: { profileId: EntityId; key: string; value: unknown }) {
+    const [row] = await this.db
+      .insert(notificationSettings)
+      .values({
+        profileId: input.profileId,
+        key: input.key,
+        value: input.value
+      })
+      .onConflictDoUpdate({
+        target: [notificationSettings.profileId, notificationSettings.key],
+        set: { value: input.value }
+      })
+      .returning();
+    if (!row) throw new Error("Failed to set notification setting");
+    return toNotificationSetting(row);
+  }
+
+  async listSettings(profileId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(notificationSettings)
+      .where(eq(notificationSettings.profileId, profileId));
+    return rows.map(toNotificationSetting);
+  }
 }
 
-class DrizzleImportRepository implements ImportRepository {
+export class DrizzleImportRepository implements ImportRepository {
   constructor(private readonly db: HoneDb) {}
 
   async create(input: Parameters<ImportRepository["create"]>[0]) {
@@ -461,29 +744,260 @@ class DrizzleImportRepository implements ImportRepository {
   }
 }
 
-class DrizzleContactsRepository implements ContactsRepository {
+export class DrizzleContactsRepository implements ContactsRepository {
   constructor(private readonly db: HoneDb) {}
-  async upsertHashes(): Promise<void> { throw new Error("not implemented"); }
-  async findMatches(): Promise<never[]> { throw new Error("not implemented"); }
-  async deleteForUser(): Promise<void> { throw new Error("not implemented"); }
-  async deleteExpired(): Promise<void> { throw new Error("not implemented"); }
-  async listByUser(): Promise<never[]> { throw new Error("not implemented"); }
+
+  async upsertHashes(input: {
+    userId: EntityId;
+    hashes: Array<{ hash: string; saltVersion: number; expiresAt: Date }>;
+  }) {
+    if (input.hashes.length === 0) return;
+    await this.db
+      .insert(contactsIndex)
+      .values(
+        input.hashes.map((h) => ({
+          profileId: input.userId,
+          contactHash: h.hash,
+          saltVersion: h.saltVersion,
+          expiresAt: h.expiresAt,
+        }))
+      )
+      .onConflictDoUpdate({
+        target: [contactsIndex.profileId, contactsIndex.contactHash],
+        set: {
+          saltVersion: contactsIndex.saltVersion,
+          expiresAt: contactsIndex.expiresAt,
+        }
+      });
+  }
+
+  async findMatches(input: { hashes: string[]; excludeUserId: EntityId }) {
+    if (input.hashes.length === 0) return [];
+    const rows = await this.db
+      .select({ profileId: contactsIndex.profileId })
+      .from(contactsIndex)
+      .where(
+        and(
+          inArray(contactsIndex.contactHash, input.hashes),
+          eq(contactsIndex.profileId, input.excludeUserId)
+        )
+      );
+    return rows
+      .map((r) => r.profileId)
+      .filter((id) => id !== input.excludeUserId);
+  }
+
+  async deleteForUser(userId: EntityId) {
+    await this.db
+      .delete(contactsIndex)
+      .where(eq(contactsIndex.profileId, userId));
+  }
+
+  async deleteExpired() {
+    const now = new Date();
+    await this.db
+      .delete(contactsIndex)
+      .where(
+        and(
+          eq(contactsIndex.expiresAt, now)
+        )
+      );
+  }
+
+  async listByUser(userId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(contactsIndex)
+      .where(eq(contactsIndex.profileId, userId));
+    return rows.map(toContactIndex).map((ci) => ({
+      id: `${ci.profileId}:${ci.contactHash}` as EntityId,
+      userId: ci.profileId as EntityId,
+      hash: ci.contactHash,
+      saltVersion: ci.saltVersion,
+      createdAt: ci.expiresAt,
+      expiresAt: ci.expiresAt,
+    }));
+  }
 }
 
-class DrizzleListRepository implements ListRepository {
+export class DrizzleListRepository implements ListRepository {
   constructor(private readonly db: HoneDb) {}
-  async create(): Promise<never> { throw new Error("not implemented"); }
-  async findById(): Promise<null> { throw new Error("not implemented"); }
-  async listByOwner(): Promise<never[]> { throw new Error("not implemented"); }
-  async update(): Promise<never> { throw new Error("not implemented"); }
-  async delete(): Promise<void> { throw new Error("not implemented"); }
-  async addItem(): Promise<never> { throw new Error("not implemented"); }
-  async removeItem(): Promise<void> { throw new Error("not implemented"); }
-  async listItems(): Promise<never[]> { throw new Error("not implemented"); }
-  async reorderItems(): Promise<void> { throw new Error("not implemented"); }
+
+  async create(input: Parameters<ListRepository["create"]>[0]) {
+    const [row] = await this.db
+      .insert(shelves)
+      .values({
+        id: input.id,
+        ownerId: input.ownerId,
+        name: input.title,
+        slug: input.id,
+        visibility: input.visibility,
+        isSystem: false,
+        kind: "list" as const,
+        authorType: "user" as const,
+        description: input.description ?? null,
+      })
+      .returning();
+    if (!row) throw new Error("Failed to create list");
+    return {
+      id: row.id,
+      ownerId: row.ownerId,
+      title: row.name,
+      description: row.description ?? undefined,
+      visibility: row.visibility,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async findById(id: EntityId, viewerId?: EntityId) {
+    const row = await this.db.query.shelves.findFirst({
+      where: and(eq(shelves.id, id), eq(shelves.kind, "list"))
+    });
+    if (!row) return null;
+    const isOwner = viewerId === row.ownerId;
+    if (!isOwner && row.visibility === "private") return null;
+    return {
+      id: row.id,
+      ownerId: row.ownerId,
+      title: row.name,
+      description: row.description ?? undefined,
+      visibility: row.visibility,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async listByOwner(ownerId: EntityId, viewerId?: EntityId) {
+    const isOwner = viewerId === ownerId;
+    const rows = await this.db
+      .select()
+      .from(shelves)
+      .where(
+        isOwner
+          ? and(eq(shelves.ownerId, ownerId), eq(shelves.kind, "list"))
+          : and(
+              eq(shelves.ownerId, ownerId),
+              eq(shelves.kind, "list"),
+              eq(shelves.visibility, "public")
+            )
+      );
+    return rows.map((row) => ({
+      id: row.id,
+      ownerId: row.ownerId,
+      title: row.name,
+      description: row.description ?? undefined,
+      visibility: row.visibility,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+  }
+
+  async update(input: Parameters<ListRepository["update"]>[0]) {
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.title !== undefined) updateData.name = input.title;
+    if (input.description !== undefined) updateData.description = input.description;
+    if (input.visibility !== undefined) updateData.visibility = input.visibility;
+
+    const [row] = await this.db
+      .update(shelves)
+      .set(updateData)
+      .where(
+        and(
+          eq(shelves.id, input.id),
+          eq(shelves.ownerId, input.ownerId),
+          eq(shelves.kind, "list")
+        )
+      )
+      .returning();
+    if (!row) throw new Error("List not found");
+    return {
+      id: row.id,
+      ownerId: row.ownerId,
+      title: row.name,
+      description: row.description ?? undefined,
+      visibility: row.visibility,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async delete(input: { id: EntityId; ownerId: EntityId }) {
+    await this.db
+      .delete(shelves)
+      .where(
+        and(
+          eq(shelves.id, input.id),
+          eq(shelves.ownerId, input.ownerId),
+          eq(shelves.kind, "list")
+        )
+      );
+  }
+
+  async addItem(input: { listId: EntityId; bookId: EntityId; position: number }) {
+    const [row] = await this.db
+      .insert(shelfItems)
+      .values({
+        shelfId: input.listId,
+        bookId: input.bookId,
+        status: "want_to_read",
+        position: input.position,
+      })
+      .returning();
+    if (!row) throw new Error("Failed to add item to list");
+    return {
+      id: row.id,
+      listId: row.shelfId,
+      bookId: row.bookId,
+      position: row.position ?? input.position,
+      addedAt: row.addedAt,
+    };
+  }
+
+  async removeItem(input: { listId: EntityId; bookId: EntityId }) {
+    await this.db
+      .delete(shelfItems)
+      .where(
+        and(
+          eq(shelfItems.shelfId, input.listId),
+          eq(shelfItems.bookId, input.bookId)
+        )
+      );
+  }
+
+  async listItems(listId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(shelfItems)
+      .where(eq(shelfItems.shelfId, listId))
+      .orderBy(asc(shelfItems.position));
+    return rows.map((row) => ({
+      id: row.id,
+      listId: row.shelfId,
+      bookId: row.bookId,
+      position: row.position ?? 0,
+      addedAt: row.addedAt,
+    }));
+  }
+
+  async reorderItems(input: { listId: EntityId; orderedBookIds: EntityId[] }) {
+    await Promise.all(
+      input.orderedBookIds.map((bookId, index) =>
+        this.db
+          .update(shelfItems)
+          .set({ position: index + 1, updatedAt: new Date() })
+          .where(
+            and(
+              eq(shelfItems.shelfId, input.listId),
+              eq(shelfItems.bookId, bookId)
+            )
+          )
+      )
+    );
+  }
 }
 
-class DrizzleAuthIdentityRepository implements AuthIdentityRepository {
+export class DrizzleAuthIdentityRepository implements AuthIdentityRepository {
   constructor(private readonly db: HoneDb) {}
 
   async create(input: Parameters<AuthIdentityRepository["create"]>[0]) {
@@ -523,7 +1037,7 @@ class DrizzleAuthIdentityRepository implements AuthIdentityRepository {
   }
 }
 
-class DrizzleSessionRepository implements SessionRepository {
+export class DrizzleSessionRepository implements SessionRepository {
   constructor(private readonly db: HoneDb) {}
 
   async create(input: Parameters<SessionRepository["create"]>[0]) {
@@ -580,4 +1094,3 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     sessions: new DrizzleSessionRepository(db),
   };
 }
-

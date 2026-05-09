@@ -7,6 +7,7 @@ import type {
   ContactIndex,
   Edition,
   EmailIndex,
+  Follow,
   Import,
   NotificationSetting,
   NotificationToken,
@@ -30,6 +31,7 @@ import type {
   contactsIndex,
   editions,
   emailIndex,
+  follows,
   imports,
   notificationSettings,
   notificationTokens,
@@ -43,6 +45,7 @@ import type {
   shelves
 } from "./schema";
 
+type FollowRow = typeof follows.$inferSelect;
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
 type ContactIndexRow = typeof contactsIndex.$inferSelect;
 type EmailIndexRow = typeof emailIndex.$inferSelect;
@@ -63,6 +66,15 @@ type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
 type SessionRow = typeof sessions.$inferSelect;
+
+export function toFollow(row: FollowRow): Follow {
+  return {
+    id: `${row.followerId}:${row.followeeId}`,
+    followerId: row.followerId,
+    followeeId: row.followeeId,
+    createdAt: row.createdAt
+  };
+}
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
