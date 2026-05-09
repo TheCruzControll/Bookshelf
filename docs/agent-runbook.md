@@ -13,6 +13,7 @@ This runbook covers operating, debugging, and recovering them.
 | Tester | `agent-tester.yml` | on `pull_request.*` | typecheck + lint + test against a Postgres service container; the `agent-tester` check is the auto-merge gate |
 | Documenter | `agent-documenter.yml` | on `pull_request.closed` (merged), weekly cron, manual dispatch | reads merged diff, opens follow-up doc PR if architecture/product/API/runbook docs need updates |
 | Spec-Watcher | `agent-spec-watcher.yml` | on `pull_request.closed` (merged) for `type:doc` PRs touching spec docs, manual dispatch | reads spec diff and proposes new atomic issues labeled `needs-triage` + `needs-human` for human approval before they enter the DAG |
+| Rebaser | `agent-rebaser.yml` | on `push` to `main`, `pull_request.opened`, manual dispatch | non-Claude TS script (`tools/orchestrator/rebaser.ts`) — for every open agent PR that's behind/dirty against main, calls GitHub's update-branch endpoint or does a manual merge; auto-resolves conflicts in the configured `AUTO_RESOLVABLE_FILES` set (default: `pnpm-lock.yaml`) by taking main's version and re-running `pnpm install`; flags anything else `merge-conflict` + `needs-human` |
 
 Auto-merge is wired so that Reviewer's approval plus a green Tester check
 triggers GitHub's auto-merge with squash. The Orchestrator then closes the
