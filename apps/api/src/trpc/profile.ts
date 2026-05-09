@@ -3,6 +3,8 @@ import {
   AppServices,
   CheckHandleInputSchema,
   CheckHandleOutputSchema,
+  CreateProfileInputSchema,
+  CreateProfileOutputSchema,
   SetHandleInputSchema,
   SetHandleOutputSchema,
 } from "@hone/domain";
@@ -50,5 +52,26 @@ export const profileRouter = router({
         }
         throw err;
       }
+    }),
+
+  createProfile: publicProcedure
+    .input(CreateProfileInputSchema)
+    .output(CreateProfileOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const services = new AppServices(ctx.repositories, {
+        getCurrentIdentity: async () => ctx.identity,
+      });
+      return services.profiles.createProfile({
+        id: ctx.identity.userId,
+        handle: input.handle.toLowerCase(),
+        displayName: input.displayName,
+        defaultVisibility: input.defaultVisibility,
+      });
     }),
 });

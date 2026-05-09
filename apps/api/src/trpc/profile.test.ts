@@ -34,7 +34,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       ...overrides?.profiles,
     },
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-    shelves: { listShelves: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn() },
+    shelves: { listShelves: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn().mockResolvedValue([]) },
     reviews: { create: vi.fn() },
     activity: { append: vi.fn(), getFriendFeed: vi.fn() },
     recommendations: { getForUser: vi.fn() },
@@ -219,5 +219,92 @@ describe("profile.setHandle", () => {
       body: JSON.stringify({ handle: "root" }),
     });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("profile.createProfile", () => {
+  const now = new Date();
+  const baseProfile = {
+    id: "00000000-0000-0000-0000-000000000001",
+    handle: "bookworm42",
+    displayName: "Book Worm",
+    defaultVisibility: "public" as const,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const systemShelves = [
+    { id: "00000000-0000-0000-0000-000000000020", ownerId: baseProfile.id, name: "Reading", slug: "reading", visibility: "followers" as const, isSystem: true, kind: "system" as const, authorType: "user" as const, createdAt: now, updatedAt: now },
+    { id: "00000000-0000-0000-0000-000000000021", ownerId: baseProfile.id, name: "Want to Read", slug: "want-to-read", visibility: "followers" as const, isSystem: true, kind: "system" as const, authorType: "user" as const, createdAt: now, updatedAt: now },
+    { id: "00000000-0000-0000-0000-000000000022", ownerId: baseProfile.id, name: "Finished", slug: "finished", visibility: "public" as const, isSystem: true, kind: "system" as const, authorType: "user" as const, createdAt: now, updatedAt: now },
+    { id: "00000000-0000-0000-0000-000000000023", ownerId: baseProfile.id, name: "Dropped", slug: "dropped", visibility: "followers" as const, isSystem: true, kind: "system" as const, authorType: "user" as const, createdAt: now, updatedAt: now },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("creates profile and returns four system shelves on success", async () => {
+    const repos = makeRepositories({
+      profiles: {
+        findById: vi.fn(),
+        findByHandle: vi.fn(),
+        create: vi.fn().mockResolvedValue(baseProfile),
+        isHandleTaken: vi.fn().mockResolvedValue(false),
+        setHandle: vi.fn(),
+      },
+      shelves: {
+        listShelves: vi.fn(),
+        addBook: vi.fn(),
+        rankShelfItem: vi.fn(),
+        createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/profile.createProfile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm", defaultVisibility: "public" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.profile).toBeDefined();
+    expect(body.result.data.profile.handle).toBe("bookworm42");
+    expect(body.result.data.shelves).toHaveLength(4);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+    const res = await app.request("/trpc/profile.createProfile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm", defaultVisibility: "public" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("calls createSystemShelves with the new profile id", async () => {
+    const repos = makeRepositories({
+      profiles: {
+        findById: vi.fn(),
+        findByHandle: vi.fn(),
+        create: vi.fn().mockResolvedValue(baseProfile),
+        isHandleTaken: vi.fn().mockResolvedValue(false),
+        setHandle: vi.fn(),
+      },
+      shelves: {
+        listShelves: vi.fn(),
+        addBook: vi.fn(),
+        rankShelfItem: vi.fn(),
+        createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    await app.request("/trpc/profile.createProfile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm", defaultVisibility: "public" }),
+    });
+    expect(repos.shelves.createSystemShelves).toHaveBeenCalledWith(baseProfile.id);
   });
 });

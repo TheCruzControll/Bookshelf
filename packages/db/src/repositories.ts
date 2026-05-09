@@ -19,6 +19,7 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "@hone/domain";
+import { SYSTEM_SHELVES } from "@hone/domain";
 import type { HoneDb } from "./client";
 import {
   activityEvents,
@@ -159,6 +160,37 @@ export class DrizzleShelfRepository implements ShelfRepository {
       throw new Error("Failed to rank shelf item");
     }
     return toShelfItem(row);
+  }
+
+  async createSystemShelves(ownerId: EntityId) {
+    const existing = await this.db
+      .select()
+      .from(shelves)
+      .where(and(eq(shelves.ownerId, ownerId), eq(shelves.isSystem, true)));
+
+    const existingSlugs = new Set(existing.map((r) => r.slug));
+    const toCreate = SYSTEM_SHELVES.filter((def) => !existingSlugs.has(def.slug));
+
+    if (toCreate.length > 0) {
+      await this.db.insert(shelves).values(
+        toCreate.map((def) => ({
+          ownerId,
+          name: def.name,
+          slug: def.slug,
+          visibility: def.visibility,
+          isSystem: true,
+          kind: "system" as const,
+          authorType: "user" as const,
+        }))
+      );
+    }
+
+    const all = await this.db
+      .select()
+      .from(shelves)
+      .where(and(eq(shelves.ownerId, ownerId), eq(shelves.isSystem, true)));
+
+    return all.map(toShelf);
   }
 }
 

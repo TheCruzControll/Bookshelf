@@ -66,6 +66,24 @@ export const SetHandleOutputSchema = z.object({
   profile: ProfileSchema,
 });
 
+export const SystemShelfResponseSchema = z.object({
+  id: EntityIdSchema,
+  ownerId: EntityIdSchema,
+  name: z.string(),
+  slug: z.string(),
+  visibility: VisibilitySchema,
+  isSystem: z.boolean(),
+  kind: z.enum(["system", "custom", "list"]),
+  authorType: z.enum(["user", "internal_editorial", "algorithmic"]),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const CreateProfileOutputSchema = z.object({
+  profile: ProfileSchema,
+  shelves: z.array(SystemShelfResponseSchema),
+});
+
 export type VisibilityInput = z.infer<typeof VisibilitySchema>;
 export type ProfileInput = z.infer<typeof ProfileSchema>;
 export type CreateProfileInput = z.infer<typeof CreateProfileInputSchema>;
@@ -77,3 +95,4 @@ export type CheckHandleInput = z.infer<typeof CheckHandleInputSchema>;
 export type CheckHandleOutput = z.infer<typeof CheckHandleOutputSchema>;
 export type SetHandleInput = z.infer<typeof SetHandleInputSchema>;
 export type SetHandleOutput = z.infer<typeof SetHandleOutputSchema>;
+export type CreateProfileOutput = z.infer<typeof CreateProfileOutputSchema>;

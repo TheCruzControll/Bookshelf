@@ -21,7 +21,8 @@ function makeRepositories(): AppRepositories {
     shelves: {
       listShelves: vi.fn(),
       addBook: vi.fn().mockResolvedValue(makeShelfItem()),
-      rankShelfItem: vi.fn()
+      rankShelfItem: vi.fn(),
+      createSystemShelves: vi.fn().mockResolvedValue([])
     },
     reviews: { create: vi.fn() },
     activity: {
