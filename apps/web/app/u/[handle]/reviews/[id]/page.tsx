@@ -9,11 +9,11 @@ type Props = {
   params: Promise<{ handle: string; id: string }>;
 };
 
-async function fetchProfile(handle: string): Promise<Profile | null> {
+async function fetchProfile(_handle: string): Promise<Profile | null> {
   return null;
 }
 
-async function fetchReview(reviewId: string): Promise<(Review & { book?: Book }) | null> {
+async function fetchReview(_reviewId: string): Promise<(Review & { book?: Book }) | null> {
   return null;
 }
 

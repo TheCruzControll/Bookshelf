@@ -15,8 +15,6 @@ import {
   ReadingStatusSchema,
   BookSchema,
   EditionSchema,
-  ShelfSchema,
-  ShelfItemSchema,
   CreateShelfInputSchema,
   AddShelfItemInputSchema,
 } from "./shelves";
@@ -27,14 +25,11 @@ import {
 } from "./ranking";
 import {
   ActivityVerbSchema,
-  ActivityEventSchema,
-  FeedItemSchema,
   FeedCursorSchema,
 } from "./feed";
 import { RecommendationSchema, RecsQuerySchema } from "./recs";
 import {
   ListSchema,
-  ListItemSchema,
   CreateListInputSchema,
   AddListItemInputSchema,
 } from "./lists";
