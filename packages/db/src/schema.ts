@@ -553,3 +553,17 @@ export const notificationSettings = pgTable(
     profileIdx: index("notification_settings_profile_idx").on(table.profileId)
   })
 );
+
+export const magicLinkTokens = pgTable(
+  "magic_link_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    email: text("email").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true })
+  },
+  (table) => ({
+    expiresAtIdx: index("magic_link_tokens_expires_at_idx").on(table.expiresAt),
+    emailIdx: index("magic_link_tokens_email_idx").on(table.email)
+  })
+);

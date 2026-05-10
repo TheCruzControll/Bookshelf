@@ -11,6 +11,7 @@ import type {
   FollowRepository,
   ImportRepository,
   ListRepository,
+  MagicLinkTokenRepository,
   NotificationRepository,
   ProfileRepository,
   RankingRepository,
@@ -29,6 +30,7 @@ import {
   editions,
   follows,
   imports,
+  magicLinkTokens,
   profiles,
   recommendationScores,
   reviews,
@@ -41,6 +43,7 @@ import {
   toBook,
   toEdition,
   toImport,
+  toMagicLinkToken,
   toOAuthIdentity,
   toProfile,
   toReview,
@@ -565,6 +568,43 @@ class DrizzleSessionRepository implements SessionRepository {
   }
 }
 
+class DrizzleMagicLinkTokenRepository implements MagicLinkTokenRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async create(input: Parameters<MagicLinkTokenRepository["create"]>[0]) {
+    const [row] = await this.db
+      .insert(magicLinkTokens)
+      .values({
+        tokenHash: input.tokenHash,
+        email: input.email,
+        expiresAt: input.expiresAt
+      })
+      .returning();
+    if (!row) throw new Error("Failed to create magic link token");
+    return toMagicLinkToken(row);
+  }
+
+  async findByTokenHash(tokenHash: string) {
+    const row = await this.db.query.magicLinkTokens.findFirst({
+      where: eq(magicLinkTokens.tokenHash, tokenHash)
+    });
+    return row ? toMagicLinkToken(row) : null;
+  }
+
+  async markUsed(tokenHash: string) {
+    await this.db
+      .update(magicLinkTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(magicLinkTokens.tokenHash, tokenHash));
+  }
+
+  async deleteExpired() {
+    await this.db
+      .delete(magicLinkTokens)
+      .where(eq(magicLinkTokens.expiresAt, new Date()));
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -582,6 +622,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     lists: new DrizzleListRepository(db),
     authIdentities: new DrizzleAuthIdentityRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    magicLinkTokens: new DrizzleMagicLinkTokenRepository(db),
   };
 }
 

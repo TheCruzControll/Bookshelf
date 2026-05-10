@@ -6,8 +6,10 @@ import type {
   AppleTokenClaims,
   AuthIdentityRepository,
   AuthProvider,
+  EmailProvider,
   GoogleJwksProvider,
   GoogleTokenClaims,
+  MagicLinkTokenRepository,
   ProfileRepository,
   RankingRepository,
   ReviewRepository,
@@ -487,6 +489,79 @@ export class AuthService {
     await this.sessions.create({ tokenHash, profileId, expiresAt });
 
     return { sessionToken: rawToken, expiresAt, isNewUser };
+  }
+}
+
+const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
+
+export class MagicLinkService {
+  constructor(
+    private readonly magicLinkTokens: MagicLinkTokenRepository,
+    private readonly authIdentities: AuthIdentityRepository,
+    private readonly sessions: SessionRepository,
+    private readonly emailProvider: EmailProvider,
+    private readonly appBaseUrl: string
+  ) {}
+
+  async requestMagicLink(email: string): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MS);
+
+    await this.magicLinkTokens.create({ tokenHash, email: normalizedEmail, expiresAt });
+
+    const magicLink = `${this.appBaseUrl}/auth/magic?token=${rawToken}`;
+    await this.emailProvider.sendMagicLink({ to: normalizedEmail, magicLink, expiresAt });
+  }
+
+  async consumeMagicLink(rawToken: string): Promise<{ sessionToken: string; expiresAt: Date; isNewUser: boolean }> {
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    const record = await this.magicLinkTokens.findByTokenHash(tokenHash);
+
+    if (!record) {
+      throw Object.assign(new Error("Invalid or expired magic link token"), { code: "INVALID_TOKEN" });
+    }
+    if (record.usedAt) {
+      throw Object.assign(new Error("Magic link token already used"), { code: "TOKEN_USED" });
+    }
+    if (record.expiresAt < new Date()) {
+      throw Object.assign(new Error("Magic link token expired"), { code: "TOKEN_EXPIRED" });
+    }
+
+    await this.magicLinkTokens.markUsed(tokenHash);
+
+    const email = record.email;
+    const existing = await this.authIdentities.findByProvider({ provider: "email", providerUserId: email });
+
+    let profileId: EntityId;
+    let isNewUser: boolean;
+
+    if (existing) {
+      profileId = existing.profileId;
+      isNewUser = false;
+    } else {
+      const bytes = randomBytes(16);
+      bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const hex = bytes.toString("hex");
+      const newProfileId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+      await this.authIdentities.create({
+        provider: "email",
+        providerUserId: email,
+        profileId: newProfileId,
+      });
+      profileId = newProfileId;
+      isNewUser = true;
+    }
+
+    const rawSessionToken = randomBytes(32).toString("hex");
+    const sessionTokenHash = createHash("sha256").update(rawSessionToken, "utf8").digest("hex");
+    const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    await this.sessions.create({ tokenHash: sessionTokenHash, profileId, expiresAt: sessionExpiresAt });
+
+    return { sessionToken: rawSessionToken, expiresAt: sessionExpiresAt, isNewUser };
   }
 }
 

@@ -11,6 +11,7 @@ import type {
   ImportStatus,
   List,
   ListItem,
+  MagicLinkToken,
   NotificationPlatform,
   NotificationSetting,
   NotificationToken,
@@ -198,16 +199,14 @@ export interface RankingRepository {
     bookId: EntityId;
     rank: number;
     score: number;
+    bucket: number;
+    lockedAt?: Date | undefined;
   }): Promise<Ranking>;
   findById(id: EntityId): Promise<Ranking | null>;
   findByOwnerAndBook(input: { ownerId: EntityId; bookId: EntityId }): Promise<Ranking | null>;
-  listByOwner(ownerId: EntityId, viewerId?: EntityId): Promise<Ranking[]>;
-  delete(input: { ownerId: EntityId; bookId: EntityId }): Promise<void>;
-  startBucket(input: {
-    ownerId: EntityId;
-    bookId: EntityId;
-    bucket: number;
-  }): Promise<Ranking>;
+  listByOwner(ownerId: EntityId): Promise<Ranking[]>;
+  delete(input: { id: EntityId; ownerId: EntityId }): Promise<void>;
+  startBucket(input: { ownerId: EntityId; bookId: EntityId; bucket: number }): Promise<Ranking>;
 }
 
 export interface NotificationRepository {
@@ -303,6 +302,21 @@ export interface SessionRepository {
   revokeAllForProfile(profileId: EntityId): Promise<void>;
 }
 
+export interface MagicLinkTokenRepository {
+  create(input: {
+    tokenHash: string;
+    email: string;
+    expiresAt: Date;
+  }): Promise<MagicLinkToken>;
+  findByTokenHash(tokenHash: string): Promise<MagicLinkToken | null>;
+  markUsed(tokenHash: string): Promise<void>;
+  deleteExpired(): Promise<void>;
+}
+
+export interface EmailProvider {
+  sendMagicLink(input: { to: string; magicLink: string; expiresAt: Date }): Promise<void>;
+}
+
 export interface AppRepositories {
   profiles: ProfileRepository;
   books: BookRepository;
@@ -319,6 +333,7 @@ export interface AppRepositories {
   lists: ListRepository;
   authIdentities: AuthIdentityRepository;
   sessions: SessionRepository;
+  magicLinkTokens: MagicLinkTokenRepository;
 }
 
 export interface BlockFilter {

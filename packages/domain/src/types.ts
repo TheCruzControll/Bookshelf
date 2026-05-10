@@ -311,3 +311,10 @@ export interface EmailIndex {
   saltVersion: number;
   expiresAt: Date;
 }
+
+export interface MagicLinkToken {
+  tokenHash: string;
+  email: string;
+  expiresAt: Date;
+  usedAt?: Date | undefined;
+}

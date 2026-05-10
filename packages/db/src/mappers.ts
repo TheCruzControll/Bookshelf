@@ -8,6 +8,7 @@ import type {
   Edition,
   EmailIndex,
   Import,
+  MagicLinkToken,
   NotificationSetting,
   NotificationToken,
   OAuthIdentity,
@@ -31,6 +32,7 @@ import type {
   editions,
   emailIndex,
   imports,
+  magicLinkTokens,
   notificationSettings,
   notificationTokens,
   phoneNumbers,
@@ -63,6 +65,7 @@ type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
 type SessionRow = typeof sessions.$inferSelect;
+type MagicLinkTokenRow = typeof magicLinkTokens.$inferSelect;
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
@@ -288,5 +291,14 @@ export function toNotificationSetting(row: NotificationSettingRow): Notification
     profileId: row.profileId,
     key: row.key,
     value: row.value
+  };
+}
+
+export function toMagicLinkToken(row: MagicLinkTokenRow): MagicLinkToken {
+  return {
+    tokenHash: row.tokenHash,
+    email: row.email,
+    expiresAt: row.expiresAt,
+    usedAt: row.usedAt ?? undefined
   };
 }

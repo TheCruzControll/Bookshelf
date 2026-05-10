@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { trpcServer } from "@hono/trpc-server";
 import { z } from "zod";
-import type { AppRepositories, AppleJwk, AppleJwksProvider, GoogleJwk, GoogleJwksProvider, AuthProvider } from "@hone/domain";
+import type { AppRepositories, AppleJwk, AppleJwksProvider, EmailProvider, GoogleJwk, GoogleJwksProvider, AuthProvider } from "@hone/domain";
 import { AppServices } from "@hone/domain";
 import { clearSentryUser, setSentryUser } from "@hone/observability";
 import type { Cache } from "@hone/cache";
@@ -42,6 +42,8 @@ export interface ApiDependencies {
   appleAudience?: string;
   googleJwksProvider?: GoogleJwksProvider;
   googleAudience?: string;
+  emailProvider?: EmailProvider;
+  appBaseUrl?: string;
 }
 
 const addBookSchema = z.object({

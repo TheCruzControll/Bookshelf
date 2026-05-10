@@ -35,9 +35,31 @@ export const GoogleSignInOutputSchema = z.object({
   isNewUser: z.boolean(),
 });
 
+export const RequestMagicLinkInputSchema = z.object({
+  email: z.string().email(),
+});
+
+export const RequestMagicLinkOutputSchema = z.object({
+  sent: z.boolean(),
+});
+
+export const ConsumeMagicLinkInputSchema = z.object({
+  token: z.string().min(1),
+});
+
+export const ConsumeMagicLinkOutputSchema = z.object({
+  sessionToken: z.string(),
+  expiresAt: z.date(),
+  isNewUser: z.boolean(),
+});
+
 export type AuthIdentityInput = z.infer<typeof AuthIdentitySchema>;
 export type SessionInput = z.infer<typeof SessionSchema>;
 export type AppleSignInInput = z.infer<typeof AppleSignInInputSchema>;
 export type AppleSignInOutput = z.infer<typeof AppleSignInOutputSchema>;
 export type GoogleSignInInput = z.infer<typeof GoogleSignInInputSchema>;
 export type GoogleSignInOutput = z.infer<typeof GoogleSignInOutputSchema>;
+export type RequestMagicLinkInput = z.infer<typeof RequestMagicLinkInputSchema>;
+export type RequestMagicLinkOutput = z.infer<typeof RequestMagicLinkOutputSchema>;
+export type ConsumeMagicLinkInput = z.infer<typeof ConsumeMagicLinkInputSchema>;
+export type ConsumeMagicLinkOutput = z.infer<typeof ConsumeMagicLinkOutputSchema>;

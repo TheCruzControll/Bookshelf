@@ -7,6 +7,7 @@ import type {
   FollowRepository,
   ImportRepository,
   ListRepository,
+  MagicLinkTokenRepository,
   NotificationRepository,
   RankingRepository,
   SessionRepository,
@@ -25,6 +26,12 @@ type _AppRepositoriesHasContacts = Assert<HasKey<AppRepositories, "contacts">>;
 type _AppRepositoriesHasLists = Assert<HasKey<AppRepositories, "lists">>;
 type _AppRepositoriesHasSessions = Assert<HasKey<AppRepositories, "sessions">>;
 type _AppRepositoriesHasAuthIdentities = Assert<HasKey<AppRepositories, "authIdentities">>;
+type _AppRepositoriesHasMagicLinkTokens = Assert<HasKey<AppRepositories, "magicLinkTokens">>;
+
+type _MagicLinkTokenRepositoryHasCreate = Assert<HasKey<MagicLinkTokenRepository, "create">>;
+type _MagicLinkTokenRepositoryHasFindByTokenHash = Assert<HasKey<MagicLinkTokenRepository, "findByTokenHash">>;
+type _MagicLinkTokenRepositoryHasMarkUsed = Assert<HasKey<MagicLinkTokenRepository, "markUsed">>;
+type _MagicLinkTokenRepositoryHasDeleteExpired = Assert<HasKey<MagicLinkTokenRepository, "deleteExpired">>;
 
 type _FollowRepositoryHasFollow = Assert<HasKey<FollowRepository, "follow">>;
 type _FollowRepositoryHasUnfollow = Assert<HasKey<FollowRepository, "unfollow">>;
@@ -144,6 +151,11 @@ export type {
   _AuthIdentityRepositoryHasFindByProvider,
   _AuthIdentityRepositoryHasListByProfile,
   _ShelfRepositoryHasCreateSystemShelves,
+  _AppRepositoriesHasMagicLinkTokens,
+  _MagicLinkTokenRepositoryHasCreate,
+  _MagicLinkTokenRepositoryHasFindByTokenHash,
+  _MagicLinkTokenRepositoryHasMarkUsed,
+  _MagicLinkTokenRepositoryHasDeleteExpired,
 };
 
 describe("ports structural smoke tests", () => {
@@ -158,8 +170,9 @@ describe("ports structural smoke tests", () => {
       "lists",
       "sessions",
       "authIdentities",
+      "magicLinkTokens",
     ];
-    expect(keys).toHaveLength(9);
+    expect(keys).toHaveLength(10);
   });
 
   it("AppRepositories keys include all original repositories", () => {
