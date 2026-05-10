@@ -9,6 +9,7 @@
 
 **Auth:**
 - `auth.appleSignIn(identityToken, nonce)` — validate Apple identity token via JWKS (RS256), enforce issuer/audience/expiry claims, handle private relay emails, create or link `OAuthIdentity`, and return `{ sessionToken, expiresAt, isNewUser }`
+- `auth.googleSignIn(idToken)` — validate Google `id_token` via JWKS (RS256), enforce issuer/audience/expiry claims, create or link `OAuthIdentity`, and return `{ sessionToken, expiresAt, isNewUser }`
 
 **Profile:**
 - `profile.checkHandle(handle)` — validate handle availability
