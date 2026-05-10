@@ -760,4 +760,36 @@ describeIntegration("repository integration tests (real Postgres)", () => {
       expect(feed).toHaveLength(0);
     });
   });
+
+  describe("DrizzleRecommendationRepository", () => {
+    const recUserId = uid("e00000000001");
+    const recBookId = uid("e00000000002");
+
+    beforeAll(async () => {
+      await repos.profiles.create({
+        id: recUserId,
+        handle: "rec-user",
+        displayName: "Rec User",
+        defaultVisibility: "public",
+      });
+      await db.execute(
+        `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${recBookId}', 'Rec Book', now(), now())`
+      );
+      await db.execute(
+        `INSERT INTO recommendation_scores (user_id, book_id, score, reason) VALUES ('${recUserId}', '${recBookId}', 95, 'liked similar genre')`
+      );
+    });
+
+    it("happy: getForUser returns recommendations for the user", async () => {
+      const recs = await repos.recommendations.getForUser(recUserId, 10);
+      expect(recs.length).toBeGreaterThan(0);
+      expect(recs[0]!.score).toBe(95);
+      expect(recs[0]!.reason).toBe("liked similar genre");
+    });
+
+    it("failure: getForUser returns empty array for unknown user", async () => {
+      const recs = await repos.recommendations.getForUser(uid("e99999999999"), 10);
+      expect(recs).toHaveLength(0);
+    });
+  });
 });
