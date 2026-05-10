@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting, toHandleHistory } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting, toHandleHistory, toFollow, toList, toListItem } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, notificationSettings, notificationTokens, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
@@ -1279,5 +1279,165 @@ describe("email_index table schema and mapper", () => {
     expect(result.oldHandle).toBe("oldname");
     expect(result.retiredAt).toBe(now);
     expect(result.expiresAt).toBe(expires);
+  });
+});
+
+describe("toFollow mapper", () => {
+  const now = new Date();
+
+  it("synthesizes id from followerId and followeeId", () => {
+    const row = {
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now,
+    };
+    const follow = toFollow(row as Parameters<typeof toFollow>[0]);
+    expect(follow.id).toBe(`${row.followerId}:${row.followeeId}`);
+  });
+
+  it("maps all fields correctly", () => {
+    const row = {
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now,
+    };
+    const follow = toFollow(row as Parameters<typeof toFollow>[0]);
+    expect(follow.followerId).toBe(row.followerId);
+    expect(follow.followeeId).toBe(row.followeeId);
+    expect(follow.createdAt).toBe(now);
+  });
+
+  it("produces unique id for each ordered pair", () => {
+    const row1 = {
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now,
+    };
+    const row2 = {
+      followerId: "00000000-0000-0000-0000-000000000002",
+      followeeId: "00000000-0000-0000-0000-000000000001",
+      createdAt: now,
+    };
+    const f1 = toFollow(row1 as Parameters<typeof toFollow>[0]);
+    const f2 = toFollow(row2 as Parameters<typeof toFollow>[0]);
+    expect(f1.id).not.toBe(f2.id);
+  });
+});
+
+describe("toList mapper", () => {
+  const now = new Date();
+
+  it("maps a shelf row with kind=list to a List domain object", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000010",
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      name: "Best Sci-Fi",
+      slug: "best-sci-fi",
+      visibility: "public" as const,
+      isSystem: false,
+      kind: "list" as const,
+      authorType: "user" as const,
+      curatorTier: null,
+      description: "Top sci-fi picks",
+      publishedAt: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const list = toList(row as Parameters<typeof toList>[0]);
+    expect(list.id).toBe(row.id);
+    expect(list.ownerId).toBe(row.ownerId);
+    expect(list.title).toBe("Best Sci-Fi");
+    expect(list.description).toBe("Top sci-fi picks");
+    expect(list.visibility).toBe("public");
+    expect(list.createdAt).toBe(now);
+    expect(list.updatedAt).toBe(now);
+  });
+
+  it("maps description as undefined when null", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000010",
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      name: "My List",
+      slug: "my-list",
+      visibility: "followers" as const,
+      isSystem: false,
+      kind: "list" as const,
+      authorType: "user" as const,
+      curatorTier: null,
+      description: null,
+      publishedAt: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const list = toList(row as Parameters<typeof toList>[0]);
+    expect(list.description).toBeUndefined();
+  });
+
+  it("preserves all four visibility tiers", () => {
+    const visibilities = ["public", "followers", "mutuals", "private"] as const;
+    for (const visibility of visibilities) {
+      const row = {
+        id: "00000000-0000-0000-0000-000000000010",
+        ownerId: "00000000-0000-0000-0000-000000000001",
+        name: "Test",
+        slug: "test",
+        visibility,
+        isSystem: false,
+        kind: "list" as const,
+        authorType: "user" as const,
+        curatorTier: null,
+        description: null,
+        publishedAt: null,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const list = toList(row as Parameters<typeof toList>[0]);
+      expect(list.visibility).toBe(visibility);
+    }
+  });
+});
+
+describe("toListItem mapper", () => {
+  const now = new Date();
+
+  it("maps a shelfItem row to a ListItem domain object", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000020",
+      shelfId: "00000000-0000-0000-0000-000000000010",
+      bookId: "00000000-0000-0000-0000-000000000001",
+      editionId: null,
+      status: "want_to_read" as const,
+      rank: null,
+      notes: null,
+      position: 3,
+      addedAt: now,
+      updatedAt: now,
+    };
+    const item = toListItem(row as Parameters<typeof toListItem>[0]);
+    expect(item.id).toBe(row.id);
+    expect(item.listId).toBe(row.shelfId);
+    expect(item.bookId).toBe(row.bookId);
+    expect(item.position).toBe(3);
+    expect(item.addedAt).toBe(now);
+  });
+
+  it("defaults position to 0 when null", () => {
+    const row = {
+      id: "00000000-0000-0000-0000-000000000020",
+      shelfId: "00000000-0000-0000-0000-000000000010",
+      bookId: "00000000-0000-0000-0000-000000000001",
+      editionId: null,
+      status: "want_to_read" as const,
+      rank: null,
+      notes: null,
+      position: null,
+      addedAt: now,
+      updatedAt: now,
+    };
+    const item = toListItem(row as Parameters<typeof toListItem>[0]);
+    expect(item.position).toBe(0);
   });
 });
