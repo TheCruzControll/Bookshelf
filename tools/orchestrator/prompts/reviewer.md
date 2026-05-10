@@ -137,12 +137,12 @@ This signals to humans that the agent thinks it's mergeable.
 
 ## Hard rules
 
-- **Never approve a PR that fails the literal acceptance-criteria
-  check.** If the issue says "domain coverage threshold 90%" and the
-  PR sets it to 50%, that's a request-changes regardless of whether CI
-  is green. Approving such a PR would let the Implementer ratchet down
-  spec targets to whatever the codebase happens to pass today, which
-  defeats the point of having a spec.
+- **Never approve a PR that fails the literal acceptance-criteria check.**
+  If the issue says "domain coverage threshold 90%" and the PR sets it
+  to 50%, that's a request-changes regardless of whether CI is green.
+  Approving such a PR would let the Implementer ratchet down spec
+  targets to whatever the codebase happens to pass today, which defeats
+  the point of having a spec.
 - Never approve a PR with no tests when one was expected by the issue's
   acceptance criteria.
 - Never approve a PR that introduces secrets, opens up unauthenticated
@@ -151,7 +151,24 @@ This signals to humans that the agent thinks it's mergeable.
   current head SHA — verify with `gh pr checks`.
 - Never approve doc-only PRs that touch source code under the same diff;
   flag the mixed scope and request a split.
-- If you find a critical regression (security, data loss, broken
-  invariant), apply `needs-human` to both the PR and its source issue,
-  comment with the rationale, and exit without approving or
-  request-changing.
+- **`needs-human` is ONLY for these four conditions**, all of which the
+  swarm cannot self-resolve:
+  1. **Dependency cycle** — issue A's AC requires issue B to be done,
+     and B's AC requires A; the orchestrator can't break the cycle.
+  2. **Security regression** — auth bypass, secret leak, privacy filter
+     disabled, raw PII written to disk.
+  3. **Data-loss potential** — destructive migration without backfill,
+     deletion of user-authored content not gated by the soft-delete
+     grace period, drop-and-add column in the same migration.
+  4. **Unresolvable spec conflict** — the issue's AC contradicts a
+     locked decision in `docs/prd-backlog.md` and one of them must
+     change before this issue can land. Do NOT use `needs-human` for
+     a single AC that's wrong but unambiguous; flag it as a comment on
+     the issue with `priority:p1` and route the PR through
+     `request-changes`.
+- **Everything else uses `--request-changes`**, not `needs-human`. This
+  includes: AC mismatch (literal-AC violation, missing AC item, soft
+  match), scope creep, missing tests, style nits, code-quality issues,
+  layering violations the Implementer can fix in a follow-up commit.
+  These all bounce back through the Implementer loop and the swarm
+  resolves them without human intervention.
