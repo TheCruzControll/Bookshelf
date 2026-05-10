@@ -2,6 +2,7 @@ import type {
   ActivityEvent,
   Block,
   Book,
+  BookSearchResult,
   ContactsHash,
   Edition,
   EntityId,
@@ -335,4 +336,9 @@ export interface AppRepositories {
 
 export interface BlockFilter {
   removeBlocked<T extends { id: EntityId }>(viewerId: EntityId, items: T[]): Promise<T[]>;
+}
+
+export interface CatalogProvider {
+  search(query: string, limit: number): Promise<BookSearchResult[]>;
+  lookupByIsbn(isbn: string): Promise<BookSearchResult | null>;
 }

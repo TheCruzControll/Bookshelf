@@ -319,3 +319,22 @@ export interface HandleHistory {
   retiredAt: Date;
   expiresAt: Date;
 }
+
+export type CatalogSource = "open_library" | "google_books";
+
+export interface BookSearchResult {
+  source: CatalogSource;
+  sourceKey: string;
+  title: string;
+  subtitle?: string | undefined;
+  authors: string[];
+  description?: string | undefined;
+  coverUrl?: string | undefined;
+  firstPublishedYear?: number | undefined;
+  publisher?: string | undefined;
+  publishedDate?: string | undefined;
+  pageCount?: number | undefined;
+  isbn10?: string | undefined;
+  isbn13?: string | undefined;
+  genres?: string[] | undefined;
+}
