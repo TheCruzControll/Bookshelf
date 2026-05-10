@@ -14,7 +14,7 @@
 **Profile:**
 - `profile.checkHandle(handle)` — validate handle availability
 - `profile.setHandle(handle)` — set a user's handle (idempotent)
-- `profile.createProfile(handle, displayName, defaultVisibility)` — create profile and auto-seed four system shelves (Reading, Want to Read, Finished, Dropped) with PRD-spec visibility defaults
+- `profile.createProfile(handle, displayName)` — create profile and auto-seed four system shelves (Reading, Want to Read, Finished, Dropped) with PRD-spec visibility defaults. Default visibility for all content types is always set to `POSTURE_C_DEFAULTS` on the server; clients cannot override.
 
 **Shelf:**
 - `shelf.update(id, version, name?, visibility?, description?)` — update shelf metadata with optimistic locking (version must match current; stale version returns 409)

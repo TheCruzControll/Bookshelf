@@ -58,6 +58,8 @@ delivered only to followers. Mutuals see whatever Maya has gated to mutuals.
 | Current reading status (specific book) | `followers` |
 | Activity stream (feed events) | `followers` (never on the public profile) |
 
+**Implementation note:** As of PR #329, the canonical defaults are implemented as `POSTURE_C_DEFAULTS` constant in `@hone/domain/src/services.ts` and enforced server-side in `profile.createProfile`. Clients cannot override these defaults.
+
 **Inheritance rule.** A feed event's effective visibility is the *tighter* of
 its own default (`followers`) and the underlying content's setting. Feed
 events never loosen above `followers`.
