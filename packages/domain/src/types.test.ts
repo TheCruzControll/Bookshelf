@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
+import fc from "fast-check";
 import type {
   Block,
   Book,
+  BookSearchResult,
+  CatalogSource,
   ContactsHash,
   ContentType,
   Follow,
@@ -78,6 +81,24 @@ type _BlockHasRequiredFields = Assert<
   >
 >;
 
+type _CatalogSourceIsExhaustive = Assert<
+  IsExact<CatalogSource, "open_library" | "google_books">
+>;
+
+type _BookSearchResultHasSource = Assert<
+  IsExact<BookSearchResult["source"], CatalogSource>
+>;
+
+type _BookSearchResultHasRequiredFields = Assert<
+  "title" extends keyof BookSearchResult
+    ? "authors" extends keyof BookSearchResult
+      ? "sourceKey" extends keyof BookSearchResult
+        ? true
+        : false
+      : false
+    : false
+>;
+
 export type {
   _VisibilityIsFourTier,
   _ContentTypeCoversAllItems,
@@ -87,6 +108,9 @@ export type {
   _NotificationPlatformIsExhaustive,
   _FollowHasRequiredFields,
   _BlockHasRequiredFields,
+  _CatalogSourceIsExhaustive,
+  _BookSearchResultHasSource,
+  _BookSearchResultHasRequiredFields,
 };
 
 // Runtime smoke tests against the same types.
@@ -264,5 +288,103 @@ describe("domain types smoke test", () => {
   it("NotificationPlatform accepts apns and fcm", () => {
     const values: NotificationPlatform[] = ["apns", "fcm"];
     expect(values).toHaveLength(2);
+  });
+
+  it("CatalogSource accepts open_library and google_books", () => {
+    const values: CatalogSource[] = ["open_library", "google_books"];
+    expect(values).toHaveLength(2);
+  });
+
+  it("BookSearchResult shape is structurally valid for open_library source", () => {
+    const result: BookSearchResult = {
+      source: "open_library",
+      sourceKey: "/works/OL45804W",
+      title: "The Lord of the Rings",
+      authors: ["J.R.R. Tolkien"],
+      firstPublishedYear: 1954,
+      isbn13: "9780618640157",
+    };
+    expect(result.source).toBe("open_library");
+    expect(result.sourceKey).toBe("/works/OL45804W");
+    expect(result.authors).toHaveLength(1);
+  });
+
+  it("BookSearchResult shape is structurally valid for google_books source", () => {
+    const result: BookSearchResult = {
+      source: "google_books",
+      sourceKey: "zyTCAlFPjgYC",
+      title: "The Hitchhiker's Guide to the Galaxy",
+      authors: ["Douglas Adams"],
+      publisher: "Pan Books",
+      publishedDate: "1979-10-12",
+      pageCount: 224,
+      isbn13: "9780330258648",
+      isbn10: "0330258648",
+    };
+    expect(result.source).toBe("google_books");
+    expect(result.pageCount).toBe(224);
+    expect(result.isbn10).toBeDefined();
+  });
+
+  it("BookSearchResult authors field is always an array", () => {
+    const single: BookSearchResult = {
+      source: "open_library",
+      sourceKey: "/works/OL1W",
+      title: "Solo Author Book",
+      authors: ["Solo Author"],
+    };
+    const multi: BookSearchResult = {
+      source: "google_books",
+      sourceKey: "abc123",
+      title: "Co-authored Book",
+      authors: ["Author One", "Author Two"],
+    };
+    expect(Array.isArray(single.authors)).toBe(true);
+    expect(Array.isArray(multi.authors)).toBe(true);
+    expect(multi.authors).toHaveLength(2);
+  });
+});
+
+describe("BookSearchResult property tests", () => {
+  const catalogSourceArb = fc.constantFrom<CatalogSource>(
+    "open_library",
+    "google_books"
+  );
+
+  const bookSearchResultArb = fc.record({
+    source: catalogSourceArb,
+    sourceKey: fc.string({ minLength: 1 }),
+    title: fc.string({ minLength: 1 }),
+    authors: fc.array(fc.string({ minLength: 1 }), { minLength: 1 }),
+    isbn13: fc.option(fc.stringMatching(/^\d{13}$/), { nil: undefined }),
+    isbn10: fc.option(fc.stringMatching(/^\d{10}$/), { nil: undefined }),
+    firstPublishedYear: fc.option(
+      fc.integer({ min: 1000, max: 2100 }),
+      { nil: undefined }
+    ),
+  });
+
+  it("source is always one of the two valid catalog providers", () => {
+    fc.assert(
+      fc.property(bookSearchResultArb, (result) => {
+        return result.source === "open_library" || result.source === "google_books";
+      })
+    );
+  });
+
+  it("authors is always a non-empty array", () => {
+    fc.assert(
+      fc.property(bookSearchResultArb, (result) => {
+        return Array.isArray(result.authors) && result.authors.length >= 1;
+      })
+    );
+  });
+
+  it("title and sourceKey are always non-empty strings", () => {
+    fc.assert(
+      fc.property(bookSearchResultArb, (result) => {
+        return result.title.length > 0 && result.sourceKey.length > 0;
+      })
+    );
   });
 });

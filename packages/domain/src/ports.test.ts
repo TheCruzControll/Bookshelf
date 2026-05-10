@@ -3,6 +3,7 @@ import type {
   AppRepositories,
   AuthIdentityRepository,
   BlockRepository,
+  CatalogProvider,
   ContactsRepository,
   FollowRepository,
   ImportRepository,
@@ -85,6 +86,9 @@ type _AuthIdentityRepositoryHasListByProfile = Assert<HasKey<AuthIdentityReposit
 
 type _ShelfRepositoryHasCreateSystemShelves = Assert<HasKey<ShelfRepository, "createSystemShelves">>;
 
+type _CatalogProviderHasSearch = Assert<HasKey<CatalogProvider, "search">>;
+type _CatalogProviderHasLookupByIsbn = Assert<HasKey<CatalogProvider, "lookupByIsbn">>;
+
 export type {
   _AppRepositoriesHasFollows,
   _AppRepositoriesHasBlocks,
@@ -144,6 +148,8 @@ export type {
   _AuthIdentityRepositoryHasFindByProvider,
   _AuthIdentityRepositoryHasListByProfile,
   _ShelfRepositoryHasCreateSystemShelves,
+  _CatalogProviderHasSearch,
+  _CatalogProviderHasLookupByIsbn,
 };
 
 describe("ports structural smoke tests", () => {
@@ -172,5 +178,10 @@ describe("ports structural smoke tests", () => {
       "recommendations",
     ];
     expect(keys).toHaveLength(6);
+  });
+
+  it("CatalogProvider has search and lookupByIsbn methods", () => {
+    const methods: (keyof CatalogProvider)[] = ["search", "lookupByIsbn"];
+    expect(methods).toHaveLength(2);
   });
 });
