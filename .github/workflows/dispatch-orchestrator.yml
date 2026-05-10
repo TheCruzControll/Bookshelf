@@ -1,0 +1,29 @@
+name: dispatch-orchestrator
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "0 * * * *" # Hourly fallback
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  dispatch:
+    if: >
+      github.event_name == 'schedule' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Claude Code orchestrator
+        run: |
+          echo "::notice::Orchestrator triggered by ${{ github.event_name }}"
+          echo "Merged PR: ${{ github.event.pull_request.number || 'N/A (scheduled)' }}"
+          # Claude Code remote trigger via API
+          # This will be replaced with the actual remote trigger endpoint
+          # once /schedule is configured. For now, this logs the event
+          # and the scheduled Claude Code routine handles the actual work.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
