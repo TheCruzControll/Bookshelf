@@ -1,0 +1,28 @@
+name: dispatch-reviewer
+
+on:
+  check_suite:
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  dispatch:
+    if: >
+      github.event.check_suite.conclusion == 'success' &&
+      github.event.check_suite.pull_requests[0] != null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Claude Code reviewer
+        run: |
+          PR_NUMBER="${{ github.event.check_suite.pull_requests[0].number }}"
+          echo "::notice::Reviewer triggered for PR #${PR_NUMBER}"
+          # Claude Code remote trigger via API
+          # This will be replaced with the actual remote trigger endpoint
+          # once /schedule is configured. For now, this logs the event
+          # and the scheduled Claude Code routine handles review on its next pass.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
