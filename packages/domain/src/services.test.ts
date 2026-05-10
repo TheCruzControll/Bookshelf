@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
+import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify } from "./services";
-import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository, RankingRepository, AuthIdentityRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository } from "./ports";
-import type { Profile, Ranking, Review, Shelf, ShelfItem } from "./types";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify } from "./services";
+import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, FollowRepository, ListRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository } from "./ports";
+import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem } from "./types";
 
 function makeShelfItem(overrides?: Partial<ShelfItem>): ShelfItem {
   const now = new Date();
@@ -256,7 +257,7 @@ describe("AppServices", () => {
       activity: { append: vi.fn(), getFriendFeed: vi.fn() },
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
-      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), isBlocked: vi.fn() },
+      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
       imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
@@ -857,5 +858,371 @@ describe("AuthService – Google", () => {
       "com.hone.app"
     );
     await expect(service.googleSignIn("any.token.here")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+  });
+});
+
+function makeBlockRepo(outgoing: Block[] = [], incoming: Block[] = []): BlockRepository {
+  return {
+    block: vi.fn(),
+    unblock: vi.fn(),
+    findBlock: vi.fn(),
+    listBlockedByUser: vi.fn().mockResolvedValue(outgoing),
+    listBlockingUser: vi.fn().mockResolvedValue(incoming),
+    isBlocked: vi.fn(),
+  };
+}
+
+function makeBlock(blockerId: string, blockedId: string): Block {
+  return { id: `block-${blockerId}-${blockedId}`, blockerId, blockedId, createdAt: new Date() };
+}
+
+function makeFollow(followerId: string, followeeId: string): Follow {
+  return { id: `follow-${followerId}-${followeeId}`, followerId, followeeId, createdAt: new Date() };
+}
+
+function makeList(ownerId: string): List {
+  const now = new Date();
+  return { id: `list-${ownerId}`, ownerId, title: "My List", visibility: "public", createdAt: now, updatedAt: now };
+}
+
+function makeFeedItem(actorId: string): FeedItem {
+  const now = new Date();
+  return {
+    event: { id: `evt-${actorId}`, actorId, verb: "book_finished", visibility: "followers", occurredAt: now },
+    actor: makeProfile({ id: actorId }),
+  };
+}
+
+describe("BlockService", () => {
+  it("removeBlocked returns all items when no blocks exist", async () => {
+    const blockRepo = makeBlockRepo([], []);
+    const service = new BlockService(blockRepo);
+    const profiles = [makeProfile({ id: "u1" }), makeProfile({ id: "u2" })];
+    const result = await service.removeBlocked("viewer", profiles);
+    expect(result).toHaveLength(2);
+  });
+
+  it("removeBlocked removes item whose id matches an outgoing blocked user", async () => {
+    const blockRepo = makeBlockRepo([makeBlock("viewer", "u2")], []);
+    const service = new BlockService(blockRepo);
+    const profiles = [makeProfile({ id: "u1" }), makeProfile({ id: "u2" })];
+    const result = await service.removeBlocked("viewer", profiles);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe("u1");
+  });
+
+  it("removeBlocked removes item whose id matches an incoming block (user who blocked viewer)", async () => {
+    const blockRepo = makeBlockRepo([], [makeBlock("u2", "viewer")]);
+    const service = new BlockService(blockRepo);
+    const profiles = [makeProfile({ id: "u1" }), makeProfile({ id: "u2" })];
+    const result = await service.removeBlocked("viewer", profiles);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe("u1");
+  });
+
+  it("removeBlocked returns empty list immediately without querying when items is empty", async () => {
+    const blockRepo = makeBlockRepo();
+    const service = new BlockService(blockRepo);
+    const result = await service.removeBlocked("viewer", []);
+    expect(blockRepo.listBlockedByUser).not.toHaveBeenCalled();
+    expect(result).toHaveLength(0);
+  });
+
+  it("removeBlockedFeedItems removes feed items from blocked actors", async () => {
+    const blockRepo = makeBlockRepo([makeBlock("viewer", "actor-blocked")], []);
+    const service = new BlockService(blockRepo);
+    const items = [makeFeedItem("actor-ok"), makeFeedItem("actor-blocked")];
+    const result = await service.removeBlockedFeedItems("viewer", items);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.event.actorId).toBe("actor-ok");
+  });
+
+  it("removeBlockedFeedItems removes feed items from actors who blocked the viewer", async () => {
+    const blockRepo = makeBlockRepo([], [makeBlock("actor-blocked", "viewer")]);
+    const service = new BlockService(blockRepo);
+    const items = [makeFeedItem("actor-ok"), makeFeedItem("actor-blocked")];
+    const result = await service.removeBlockedFeedItems("viewer", items);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.event.actorId).toBe("actor-ok");
+  });
+
+  it("removeBlockedFollows filters out blocked follower by followerId", async () => {
+    const blockRepo = makeBlockRepo([makeBlock("viewer", "u-blocked")], []);
+    const service = new BlockService(blockRepo);
+    const follows = [makeFollow("u-ok", "viewer"), makeFollow("u-blocked", "viewer")];
+    const result = await service.removeBlockedFollows("viewer", follows, (f) => f.followerId);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.followerId).toBe("u-ok");
+  });
+
+  it("removeBlockedFollows filters out blocked followee by followeeId", async () => {
+    const blockRepo = makeBlockRepo([makeBlock("viewer", "u-blocked")], []);
+    const service = new BlockService(blockRepo);
+    const follows = [makeFollow("viewer", "u-ok"), makeFollow("viewer", "u-blocked")];
+    const result = await service.removeBlockedFollows("viewer", follows, (f) => f.followeeId);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.followeeId).toBe("u-ok");
+  });
+
+  it("removeBlockedLists filters lists from blocked owners", async () => {
+    const blockRepo = makeBlockRepo([makeBlock("viewer", "owner-blocked")], []);
+    const service = new BlockService(blockRepo);
+    const lists = [makeList("owner-ok"), makeList("owner-blocked")];
+    const result = await service.removeBlockedLists("viewer", lists);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.ownerId).toBe("owner-ok");
+  });
+
+  it("removeBlockedIds filters blocked user ids", async () => {
+    const blockRepo = makeBlockRepo([makeBlock("viewer", "u-blocked")], []);
+    const service = new BlockService(blockRepo);
+    const ids = ["u-ok", "u-blocked"];
+    const result = await service.removeBlockedIds("viewer", ids);
+    expect(result).toEqual(["u-ok"]);
+  });
+
+  it("Property: blocked users never appear in removeBlocked results", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(fc.uuid(), { minLength: 1, maxLength: 10 }),
+        fc.array(fc.uuid(), { minLength: 1, maxLength: 10 }),
+        fc.uuid(),
+        async (outgoingIds, incomingIds, viewerId) => {
+          const outgoing = outgoingIds.map((id) => makeBlock(viewerId, id));
+          const incoming = incomingIds.map((id) => makeBlock(id, viewerId));
+          const allBlockedIds = new Set([...outgoingIds, ...incomingIds]);
+
+          const blockRepo = makeBlockRepo(outgoing, incoming);
+          const service = new BlockService(blockRepo);
+
+          const items = [...outgoingIds, ...incomingIds].map((id) => makeProfile({ id }));
+          const result = await service.removeBlocked(viewerId, items);
+
+          return result.every((item) => !allBlockedIds.has(item.id));
+        }
+      )
+    );
+  });
+
+  it("Property: blocked actor ids never appear in removeBlockedFeedItems results", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(fc.uuid(), { minLength: 1, maxLength: 5 }),
+        fc.uuid(),
+        async (blockedActorIds, viewerId) => {
+          const outgoing = blockedActorIds.map((id) => makeBlock(viewerId, id));
+          const blockRepo = makeBlockRepo(outgoing, []);
+          const service = new BlockService(blockRepo);
+
+          const items = blockedActorIds.map((id) => makeFeedItem(id));
+          const result = await service.removeBlockedFeedItems(viewerId, items);
+
+          return result.length === 0;
+        }
+      )
+    );
+  });
+});
+
+describe("SocialService", () => {
+  function makeFollowRepo(followers: Follow[] = [], following: Follow[] = []): FollowRepository {
+    return {
+      follow: vi.fn(),
+      unfollow: vi.fn(),
+      findFollow: vi.fn(),
+      listFollowers: vi.fn().mockResolvedValue(followers),
+      listFollowing: vi.fn().mockResolvedValue(following),
+      isMutual: vi.fn(),
+    };
+  }
+
+  function makeContactsRepo(matches: string[] = []): ContactsRepository {
+    return {
+      upsertHashes: vi.fn(),
+      findMatches: vi.fn().mockResolvedValue(matches),
+      deleteForUser: vi.fn(),
+      deleteExpired: vi.fn(),
+      listByUser: vi.fn(),
+    };
+  }
+
+  function makeRecsRepo(recs: Recommendation[] = []): RecommendationRepository {
+    return {
+      getForUser: vi.fn().mockResolvedValue(recs),
+    };
+  }
+
+  function makeActivityRepo(feedItems: FeedItem[] = []): ActivityRepository {
+    return {
+      append: vi.fn(),
+      getFriendFeed: vi.fn().mockResolvedValue(feedItems),
+    };
+  }
+
+  function makeProfilesRepo(profile: Profile | null = null): ProfileRepository {
+    return {
+      findById: vi.fn(),
+      findByHandle: vi.fn().mockResolvedValue(profile),
+      create: vi.fn(),
+      isHandleTaken: vi.fn(),
+      setHandle: vi.fn(),
+    };
+  }
+
+  function makeListsRepo(lists: List[] = []): ListRepository {
+    return {
+      create: vi.fn(),
+      findById: vi.fn(),
+      listByOwner: vi.fn().mockResolvedValue(lists),
+      update: vi.fn(),
+      delete: vi.fn(),
+      addItem: vi.fn(),
+      removeItem: vi.fn(),
+      listItems: vi.fn(),
+      reorderItems: vi.fn(),
+    };
+  }
+
+  function makeSocialService(opts: {
+    followers?: Follow[];
+    following?: Follow[];
+    outgoing?: Block[];
+    incoming?: Block[];
+    contactMatches?: string[];
+    feedItems?: FeedItem[];
+    profile?: Profile | null;
+    lists?: List[];
+    recs?: Recommendation[];
+  } = {}) {
+    return new SocialService(
+      makeFollowRepo(opts.followers, opts.following),
+      makeBlockRepo(opts.outgoing ?? [], opts.incoming ?? []),
+      makeContactsRepo(opts.contactMatches ?? []),
+      makeRecsRepo(opts.recs ?? []),
+      makeActivityRepo(opts.feedItems ?? []),
+      makeProfilesRepo(opts.profile ?? null),
+      makeListsRepo(opts.lists ?? []),
+    );
+  }
+
+  it("listFollowers removes blocked followers", async () => {
+    const service = makeSocialService({
+      followers: [makeFollow("u-ok", "owner"), makeFollow("u-blocked", "owner")],
+      outgoing: [makeBlock("viewer", "u-blocked")],
+    });
+    const result = await service.listFollowers("owner", "viewer");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.followerId).toBe("u-ok");
+  });
+
+  it("listFollowers removes followers who blocked the viewer", async () => {
+    const service = makeSocialService({
+      followers: [makeFollow("u-ok", "owner"), makeFollow("u-blocked", "owner")],
+      incoming: [makeBlock("u-blocked", "viewer")],
+    });
+    const result = await service.listFollowers("owner", "viewer");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.followerId).toBe("u-ok");
+  });
+
+  it("listFollowing removes blocked followees", async () => {
+    const service = makeSocialService({
+      following: [makeFollow("viewer", "u-ok"), makeFollow("viewer", "u-blocked")],
+      outgoing: [makeBlock("viewer", "u-blocked")],
+    });
+    const result = await service.listFollowing("viewer", "viewer");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.followeeId).toBe("u-ok");
+  });
+
+  it("findContactMatches removes blocked user ids from matches", async () => {
+    const service = makeSocialService({
+      contactMatches: ["u-ok", "u-blocked"],
+      outgoing: [makeBlock("viewer", "u-blocked")],
+    });
+    const result = await service.findContactMatches({ hashes: ["h1", "h2"], viewerId: "viewer" });
+    expect(result).toEqual(["u-ok"]);
+  });
+
+  it("findContactMatches removes contacts who blocked the viewer", async () => {
+    const service = makeSocialService({
+      contactMatches: ["u-ok", "u-blocked"],
+      incoming: [makeBlock("u-blocked", "viewer")],
+    });
+    const result = await service.findContactMatches({ hashes: ["h1"], viewerId: "viewer" });
+    expect(result).toEqual(["u-ok"]);
+  });
+
+  it("getFriendFeed removes feed items from blocked actors", async () => {
+    const service = makeSocialService({
+      feedItems: [makeFeedItem("u-ok"), makeFeedItem("u-blocked")],
+      outgoing: [makeBlock("viewer", "u-blocked")],
+    });
+    const result = await service.getFriendFeed({ viewerId: "viewer", limit: 20 });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.event.actorId).toBe("u-ok");
+  });
+
+  it("getFriendFeed removes feed items from actors who blocked the viewer", async () => {
+    const service = makeSocialService({
+      feedItems: [makeFeedItem("u-ok"), makeFeedItem("u-blocked")],
+      incoming: [makeBlock("u-blocked", "viewer")],
+    });
+    const result = await service.getFriendFeed({ viewerId: "viewer", limit: 20 });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.event.actorId).toBe("u-ok");
+  });
+
+  it("searchProfiles returns null when handle not found", async () => {
+    const service = makeSocialService({ profile: null });
+    const result = await service.searchProfiles("unknown", "viewer");
+    expect(result).toBeNull();
+  });
+
+  it("searchProfiles returns null when the found profile is blocked", async () => {
+    const profile = makeProfile({ id: "u-blocked" });
+    const service = makeSocialService({
+      profile,
+      outgoing: [makeBlock("viewer", "u-blocked")],
+    });
+    const result = await service.searchProfiles("u-blocked", "viewer");
+    expect(result).toBeNull();
+  });
+
+  it("searchProfiles returns null when found profile has blocked the viewer", async () => {
+    const profile = makeProfile({ id: "u-blocked" });
+    const service = makeSocialService({
+      profile,
+      incoming: [makeBlock("u-blocked", "viewer")],
+    });
+    const result = await service.searchProfiles("u-blocked", "viewer");
+    expect(result).toBeNull();
+  });
+
+  it("searchProfiles returns profile when no block relationship exists", async () => {
+    const profile = makeProfile({ id: "u-ok" });
+    const service = makeSocialService({ profile });
+    const result = await service.searchProfiles("u-ok", "viewer");
+    expect(result).toEqual(profile);
+  });
+
+  it("discoverLists removes lists from blocked owners", async () => {
+    const service = makeSocialService({
+      lists: [makeList("owner-ok"), makeList("owner-blocked")],
+      outgoing: [makeBlock("viewer", "owner-blocked")],
+    });
+    const result = await service.discoverLists("any", "viewer");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.ownerId).toBe("owner-ok");
+  });
+
+  it("discoverLists removes lists from owners who blocked the viewer", async () => {
+    const service = makeSocialService({
+      lists: [makeList("owner-ok"), makeList("owner-blocked")],
+      incoming: [makeBlock("owner-blocked", "viewer")],
+    });
+    const result = await service.discoverLists("any", "viewer");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.ownerId).toBe("owner-ok");
   });
 });

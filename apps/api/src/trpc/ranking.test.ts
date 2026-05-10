@@ -52,7 +52,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     activity: { append: vi.fn(), getFriendFeed: vi.fn() },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
-    blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), isBlocked: vi.fn() },
+    blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
     rankings: {
       upsert: vi.fn(),
       findById: vi.fn(),
