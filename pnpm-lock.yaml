@@ -203,6 +203,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.0
         version: 0.31.10
+      testcontainers:
+        specifier: ^10.0.0
+        version: 10.28.0
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
