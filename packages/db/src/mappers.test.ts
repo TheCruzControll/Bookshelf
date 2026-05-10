@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting, toHandleHistory, toFollow, toList, toListItem } from "./mappers";
 import type { ContentType, Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { POSTURE_C_DEFAULTS } from "@hone/domain";
-import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, notificationSettings, notificationTokens, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
+import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
 describe("db mappers smoke test", () => {
   it("toBook maps a row to a Book domain object", () => {
