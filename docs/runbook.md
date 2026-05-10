@@ -170,6 +170,18 @@ Migration `0002_follows_replace_friendships` is a destructive schema migration t
 
 This migration is not backward-compatible with code written for the old `friendships` table. Rollback requires database restore.
 
+#### Example: Migration 0013 (blocks, sessions, auth, account deletion)
+
+Migration `0013_blocks_sessions_auth` is an additive schema migration that:
+- Creates `blocks` table with `blocker_id`, `blocked_id`, `created_at` and indexes for query performance
+- Creates `blocks_against_hash` table for hash-based block enforcement across account re-signups (90-day retention)
+- Creates `auth_identities` table for OAuth provider linking (Apple, Google)
+- Creates `sessions` table for session token management with expiry and revocation tracking
+- Creates `account_deletions` table for tracking soft-delete grace periods and hard-delete scheduling
+- Adds three new columns to `activity_events`: `score_at_publish`, `score_locked_at_publish`, `group_key` for ranking and feed-grouping features
+
+**Backward compatibility:** entirely additive. Old client code ignores the new tables and columns. No server-side rollback needed.
+
 ### Rollback
 
 See Section 2 — Rollback (with schema change).
