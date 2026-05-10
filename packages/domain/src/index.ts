@@ -1,5 +1,6 @@
 export * from "./affiliate";
 export * from "./candidate";
+// contact-hash uses node:crypto — server-only, import from "@hone/domain/contact-hash"
 // goodreads uses node:crypto — server-only, import from "@hone/domain/goodreads"
 export * from "./isbn";
 export * from "./lww";
