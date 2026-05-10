@@ -1,3 +1,34 @@
+/**
+ * repositories.ts — SQL adapters implementing every repository port from @hone/domain.
+ *
+ * Visibility filtering
+ * --------------------
+ * Every read that returns user-owned content MUST pass the results through
+ * `applyVisibilityFilter` from `@hone/domain` before returning them to the caller:
+ *
+ *   import { applyVisibilityFilter } from "@hone/domain";
+ *
+ *   const items = await db.select()...;
+ *   return applyVisibilityFilter(viewerCtx, items);
+ *
+ * `viewerCtx` is a `ViewerCtx` object carrying the viewer's id and their
+ * relationship to the content owner ("self" | "mutual" | "follower" | "none").
+ * Pass `{ viewerId: null, relationship: "none" }` for anonymous / unauthenticated
+ * callers.
+ *
+ * Block enforcement
+ * -----------------
+ * After applying the visibility filter, pipe the surviving items through the
+ * `BlockFilter` port to strip any content from users the viewer has blocked or
+ * who have blocked the viewer:
+ *
+ *   const visible = applyVisibilityFilter(viewerCtx, items);
+ *   return blockFilter.removeBlocked(viewerCtx.viewerId, visible);
+ *
+ * This two-step composition (visibility → block) must be applied on every
+ * surface that returns content attributed to another user: shelves, reviews,
+ * activity feed, rankings, lists, and search results.
+ */
 import { and, asc, desc, eq, gt, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import type {
   ActivityRepository,
