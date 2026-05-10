@@ -5,6 +5,8 @@ import {
   CheckHandleOutputSchema,
   CreateProfileInputSchema,
   CreateProfileOutputSchema,
+  ResolveOldHandleInputSchema,
+  ResolveOldHandleOutputSchema,
   SetHandleInputSchema,
   SetHandleOutputSchema,
 } from "@hone/domain";
@@ -73,5 +75,18 @@ export const profileRouter = router({
         displayName: input.displayName,
         defaultVisibility: input.defaultVisibility,
       });
+    }),
+
+  resolveOldHandle: publicProcedure
+    .input(ResolveOldHandleInputSchema)
+    .output(ResolveOldHandleOutputSchema)
+    .query(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      const services = new AppServices(ctx.repositories, {
+        getCurrentIdentity: async () => null,
+      });
+      return services.handles.resolveOldHandle(input.handle);
     }),
 });

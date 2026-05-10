@@ -553,3 +553,23 @@ export const notificationSettings = pgTable(
     profileIdx: index("notification_settings_profile_idx").on(table.profileId)
   })
 );
+
+export const handleHistory = pgTable(
+  "handle_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id),
+    oldHandle: text("old_handle").notNull(),
+    retiredAt: timestamp("retired_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    oldHandleIdx: index("handle_history_old_handle_idx").on(table.oldHandle),
+    profileIdx: index("handle_history_profile_idx").on(table.profileId),
+    expiresAtIdx: index("handle_history_expires_at_idx").on(table.expiresAt)
+  })
+);

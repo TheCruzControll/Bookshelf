@@ -7,6 +7,7 @@ import type {
   ContactIndex,
   Edition,
   EmailIndex,
+  HandleHistory,
   Import,
   NotificationSetting,
   NotificationToken,
@@ -30,6 +31,7 @@ import type {
   contactsIndex,
   editions,
   emailIndex,
+  handleHistory,
   imports,
   notificationSettings,
   notificationTokens,
@@ -63,6 +65,7 @@ type RankingRow = typeof rankings.$inferSelect;
 type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
 type SessionRow = typeof sessions.$inferSelect;
+type HandleHistoryRow = typeof handleHistory.$inferSelect;
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
@@ -288,5 +291,15 @@ export function toNotificationSetting(row: NotificationSettingRow): Notification
     profileId: row.profileId,
     key: row.key,
     value: row.value
+  };
+}
+
+export function toHandleHistory(row: HandleHistoryRow): HandleHistory {
+  return {
+    id: row.id,
+    profileId: row.profileId,
+    oldHandle: row.oldHandle,
+    retiredAt: row.retiredAt,
+    expiresAt: row.expiresAt
   };
 }

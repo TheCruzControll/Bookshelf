@@ -3,7 +3,7 @@ import rootConfig from "../../vitest.config";
 
 export default mergeConfig(rootConfig, defineConfig({
   test: {
-    include: ["app/**/*.test.ts", "app/**/*.test.tsx"],
+    include: ["app/**/*.test.ts", "app/**/*.test.tsx", "*.test.ts"],
     passWithNoTests: true,
     coverage: {
       include: ["app/**/*.ts", "app/**/*.tsx"],
