@@ -7,8 +7,11 @@ import type {
   ContactIndex,
   Edition,
   EmailIndex,
+  Follow,
   HandleHistory,
   Import,
+  List,
+  ListItem,
   NotificationSetting,
   NotificationToken,
   OAuthIdentity,
@@ -31,6 +34,7 @@ import type {
   contactsIndex,
   editions,
   emailIndex,
+  follows,
   handleHistory,
   imports,
   notificationSettings,
@@ -46,6 +50,7 @@ import type {
 } from "./schema";
 
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
+type FollowRow = typeof follows.$inferSelect;
 type ContactIndexRow = typeof contactsIndex.$inferSelect;
 type EmailIndexRow = typeof emailIndex.$inferSelect;
 type NotificationTokenRow = typeof notificationTokens.$inferSelect;
@@ -301,5 +306,36 @@ export function toHandleHistory(row: HandleHistoryRow): HandleHistory {
     oldHandle: row.oldHandle,
     retiredAt: row.retiredAt,
     expiresAt: row.expiresAt
+  };
+}
+
+export function toFollow(row: FollowRow): Follow {
+  return {
+    id: `${row.followerId}:${row.followeeId}`,
+    followerId: row.followerId,
+    followeeId: row.followeeId,
+    createdAt: row.createdAt
+  };
+}
+
+export function toList(row: ShelfRow): List {
+  return {
+    id: row.id,
+    ownerId: row.ownerId,
+    title: row.name,
+    description: row.description ?? undefined,
+    visibility: row.visibility,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+export function toListItem(row: ShelfItemRow): ListItem {
+  return {
+    id: row.id,
+    listId: row.shelfId,
+    bookId: row.bookId,
+    position: row.position ?? 0,
+    addedAt: row.addedAt
   };
 }
