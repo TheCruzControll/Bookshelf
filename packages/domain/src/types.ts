@@ -53,7 +53,7 @@ export interface Profile {
   displayName: string;
   bio?: string | undefined;
   avatarUrl?: string | undefined;
-  defaultVisibility: Visibility;
+  defaultVisibility: Record<ContentType, Visibility>;
   version: number;
   createdAt: Date;
   updatedAt: Date;

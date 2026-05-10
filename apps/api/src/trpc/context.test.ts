@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Hono } from "hono";
 import { createTrpcContext, type TrpcContext } from "./context";
 import type { AppRepositories, Profile, Session } from "@hone/domain";
+import { POSTURE_C_DEFAULTS } from "@hone/domain";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -20,7 +21,7 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     id: PROFILE_ID,
     handle: "testuser",
     displayName: "Test User",
-    defaultVisibility: "public",
+    defaultVisibility: POSTURE_C_DEFAULTS,
     version: 1,
     createdAt: now,
     updatedAt: now,

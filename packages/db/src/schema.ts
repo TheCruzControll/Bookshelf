@@ -57,9 +57,7 @@ export const profiles = pgTable(
     displayName: text("display_name").notNull(),
     bio: text("bio"),
     avatarUrl: text("avatar_url"),
-    defaultVisibility: visibilityEnum("default_visibility")
-      .notNull()
-      .default("public"),
+    defaultVisibility: jsonb("default_visibility").notNull(),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

@@ -15,7 +15,7 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "./ports";
-import type { EntityId, Profile, Ranking, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ContentType, EntityId, Profile, Ranking, Review, Shelf, ShelfItem, Visibility } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -29,6 +29,20 @@ export const SYSTEM_SHELVES: SystemShelfDef[] = [
   { name: "Finished", slug: "finished", visibility: "public" },
   { name: "Dropped", slug: "dropped", visibility: "followers" },
 ];
+
+export const POSTURE_C_DEFAULTS: Record<ContentType, Visibility> = {
+  identity: "public",
+  follower_list: "public",
+  review: "public",
+  score: "public",
+  finished_shelf: "public",
+  custom_shelf: "public",
+  want_to_read_shelf: "followers",
+  reading_shelf: "followers",
+  dropped_shelf: "followers",
+  reading_status: "followers",
+  activity_stream: "followers",
+};
 
 export function slugify(name: string): string {
   return name
@@ -256,7 +270,7 @@ export class ProfileService {
     id: EntityId;
     handle: string;
     displayName: string;
-    defaultVisibility: Visibility;
+    defaultVisibility: Record<ContentType, Visibility>;
   }): Promise<{ profile: Profile; shelves: Shelf[] }> {
     const profile = await this.profiles.create(input);
     const systemShelves = await this.shelves.createSystemShelves(profile.id);

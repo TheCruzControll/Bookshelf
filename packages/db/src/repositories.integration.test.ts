@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { POSTURE_C_DEFAULTS } from "@hone/domain";
 import { createDrizzleRepositories } from "./repositories";
 import { startPostgresContainer, createMigratedDb } from "./test-helpers";
 import type { StartedPostgresContainer, MigratedDb } from "./test-helpers";
@@ -42,7 +43,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
         id,
         handle: "alice",
         displayName: "Alice",
-        defaultVisibility: "public",
+        defaultVisibility: POSTURE_C_DEFAULTS,
       });
       expect(profile.id).toBe(id);
       expect(profile.handle).toBe("alice");
@@ -58,7 +59,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
         id,
         handle: "bob",
         displayName: "Bob",
-        defaultVisibility: "public",
+        defaultVisibility: POSTURE_C_DEFAULTS,
       });
       const found = await repos.profiles.findByHandle("bob");
       expect(found).not.toBeNull();
@@ -128,7 +129,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
         id: ownerId,
         handle: "shelf-owner",
         displayName: "Shelf Owner",
-        defaultVisibility: "public",
+        defaultVisibility: POSTURE_C_DEFAULTS,
       });
     });
 
@@ -218,7 +219,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
         id: authorId,
         handle: "reviewer",
         displayName: "Reviewer",
-        defaultVisibility: "public",
+        defaultVisibility: POSTURE_C_DEFAULTS,
       });
       await db.execute(
         `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${bookId}', 'Review Book', now(), now())`
@@ -276,9 +277,9 @@ describeIntegration("repository integration tests (real Postgres)", () => {
 
     beforeAll(async () => {
       await Promise.all([
-        repos.profiles.create({ id: userA, handle: "follow-a", displayName: "A", defaultVisibility: "public" }),
-        repos.profiles.create({ id: userB, handle: "follow-b", displayName: "B", defaultVisibility: "public" }),
-        repos.profiles.create({ id: userC, handle: "follow-c", displayName: "C", defaultVisibility: "public" }),
+        repos.profiles.create({ id: userA, handle: "follow-a", displayName: "A", defaultVisibility: POSTURE_C_DEFAULTS }),
+        repos.profiles.create({ id: userB, handle: "follow-b", displayName: "B", defaultVisibility: POSTURE_C_DEFAULTS }),
+        repos.profiles.create({ id: userC, handle: "follow-c", displayName: "C", defaultVisibility: POSTURE_C_DEFAULTS }),
       ]);
     });
 
@@ -332,8 +333,8 @@ describeIntegration("repository integration tests (real Postgres)", () => {
 
     beforeAll(async () => {
       await Promise.all([
-        repos.profiles.create({ id: blocker, handle: "blocker", displayName: "Blocker", defaultVisibility: "public" }),
-        repos.profiles.create({ id: blocked, handle: "blocked", displayName: "Blocked", defaultVisibility: "public" }),
+        repos.profiles.create({ id: blocker, handle: "blocker", displayName: "Blocker", defaultVisibility: POSTURE_C_DEFAULTS }),
+        repos.profiles.create({ id: blocked, handle: "blocked", displayName: "Blocked", defaultVisibility: POSTURE_C_DEFAULTS }),
       ]);
     });
 
@@ -376,7 +377,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const rankBookId = uid("700000000002");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: rankOwnerId, handle: "ranker", displayName: "Ranker", defaultVisibility: "public" });
+      await repos.profiles.create({ id: rankOwnerId, handle: "ranker", displayName: "Ranker", defaultVisibility: POSTURE_C_DEFAULTS });
       await db.execute(
         `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${rankBookId}', 'Rank Book', now(), now())`
       );
@@ -432,7 +433,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const importOwnerId = uid("800000000001");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: importOwnerId, handle: "importer", displayName: "Importer", defaultVisibility: "public" });
+      await repos.profiles.create({ id: importOwnerId, handle: "importer", displayName: "Importer", defaultVisibility: POSTURE_C_DEFAULTS });
     });
 
     it("happy: create and findById returns the import", async () => {
@@ -479,7 +480,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const contactsUserId = uid("900000000001");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: contactsUserId, handle: "contacts-user", displayName: "Contacts User", defaultVisibility: "public" });
+      await repos.profiles.create({ id: contactsUserId, handle: "contacts-user", displayName: "Contacts User", defaultVisibility: POSTURE_C_DEFAULTS });
     });
 
     it("happy: upsertHashes and findMatches returns matching users", async () => {
@@ -523,7 +524,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const authProfileId = uid("a00000000001");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: authProfileId, handle: "auth-user", displayName: "Auth User", defaultVisibility: "public" });
+      await repos.profiles.create({ id: authProfileId, handle: "auth-user", displayName: "Auth User", defaultVisibility: POSTURE_C_DEFAULTS });
     });
 
     it("happy: create and findByProvider returns the identity", async () => {
@@ -568,7 +569,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const sessionProfileId = uid("b00000000001");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: sessionProfileId, handle: "session-user", displayName: "Session User", defaultVisibility: "public" });
+      await repos.profiles.create({ id: sessionProfileId, handle: "session-user", displayName: "Session User", defaultVisibility: POSTURE_C_DEFAULTS });
     });
 
     it("happy: create and findByTokenHash returns the session", async () => {
@@ -604,7 +605,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const historyProfileId = uid("c00000000001");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: historyProfileId, handle: "handle-hist-user", displayName: "Handle Hist User", defaultVisibility: "public" });
+      await repos.profiles.create({ id: historyProfileId, handle: "handle-hist-user", displayName: "Handle Hist User", defaultVisibility: POSTURE_C_DEFAULTS });
     });
 
     it("happy: record and findCurrentByOldHandle returns the history entry", async () => {
@@ -645,7 +646,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const listBookId = uid("d00000000002");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: listOwnerId, handle: "list-owner", displayName: "List Owner", defaultVisibility: "public" });
+      await repos.profiles.create({ id: listOwnerId, handle: "list-owner", displayName: "List Owner", defaultVisibility: POSTURE_C_DEFAULTS });
       await db.execute(
         `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${listBookId}', 'List Book', now(), now())`
       );
@@ -686,7 +687,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     const notifProfileId = uid("e00000000001");
 
     beforeAll(async () => {
-      await repos.profiles.create({ id: notifProfileId, handle: "notif-user", displayName: "Notif User", defaultVisibility: "public" });
+      await repos.profiles.create({ id: notifProfileId, handle: "notif-user", displayName: "Notif User", defaultVisibility: POSTURE_C_DEFAULTS });
     });
 
     it("happy: registerToken and listTokensForProfile returns the token", async () => {
@@ -727,8 +728,8 @@ describeIntegration("repository integration tests (real Postgres)", () => {
 
     beforeAll(async () => {
       await Promise.all([
-        repos.profiles.create({ id: actorId, handle: "activity-actor", displayName: "Actor", defaultVisibility: "public" }),
-        repos.profiles.create({ id: viewerId, handle: "activity-viewer", displayName: "Viewer", defaultVisibility: "public" }),
+        repos.profiles.create({ id: actorId, handle: "activity-actor", displayName: "Actor", defaultVisibility: POSTURE_C_DEFAULTS }),
+        repos.profiles.create({ id: viewerId, handle: "activity-viewer", displayName: "Viewer", defaultVisibility: POSTURE_C_DEFAULTS }),
       ]);
       await db.execute(
         `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${activityBookId}', 'Activity Book', now(), now())`
@@ -755,7 +756,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
 
     it("failure: getFriendFeed returns empty array when user follows nobody", async () => {
       const lonelyId = uid("f00000000099");
-      await repos.profiles.create({ id: lonelyId, handle: "lonely", displayName: "Lonely", defaultVisibility: "public" });
+      await repos.profiles.create({ id: lonelyId, handle: "lonely", displayName: "Lonely", defaultVisibility: POSTURE_C_DEFAULTS });
       const feed = await repos.activity.getFriendFeed({ viewerId: lonelyId, limit: 10 });
       expect(feed).toHaveLength(0);
     });
@@ -770,7 +771,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
         id: recUserId,
         handle: "rec-user",
         displayName: "Rec User",
-        defaultVisibility: "public",
+        defaultVisibility: POSTURE_C_DEFAULTS,
       });
       await db.execute(
         `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${recBookId}', 'Rec Book', now(), now())`

@@ -48,8 +48,8 @@ type _ContentTypeCoversAllItems = Assert<
   >
 >;
 
-type _ProfileDefaultVisibilityIsVisibility = Assert<
-  IsExact<Profile["defaultVisibility"], Visibility>
+type _ProfileDefaultVisibilityIsRecordContentTypeVisibility = Assert<
+  IsExact<Profile["defaultVisibility"], Record<ContentType, Visibility>>
 >;
 
 type _ImportStatusIsExhaustive = Assert<
@@ -102,7 +102,7 @@ type _BookSearchResultHasRequiredFields = Assert<
 export type {
   _VisibilityIsFourTier,
   _ContentTypeCoversAllItems,
-  _ProfileDefaultVisibilityIsVisibility,
+  _ProfileDefaultVisibilityIsRecordContentTypeVisibility,
   _ImportStatusIsExhaustive,
   _ImportSourceIsExhaustive,
   _NotificationPlatformIsExhaustive,
@@ -137,13 +137,26 @@ describe("domain types smoke test", () => {
       id: "00000000-0000-0000-0000-000000000001",
       handle: "tester",
       displayName: "Test User",
-      defaultVisibility: "public",
+      defaultVisibility: {
+        identity: "public",
+        follower_list: "public",
+        review: "public",
+        score: "public",
+        finished_shelf: "public",
+        custom_shelf: "public",
+        want_to_read_shelf: "followers",
+        reading_shelf: "followers",
+        dropped_shelf: "followers",
+        reading_status: "followers",
+        activity_stream: "followers",
+      },
       version: 1,
       createdAt: now,
       updatedAt: now,
     };
     expect(profile.handle).toBe("tester");
-    expect(profile.defaultVisibility).toBe("public");
+    expect(profile.defaultVisibility.identity).toBe("public");
+    expect(profile.defaultVisibility.want_to_read_shelf).toBe("followers");
   });
 
   it("Book shape is structurally valid", () => {

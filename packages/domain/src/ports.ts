@@ -3,6 +3,7 @@ import type {
   Block,
   Book,
   BookSearchResult,
+  ContentType,
   ContactsHash,
   Edition,
   EntityId,
@@ -103,7 +104,7 @@ export interface ProfileRepository {
     id: EntityId;
     handle: string;
     displayName: string;
-    defaultVisibility: Visibility;
+    defaultVisibility: Record<ContentType, Visibility>;
   }): Promise<Profile>;
   isHandleTaken(handle: string): Promise<boolean>;
   setHandle(input: { userId: EntityId; handle: string }): Promise<Profile>;

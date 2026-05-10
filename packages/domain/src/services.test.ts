@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, SYSTEM_SHELVES, slugify } from "./services";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify } from "./services";
 import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository, RankingRepository, AuthIdentityRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository } from "./ports";
 import type { Profile, Ranking, Review, Shelf, ShelfItem } from "./types";
 
@@ -23,7 +23,7 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     id: "00000000-0000-0000-0000-000000000001",
     handle: "testuser",
     displayName: "Test User",
-    defaultVisibility: "public",
+    defaultVisibility: POSTURE_C_DEFAULTS,
     version: 1,
     createdAt: now,
     updatedAt: now,

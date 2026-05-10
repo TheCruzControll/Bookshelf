@@ -99,6 +99,13 @@
       "when": 1747699200000,
       "tag": "0013_blocks_sessions_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1747785600000,
+      "tag": "0014_profile_default_visibility_per_content_type",
+      "breakpoints": true
     }
   ]
 }
