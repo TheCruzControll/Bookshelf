@@ -36,6 +36,10 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_API_URL` | Yes (web app) | URL of the running API. Defaults to `http://localhost:8787` for local dev |
 | `EXPO_PUBLIC_API_URL` | Yes (native app) | URL of the running API. Use `http://localhost:8787` for local dev or your machine's LAN IP when testing on a physical device |
 | `PORT` | No | Port the API server listens on. Defaults to `8787` |
+| `APPLE_CLIENT_ID` | Only if testing Apple Sign-In | App Bundle ID from Apple Developer account (e.g., `com.hone.app`) |
+| `APPLE_TEAM_ID` | Only if testing Apple Sign-In | Team ID from Apple Developer account |
+| `APPLE_KEY_ID` | Only if testing Apple Sign-In | Key ID of the private key used to validate Apple tokens |
+| `APPLE_PRIVATE_KEY` | Only if testing Apple Sign-In | Private key for Apple token validation (format: PEM-encoded RSA key) |
 
 ## Local Database
 
