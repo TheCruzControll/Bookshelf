@@ -35,6 +35,31 @@ export interface AuthProvider {
   getCurrentIdentity(): Promise<AuthIdentity | null>;
 }
 
+export interface AppleJwk {
+  kty: string;
+  kid: string;
+  use: string;
+  alg: string;
+  n: string;
+  e: string;
+}
+
+export interface AppleJwksProvider {
+  fetchKeys(): Promise<AppleJwk[]>;
+}
+
+export interface AppleTokenClaims {
+  sub: string;
+  email?: string;
+  email_verified?: boolean | string;
+  is_private_email?: boolean | string;
+  nonce?: string;
+  aud: string;
+  iss: string;
+  exp: number;
+  iat: number;
+}
+
 export interface StorageProvider {
   getPublicUrl(path: string): string;
   putObject(input: {

@@ -1,10 +1,15 @@
+import { createHash, randomBytes, subtle } from "node:crypto";
 import type {
   ActivityRepository,
   AppRepositories,
+  AppleJwksProvider,
+  AppleTokenClaims,
+  AuthIdentityRepository,
   AuthProvider,
   ProfileRepository,
   RankingRepository,
   ReviewRepository,
+  SessionRepository,
   ShelfRepository
 } from "./ports";
 import type { EntityId, Profile, Ranking, Review, Shelf, ShelfItem, Visibility } from "./types";
@@ -265,6 +270,123 @@ export class ReviewService {
       visibility: input.visibility,
     });
     return review;
+  }
+}
+
+const APPLE_ISSUER = "https://appleid.apple.com";
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function base64UrlDecode(s: string): Uint8Array {
+  const rem = s.length % 4;
+  const padded = s.replace(/-/g, "+").replace(/_/g, "/") + (rem === 0 ? "" : "=".repeat(4 - rem));
+  return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+}
+
+export class AuthService {
+  constructor(
+    private readonly authIdentities: AuthIdentityRepository,
+    private readonly sessions: SessionRepository,
+    private readonly jwksProvider: AppleJwksProvider,
+    private readonly appleAudience: string
+  ) {}
+
+  async validateAppleToken(identityToken: string, nonce?: string): Promise<AppleTokenClaims> {
+    const parts = identityToken.split(".");
+    if (parts.length !== 3) {
+      throw Object.assign(new Error("Invalid identity token format"), { code: "INVALID_TOKEN" });
+    }
+    const [headerB64, payloadB64, sigB64] = parts as [string, string, string];
+
+    const header = JSON.parse(new TextDecoder().decode(base64UrlDecode(headerB64))) as { kid?: string; alg?: string };
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as AppleTokenClaims;
+
+    if (payload.iss !== APPLE_ISSUER) {
+      throw Object.assign(new Error("Invalid token issuer"), { code: "INVALID_TOKEN" });
+    }
+    if (payload.aud !== this.appleAudience) {
+      throw Object.assign(new Error("Invalid token audience"), { code: "INVALID_TOKEN" });
+    }
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (payload.exp < nowSec) {
+      throw Object.assign(new Error("Token expired"), { code: "TOKEN_EXPIRED" });
+    }
+    if (nonce !== undefined && payload.nonce !== nonce) {
+      throw Object.assign(new Error("Nonce mismatch"), { code: "INVALID_TOKEN" });
+    }
+
+    const keys = await this.jwksProvider.fetchKeys();
+    const jwk = keys.find((k) => k.kid === header.kid);
+    if (!jwk) {
+      throw Object.assign(new Error("No matching JWKS key found"), { code: "INVALID_TOKEN" });
+    }
+
+    const cryptoKey = await subtle.importKey(
+      "jwk",
+      { kty: jwk.kty, kid: jwk.kid, use: jwk.use, alg: jwk.alg, n: jwk.n, e: jwk.e } as JsonWebKey,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    const signingInput = `${headerB64}.${payloadB64}`;
+    const signature = base64UrlDecode(sigB64);
+    const valid = await subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      cryptoKey,
+      signature,
+      new TextEncoder().encode(signingInput)
+    );
+    if (!valid) {
+      throw Object.assign(new Error("Token signature invalid"), { code: "INVALID_TOKEN" });
+    }
+
+    return payload;
+  }
+
+  normalizeAppleEmail(claims: AppleTokenClaims): string | undefined {
+    const raw = claims.email;
+    if (!raw) return undefined;
+    if (claims.is_private_email === true || claims.is_private_email === "true") {
+      return raw;
+    }
+    return raw.toLowerCase().trim();
+  }
+
+  async appleSignIn(identityToken: string, nonce?: string): Promise<{ sessionToken: string; expiresAt: Date; isNewUser: boolean }> {
+    const claims = await this.validateAppleToken(identityToken, nonce);
+
+    const appleUserId = claims.sub;
+
+    const existing = await this.authIdentities.findByProvider({ provider: "apple", providerUserId: appleUserId });
+
+    let profileId: EntityId;
+    let isNewUser: boolean;
+
+    if (existing) {
+      profileId = existing.profileId;
+      isNewUser = false;
+    } else {
+      const bytes = randomBytes(16);
+      bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const hex = bytes.toString("hex");
+      const newProfileId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+      await this.authIdentities.create({
+        provider: "apple",
+        providerUserId: appleUserId,
+        profileId: newProfileId,
+      });
+      profileId = newProfileId;
+      isNewUser = true;
+    }
+
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    await this.sessions.create({ tokenHash, profileId, expiresAt });
+
+    return { sessionToken: rawToken, expiresAt, isNewUser };
   }
 }
 
