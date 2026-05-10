@@ -48,7 +48,6 @@ import {
   toActivityEvent,
   toBlock,
   toBook,
-  toContactIndex,
   toEdition,
   toFollow,
   toImport,
