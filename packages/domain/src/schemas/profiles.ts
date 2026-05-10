@@ -96,3 +96,14 @@ export type CheckHandleOutput = z.infer<typeof CheckHandleOutputSchema>;
 export type SetHandleInput = z.infer<typeof SetHandleInputSchema>;
 export type SetHandleOutput = z.infer<typeof SetHandleOutputSchema>;
 export type CreateProfileOutput = z.infer<typeof CreateProfileOutputSchema>;
+
+export const ResolveOldHandleInputSchema = z.object({
+  handle: HandleSchema,
+});
+
+export const ResolveOldHandleOutputSchema = z
+  .object({ currentHandle: z.string() })
+  .nullable();
+
+export type ResolveOldHandleInput = z.infer<typeof ResolveOldHandleInputSchema>;
+export type ResolveOldHandleOutput = z.infer<typeof ResolveOldHandleOutputSchema>;

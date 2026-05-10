@@ -78,6 +78,20 @@
       "when": 1747440000000,
       "tag": "0010_contacts_index_email_index",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1747526400000,
+      "tag": "0011_notification_tokens_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1747612800000,
+      "tag": "0012_handle_history",
+      "breakpoints": true
     }
   ]
 }

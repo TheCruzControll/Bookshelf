@@ -311,3 +311,11 @@ export interface EmailIndex {
   saltVersion: number;
   expiresAt: Date;
 }
+
+export interface HandleHistory {
+  id: EntityId;
+  profileId: EntityId;
+  oldHandle: string;
+  retiredAt: Date;
+  expiresAt: Date;
+}

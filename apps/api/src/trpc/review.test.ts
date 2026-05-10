@@ -67,6 +67,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
     authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
     sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
+    handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
     ...overrides,
   };
 }

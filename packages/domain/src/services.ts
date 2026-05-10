@@ -8,6 +8,7 @@ import type {
   AuthProvider,
   GoogleJwksProvider,
   GoogleTokenClaims,
+  HandleHistoryRepository,
   ProfileRepository,
   RankingRepository,
   ReviewRepository,
@@ -169,8 +170,13 @@ export const RESERVED_HANDLES = new Set([
   "explore",
 ]);
 
+const HANDLE_HISTORY_RETENTION_MS = 3 * 365 * 24 * 60 * 60 * 1000;
+
 export class HandleService {
-  constructor(private readonly profiles: ProfileRepository) {}
+  constructor(
+    private readonly profiles: ProfileRepository,
+    private readonly handleHistory: HandleHistoryRepository
+  ) {}
 
   isReserved(handle: string): boolean {
     return RESERVED_HANDLES.has(handle.toLowerCase());
@@ -216,7 +222,27 @@ export class HandleService {
         suggestions,
       });
     }
-    return this.profiles.setHandle({ userId, handle: handle.toLowerCase() });
+    const existing = await this.profiles.findById(userId);
+    const newHandle = handle.toLowerCase();
+    const profile = await this.profiles.setHandle({ userId, handle: newHandle });
+    if (existing?.handle && existing.handle !== newHandle) {
+      const now = new Date();
+      await this.handleHistory.record({
+        profileId: userId,
+        oldHandle: existing.handle,
+        retiredAt: now,
+        expiresAt: new Date(now.getTime() + HANDLE_HISTORY_RETENTION_MS),
+      });
+    }
+    return profile;
+  }
+
+  async resolveOldHandle(oldHandle: string): Promise<{ currentHandle: string } | null> {
+    const entry = await this.handleHistory.findCurrentByOldHandle(oldHandle.toLowerCase());
+    if (!entry) return null;
+    const profile = await this.profiles.findById(entry.profileId);
+    if (!profile) return null;
+    return { currentHandle: profile.handle };
   }
 }
 
@@ -505,7 +531,7 @@ export class AppServices {
       repositories.shelves,
       repositories.activity
     );
-    this.handles = new HandleService(repositories.profiles);
+    this.handles = new HandleService(repositories.profiles, repositories.handleHistory);
     this.profiles = new ProfileService(
       repositories.profiles,
       repositories.shelves

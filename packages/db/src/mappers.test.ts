@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting, toHandleHistory } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, notificationSettings, notificationTokens, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
@@ -1260,5 +1260,24 @@ describe("email_index table schema and mapper", () => {
     const result = toNotificationSetting(row as Parameters<typeof toNotificationSetting>[0]);
     expect(result.key).toBe("quiet_hours");
     expect(result.value).toEqual({ start: "22:00", end: "08:00" });
+  });
+
+  it("toHandleHistory maps a handle_history row to a HandleHistory domain object", () => {
+    const now = new Date();
+    const expires = new Date(now.getTime() + 3 * 365 * 24 * 60 * 60 * 1000);
+    const row = {
+      id: "00000000-0000-0000-0000-000000000099",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      oldHandle: "oldname",
+      retiredAt: now,
+      expiresAt: expires,
+    };
+
+    const result = toHandleHistory(row as Parameters<typeof toHandleHistory>[0]);
+    expect(result.id).toBe(row.id);
+    expect(result.profileId).toBe(row.profileId);
+    expect(result.oldHandle).toBe("oldname");
+    expect(result.retiredAt).toBe(now);
+    expect(result.expiresAt).toBe(expires);
   });
 });

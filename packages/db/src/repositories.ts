@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, or } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -9,6 +9,7 @@ import type {
   EntityId,
   FeedItem,
   FollowRepository,
+  HandleHistoryRepository,
   ImportRepository,
   ListRepository,
   NotificationRepository,
@@ -28,6 +29,7 @@ import {
   books,
   editions,
   follows,
+  handleHistory,
   imports,
   profiles,
   recommendationScores,
@@ -40,6 +42,7 @@ import {
   toActivityEvent,
   toBook,
   toEdition,
+  toHandleHistory,
   toImport,
   toOAuthIdentity,
   toProfile,
@@ -565,6 +568,35 @@ class DrizzleSessionRepository implements SessionRepository {
   }
 }
 
+class DrizzleHandleHistoryRepository implements HandleHistoryRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async record(input: Parameters<HandleHistoryRepository["record"]>[0]) {
+    const [row] = await this.db
+      .insert(handleHistory)
+      .values({
+        profileId: input.profileId,
+        oldHandle: input.oldHandle,
+        retiredAt: input.retiredAt,
+        expiresAt: input.expiresAt
+      })
+      .returning();
+    if (!row) throw new Error("Failed to record handle history");
+    return toHandleHistory(row);
+  }
+
+  async findCurrentByOldHandle(oldHandle: string) {
+    const now = new Date();
+    const row = await this.db.query.handleHistory.findFirst({
+      where: and(
+        eq(handleHistory.oldHandle, oldHandle),
+        gt(handleHistory.expiresAt, now)
+      )
+    });
+    return row ? toHandleHistory(row) : null;
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -582,6 +614,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     lists: new DrizzleListRepository(db),
     authIdentities: new DrizzleAuthIdentityRepository(db),
     sessions: new DrizzleSessionRepository(db),
+    handleHistory: new DrizzleHandleHistoryRepository(db),
   };
 }
 
