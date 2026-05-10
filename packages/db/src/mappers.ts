@@ -7,6 +7,7 @@ import type {
   ContactIndex,
   Edition,
   EmailIndex,
+  Follow,
   Import,
   NotificationSetting,
   NotificationToken,
@@ -30,6 +31,7 @@ import type {
   contactsIndex,
   editions,
   emailIndex,
+  follows,
   imports,
   notificationSettings,
   notificationTokens,
@@ -46,6 +48,7 @@ import type {
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
 type ContactIndexRow = typeof contactsIndex.$inferSelect;
 type EmailIndexRow = typeof emailIndex.$inferSelect;
+type FollowRow = typeof follows.$inferSelect;
 type NotificationTokenRow = typeof notificationTokens.$inferSelect;
 type NotificationSettingRow = typeof notificationSettings.$inferSelect;
 type AuthIdentityRow = typeof authIdentities.$inferSelect;
@@ -204,6 +207,15 @@ export function toRanking(row: RankingRow): Ranking {
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+export function toFollow(row: FollowRow): Follow {
+  return {
+    id: `${row.followerId}:${row.followeeId}`,
+    followerId: row.followerId,
+    followeeId: row.followeeId,
+    createdAt: row.createdAt
   };
 }
 

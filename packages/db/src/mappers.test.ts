@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting } from "./mappers";
+import { toAccountDeletion, toBlock, toBlockAgainstHash, toBook, toFollow, toProfile, toShelf, toEdition, toShelfItem, toReview, toActivityEvent, toRanking, toImport, toPhoneVerification, toPhoneNumber, toOAuthIdentity, toSession, toContactIndex, toEmailIndex, toNotificationToken, toNotificationSetting } from "./mappers";
 import type { Visibility, ShelfKind, ShelfAuthorType } from "@hone/domain";
 import { activityEvents, authIdentities, blocks, blocksAgainstHash, follows, imports, notificationSettings, notificationTokens, phoneNumbers, phoneVerifications, profiles, rankings, reviews, sessions, shelves, tasteVectors } from "./schema";
 
@@ -1260,5 +1260,40 @@ describe("email_index table schema and mapper", () => {
     const result = toNotificationSetting(row as Parameters<typeof toNotificationSetting>[0]);
     expect(result.key).toBe("quiet_hours");
     expect(result.value).toEqual({ start: "22:00", end: "08:00" });
+  });
+});
+
+describe("follows table mapper", () => {
+  const now = new Date();
+
+  it("toFollow maps a row to a Follow domain object", () => {
+    const row = {
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now
+    };
+
+    const follow = toFollow(row as Parameters<typeof toFollow>[0]);
+    expect(follow.id).toBe(`${row.followerId}:${row.followeeId}`);
+    expect(follow.followerId).toBe(row.followerId);
+    expect(follow.followeeId).toBe(row.followeeId);
+    expect(follow.createdAt).toBe(now);
+  });
+
+  it("toFollow produces unique id per ordered pair", () => {
+    const row1 = {
+      followerId: "00000000-0000-0000-0000-000000000001",
+      followeeId: "00000000-0000-0000-0000-000000000002",
+      createdAt: now
+    };
+    const row2 = {
+      followerId: "00000000-0000-0000-0000-000000000002",
+      followeeId: "00000000-0000-0000-0000-000000000001",
+      createdAt: now
+    };
+
+    const follow1 = toFollow(row1 as Parameters<typeof toFollow>[0]);
+    const follow2 = toFollow(row2 as Parameters<typeof toFollow>[0]);
+    expect(follow1.id).not.toBe(follow2.id);
   });
 });
