@@ -4,7 +4,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { createTrpcContext } from "./context";
 import { router } from "./trpc";
 import { authRouter } from "./auth";
-import type { AppRepositories, AppleJwksProvider, AuthIdentity, OAuthIdentity, Session } from "@hone/domain";
+import type { AppRepositories, AppleJwksProvider, GoogleJwksProvider, AuthIdentity, OAuthIdentity, Session } from "@hone/domain";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -52,16 +52,17 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
   };
 }
 
-function buildApp(identity: AuthIdentity | null, repositories: AppRepositories, jwksProvider?: AppleJwksProvider) {
+function buildApp(identity: AuthIdentity | null, repositories: AppRepositories, jwksProvider?: AppleJwksProvider, googleJwksProvider?: GoogleJwksProvider) {
   const testRouter = router({ auth: authRouter });
   const app = new Hono();
   const auth = { getCurrentIdentity: async () => identity };
   const mockJwksProvider: AppleJwksProvider = jwksProvider ?? { fetchKeys: vi.fn().mockResolvedValue([]) };
+  const mockGoogleJwksProvider: GoogleJwksProvider = googleJwksProvider ?? { fetchKeys: vi.fn().mockResolvedValue([]) };
   app.use(
     "/trpc/*",
     trpcServer({
       router: testRouter,
-      createContext: createTrpcContext({ repositories, auth, jwksProvider: mockJwksProvider, appleAudience: "com.hone.app" }),
+      createContext: createTrpcContext({ repositories, auth, jwksProvider: mockJwksProvider, appleAudience: "com.hone.app", googleJwksProvider: mockGoogleJwksProvider, googleAudience: "test-google-client-id.apps.googleusercontent.com" }),
     })
   );
   return app;
@@ -259,5 +260,213 @@ describe("auth.appleSignIn", () => {
     expect(body.result?.data?.isNewUser).toBe(false);
 
     appleSignInSpy.mockRestore();
+  });
+});
+
+const VALID_GOOGLE_PAYLOAD = {
+  iss: "https://accounts.google.com",
+  aud: "test-google-client-id.apps.googleusercontent.com",
+  exp: FUTURE_EXP,
+  sub: "google-user-001",
+  email: "user@gmail.com",
+  email_verified: true,
+};
+
+describe("auth.googleSignIn", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const token = buildFakeJwt(VALID_GOOGLE_PAYLOAD);
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 500 when Google JWKS provider not configured", async () => {
+    const repos = makeRepositories();
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    const auth = { getCurrentIdentity: async () => null };
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({ repositories: repos, auth }),
+      })
+    );
+
+    const token = buildFakeJwt(VALID_GOOGLE_PAYLOAD);
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 401 when token has wrong issuer", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const payload = { ...VALID_GOOGLE_PAYLOAD, iss: "https://evil.example.com" };
+    const token = buildFakeJwt(payload);
+
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when token is expired", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const expiredPayload = { ...VALID_GOOGLE_PAYLOAD, exp: Math.floor(Date.now() / 1000) - 10 };
+    const token = buildFakeJwt(expiredPayload);
+
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when token has wrong audience", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const payload = { ...VALID_GOOGLE_PAYLOAD, aud: "com.wrong.app" };
+    const token = buildFakeJwt(payload);
+
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when token does not have three parts", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: "notavalidjwt" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("creates a new identity and session for a new Google user (mocked service)", async () => {
+    const mockSession: Session = {
+      tokenHash: "abc123hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    };
+    const mockIdentity: OAuthIdentity = {
+      provider: "google",
+      providerUserId: VALID_GOOGLE_PAYLOAD.sub,
+      profileId: UUID1,
+    };
+
+    const repos = makeRepositories({
+      authIdentities: {
+        create: vi.fn().mockResolvedValue(mockIdentity),
+        findByProvider: vi.fn().mockResolvedValue(null),
+        listByProfile: vi.fn(),
+      },
+      sessions: {
+        create: vi.fn().mockResolvedValue(mockSession),
+        findByTokenHash: vi.fn(),
+        revokeByTokenHash: vi.fn(),
+        revokeAllForProfile: vi.fn(),
+      },
+    });
+
+    const { AuthService } = await import("@hone/domain");
+    const googleSignInSpy = vi.spyOn(AuthService.prototype, "googleSignIn").mockResolvedValue({
+      sessionToken: "raw-google-token-abc",
+      expiresAt: mockSession.expiresAt,
+      isNewUser: true,
+    });
+
+    const app = buildApp(null, repos);
+    const token = buildFakeJwt(VALID_GOOGLE_PAYLOAD);
+
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { sessionToken: string; isNewUser: boolean } } };
+    expect(body.result?.data?.sessionToken).toBe("raw-google-token-abc");
+    expect(body.result?.data?.isNewUser).toBe(true);
+
+    googleSignInSpy.mockRestore();
+  });
+
+  it("links existing identity and returns isNewUser=false (mocked service)", async () => {
+    const existingSession: Session = {
+      tokenHash: "existing-hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    };
+
+    const repos = makeRepositories({
+      authIdentities: {
+        create: vi.fn(),
+        findByProvider: vi.fn(),
+        listByProfile: vi.fn(),
+      },
+      sessions: {
+        create: vi.fn(),
+        findByTokenHash: vi.fn(),
+        revokeByTokenHash: vi.fn(),
+        revokeAllForProfile: vi.fn(),
+      },
+    });
+
+    const { AuthService } = await import("@hone/domain");
+    const googleSignInSpy = vi.spyOn(AuthService.prototype, "googleSignIn").mockResolvedValue({
+      sessionToken: "raw-google-token-xyz",
+      expiresAt: existingSession.expiresAt,
+      isNewUser: false,
+    });
+
+    const app = buildApp(null, repos);
+    const token = buildFakeJwt(VALID_GOOGLE_PAYLOAD);
+
+    const res = await app.request("/trpc/auth.googleSignIn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken: token }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { sessionToken: string; isNewUser: boolean } } };
+    expect(body.result?.data?.isNewUser).toBe(false);
+
+    googleSignInSpy.mockRestore();
   });
 });

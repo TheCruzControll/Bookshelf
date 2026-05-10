@@ -60,6 +60,30 @@ export interface AppleTokenClaims {
   iat: number;
 }
 
+export interface GoogleJwk {
+  kty: string;
+  kid: string;
+  use: string;
+  alg: string;
+  n: string;
+  e: string;
+}
+
+export interface GoogleJwksProvider {
+  fetchKeys(): Promise<GoogleJwk[]>;
+}
+
+export interface GoogleTokenClaims {
+  sub: string;
+  email?: string;
+  email_verified?: boolean | string;
+  aud: string;
+  iss: string;
+  exp: number;
+  iat: number;
+  azp?: string;
+}
+
 export interface StorageProvider {
   getPublicUrl(path: string): string;
   putObject(input: {

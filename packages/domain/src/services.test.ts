@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { subtle } from "node:crypto";
 import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, SYSTEM_SHELVES, slugify } from "./services";
-import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository, RankingRepository, AuthIdentityRepository, SessionRepository, AppleJwksProvider, AppleJwk, ReviewRepository } from "./ports";
+import type { ShelfRepository, ActivityRepository, AppRepositories, AuthProvider, ProfileRepository, RankingRepository, AuthIdentityRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository } from "./ports";
 import type { Profile, Ranking, Review, Shelf, ShelfItem } from "./types";
 
 function makeShelfItem(overrides?: Partial<ShelfItem>): ShelfItem {
@@ -691,5 +691,170 @@ describe("AuthService", () => {
     expect(result.isNewUser).toBe(false);
     expect(authIdentityRepo.create).not.toHaveBeenCalled();
     expect(sessionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ profileId: existingIdentity.profileId }));
+  });
+});
+
+describe("AuthService – Google", () => {
+  const GOOGLE_AUD = "test-google-client-id.apps.googleusercontent.com";
+  const FUTURE_EXP = Math.floor(Date.now() / 1000) + 3600;
+
+  function makeAuthIdentityRepo(overrides?: Partial<AuthIdentityRepository>): AuthIdentityRepository {
+    return { create: vi.fn(), findByProvider: vi.fn().mockResolvedValue(null), listByProfile: vi.fn(), ...overrides };
+  }
+
+  function makeSessionRepo(overrides?: Partial<SessionRepository>): SessionRepository {
+    return {
+      create: vi.fn().mockResolvedValue({ tokenHash: "hash", profileId: "p1", expiresAt: new Date(Date.now() + 86400000) }),
+      findByTokenHash: vi.fn(),
+      revokeByTokenHash: vi.fn(),
+      revokeAllForProfile: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  async function generateGoogleKeyPair(): Promise<{ privateKey: CryptoKey; jwk: GoogleJwk }> {
+    const keyPair = await subtle.generateKey(
+      { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+      true,
+      ["sign", "verify"]
+    ) as CryptoKeyPair;
+    const pubJwk = await subtle.exportKey("jwk", keyPair.publicKey);
+    const jwk: GoogleJwk = { kty: pubJwk.kty!, kid: "google-test-kid-1", use: "sig", alg: "RS256", n: pubJwk.n!, e: pubJwk.e! };
+    return { privateKey: keyPair.privateKey, jwk };
+  }
+
+  function makeService(googleJwksProvider: GoogleJwksProvider, authIdentityRepo?: AuthIdentityRepository, sessionRepo?: SessionRepository): AuthService {
+    const stubAppleProvider: AppleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+    return new AuthService(
+      authIdentityRepo ?? makeAuthIdentityRepo(),
+      sessionRepo ?? makeSessionRepo(),
+      stubAppleProvider,
+      "com.hone.app",
+      googleJwksProvider,
+      GOOGLE_AUD
+    );
+  }
+
+  it("validateGoogleToken rejects token with wrong issuer", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://evil.com", aud: GOOGLE_AUD, exp: FUTURE_EXP, sub: "g1", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([jwk]) };
+    const service = makeService(googleJwksProvider);
+    await expect(service.validateGoogleToken(token)).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+  });
+
+  it("validateGoogleToken accepts accounts.google.com as issuer", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "accounts.google.com", aud: GOOGLE_AUD, exp: FUTURE_EXP, sub: "g1", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([jwk]) };
+    const service = makeService(googleJwksProvider);
+    const claims = await service.validateGoogleToken(token);
+    expect(claims.sub).toBe("g1");
+  });
+
+  it("validateGoogleToken rejects token with wrong audience", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://accounts.google.com", aud: "com.wrong.app", exp: FUTURE_EXP, sub: "g1", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([jwk]) };
+    const service = makeService(googleJwksProvider);
+    await expect(service.validateGoogleToken(token)).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+  });
+
+  it("validateGoogleToken rejects expired token", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://accounts.google.com", aud: GOOGLE_AUD, exp: Math.floor(Date.now() / 1000) - 10, sub: "g1", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([jwk]) };
+    const service = makeService(googleJwksProvider);
+    await expect(service.validateGoogleToken(token)).rejects.toMatchObject({ code: "TOKEN_EXPIRED" });
+  });
+
+  it("validateGoogleToken rejects token when no matching JWKS key", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://accounts.google.com", aud: GOOGLE_AUD, exp: FUTURE_EXP, sub: "g1", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+    const service = makeService(googleJwksProvider);
+    await expect(service.validateGoogleToken(token)).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+  });
+
+  it("validateGoogleToken rejects malformed token (not three parts)", async () => {
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn() };
+    const service = makeService(googleJwksProvider);
+    await expect(service.validateGoogleToken("notavalidjwt")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+  });
+
+  it("validateGoogleToken rejects token with invalid signature", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const { jwk: otherJwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://accounts.google.com", aud: GOOGLE_AUD, exp: FUTURE_EXP, sub: "g1", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const wrongJwk = { ...otherJwk, kid: jwk.kid };
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([wrongJwk]) };
+    const service = makeService(googleJwksProvider);
+    await expect(service.validateGoogleToken(token)).rejects.toMatchObject({ code: "INVALID_TOKEN" });
+  });
+
+  it("validateGoogleToken accepts a valid token and returns claims", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://accounts.google.com", aud: GOOGLE_AUD, exp: FUTURE_EXP, sub: "google-sub-123", iat: 0, email: "user@gmail.com", email_verified: true };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([jwk]) };
+    const service = makeService(googleJwksProvider);
+    const claims = await service.validateGoogleToken(token);
+    expect(claims.sub).toBe("google-sub-123");
+    expect(claims.email).toBe("user@gmail.com");
+  });
+
+  it("googleSignIn creates new identity and session for new user, returns valid UUID-4 pattern", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://accounts.google.com", aud: GOOGLE_AUD, exp: FUTURE_EXP, sub: "new-google-user", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([jwk]) };
+    const authIdentityRepo = makeAuthIdentityRepo({
+      findByProvider: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation(async (input: { provider: string; providerUserId: string; profileId: string }) => ({ provider: input.provider, providerUserId: input.providerUserId, profileId: input.profileId })),
+    });
+    const sessionRepo = makeSessionRepo();
+    const service = makeService(googleJwksProvider, authIdentityRepo, sessionRepo);
+    const result = await service.googleSignIn(token);
+    expect(result.isNewUser).toBe(true);
+    expect(result.sessionToken).toBeTruthy();
+    expect(result.expiresAt).toBeInstanceOf(Date);
+    const createMock = authIdentityRepo.create as ReturnType<typeof vi.fn>;
+    const firstCall = createMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const firstArg = firstCall![0] as { provider: string; profileId: string };
+    expect(firstArg.provider).toBe("google");
+    expect(firstArg.profileId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it("googleSignIn links existing identity when user already exists", async () => {
+    const { privateKey, jwk } = await generateGoogleKeyPair();
+    const payload = { iss: "https://accounts.google.com", aud: GOOGLE_AUD, exp: FUTURE_EXP, sub: "existing-google-user", iat: 0 };
+    const token = await buildSignedJwt(payload, privateKey, jwk.kid);
+    const googleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([jwk]) };
+    const existingIdentity = { provider: "google", providerUserId: "existing-google-user", profileId: "00000000-0000-0000-0000-000000000099" };
+    const authIdentityRepo = makeAuthIdentityRepo({ findByProvider: vi.fn().mockResolvedValue(existingIdentity) });
+    const sessionRepo = makeSessionRepo();
+    const service = makeService(googleJwksProvider, authIdentityRepo, sessionRepo);
+    const result = await service.googleSignIn(token);
+    expect(result.isNewUser).toBe(false);
+    expect(authIdentityRepo.create).not.toHaveBeenCalled();
+    expect(sessionRepo.create).toHaveBeenCalledWith(expect.objectContaining({ profileId: existingIdentity.profileId }));
+  });
+
+  it("googleSignIn throws INVALID_TOKEN when Google JWKS provider not configured", async () => {
+    const stubAppleProvider: AppleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+    const service = new AuthService(
+      makeAuthIdentityRepo(),
+      makeSessionRepo(),
+      stubAppleProvider,
+      "com.hone.app"
+    );
+    await expect(service.googleSignIn("any.token.here")).rejects.toMatchObject({ code: "INVALID_TOKEN" });
   });
 });
