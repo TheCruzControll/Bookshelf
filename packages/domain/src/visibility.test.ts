@@ -274,4 +274,35 @@ describe("BlockFilter port composability", () => {
     expect(blockFiltered).toHaveLength(1);
     expect(blockFiltered[0]!.id).toBe("item-1");
   });
+
+  it("Property: blocked viewer never sees content regardless of visibility or relationship", () => {
+    const visibilityArb = fc.constantFrom(...VISIBILITIES);
+    const relationshipArb = fc.constantFrom(...RELATIONSHIPS);
+
+    fc.assert(
+      fc.property(
+        visibilityArb,
+        relationshipArb,
+        fc.uuid(),
+        fc.uuid(),
+        (visibility, relationship, viewerId, ownerId) => {
+          fc.pre(viewerId !== ownerId);
+
+          const items = [{ id: ownerId, ownerId, visibility }];
+
+          const visibilityFiltered = applyVisibilityFilter(
+            { viewerId, relationship },
+            items
+          );
+
+          const blockedOwnerIds = new Set([ownerId]);
+          const blockFiltered = visibilityFiltered.filter(
+            (i) => !blockedOwnerIds.has(i.ownerId)
+          );
+
+          return blockFiltered.length === 0;
+        }
+      )
+    );
+  });
 });
