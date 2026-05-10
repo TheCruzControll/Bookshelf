@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify } from "./services";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, FollowService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify } from "./services";
 import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, FollowRepository, ListRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository } from "./ports";
 import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem } from "./types";
 
@@ -1248,5 +1248,160 @@ describe("SocialService", () => {
     });
     const result = await service.getRecommendations("viewer", 10);
     expect(result).toHaveLength(1);
+  });
+});
+
+describe("FollowService", () => {
+  const UUID1 = "00000000-0000-0000-0000-000000000001";
+  const UUID2 = "00000000-0000-0000-0000-000000000002";
+  const UUID3 = "00000000-0000-0000-0000-000000000003";
+  const NOW = new Date();
+
+  function makeFollowObj(overrides?: Partial<Follow>): Follow {
+    return { id: UUID3, followerId: UUID1, followeeId: UUID2, createdAt: NOW, ...overrides };
+  }
+
+  function makeFollowRepo(overrides?: Partial<FollowRepository>): FollowRepository {
+    return {
+      follow: vi.fn().mockResolvedValue(makeFollowObj()),
+      unfollow: vi.fn().mockResolvedValue(undefined),
+      findFollow: vi.fn().mockResolvedValue(null),
+      listFollowers: vi.fn().mockResolvedValue([]),
+      listFollowing: vi.fn().mockResolvedValue([]),
+      isMutual: vi.fn().mockResolvedValue(false),
+      ...overrides,
+    };
+  }
+
+  function makeBlockRepo(overrides?: Partial<BlockRepository>): BlockRepository {
+    return {
+      block: vi.fn(),
+      unblock: vi.fn(),
+      findBlock: vi.fn().mockResolvedValue(null),
+      listBlockedByUser: vi.fn().mockResolvedValue([]),
+      listBlockingUser: vi.fn().mockResolvedValue([]),
+      isBlocked: vi.fn().mockResolvedValue(false),
+      ...overrides,
+    };
+  }
+
+  it("createFollow creates a new follow relationship", async () => {
+    const follow = makeFollowObj();
+    const followRepo = makeFollowRepo({ follow: vi.fn().mockResolvedValue(follow) });
+    const blockRepo = makeBlockRepo();
+    const service = new FollowService(followRepo, blockRepo);
+
+    const result = await service.createFollow({ followerId: UUID1, followeeId: UUID2 });
+
+    expect(followRepo.follow).toHaveBeenCalledWith({ followerId: UUID1, followeeId: UUID2 });
+    expect(result).toEqual(follow);
+  });
+
+  it("createFollow is idempotent - returns existing follow", async () => {
+    const existing = makeFollowObj();
+    const followRepo = makeFollowRepo({ findFollow: vi.fn().mockResolvedValue(existing) });
+    const blockRepo = makeBlockRepo();
+    const service = new FollowService(followRepo, blockRepo);
+
+    const result = await service.createFollow({ followerId: UUID1, followeeId: UUID2 });
+
+    expect(followRepo.follow).not.toHaveBeenCalled();
+    expect(result).toEqual(existing);
+  });
+
+  it("createFollow throws BAD_REQUEST when following yourself", async () => {
+    const followRepo = makeFollowRepo();
+    const blockRepo = makeBlockRepo();
+    const service = new FollowService(followRepo, blockRepo);
+
+    await expect(service.createFollow({ followerId: UUID1, followeeId: UUID1 }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("createFollow throws FORBIDDEN when blocked by target", async () => {
+    const followRepo = makeFollowRepo();
+    const blockRepo = makeBlockRepo({
+      findBlock: vi.fn().mockImplementation(({ blockerId, blockedId }) => {
+        if (blockerId === UUID2 && blockedId === UUID1) {
+          return Promise.resolve({ id: "b1", blockerId: UUID2, blockedId: UUID1, createdAt: NOW });
+        }
+        return Promise.resolve(null);
+      }),
+    });
+    const service = new FollowService(followRepo, blockRepo);
+
+    await expect(service.createFollow({ followerId: UUID1, followeeId: UUID2 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("createFollow throws FORBIDDEN when follower has blocked the target", async () => {
+    const followRepo = makeFollowRepo();
+    const blockRepo = makeBlockRepo({
+      findBlock: vi.fn().mockImplementation(({ blockerId, blockedId }) => {
+        if (blockerId === UUID1 && blockedId === UUID2) {
+          return Promise.resolve({ id: "b1", blockerId: UUID1, blockedId: UUID2, createdAt: NOW });
+        }
+        return Promise.resolve(null);
+      }),
+    });
+    const service = new FollowService(followRepo, blockRepo);
+
+    await expect(service.createFollow({ followerId: UUID1, followeeId: UUID2 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("deleteFollow removes an existing follow", async () => {
+    const existing = makeFollowObj();
+    const followRepo = makeFollowRepo({ findFollow: vi.fn().mockResolvedValue(existing) });
+    const blockRepo = makeBlockRepo();
+    const service = new FollowService(followRepo, blockRepo);
+
+    await service.deleteFollow({ followerId: UUID1, followeeId: UUID2 });
+
+    expect(followRepo.unfollow).toHaveBeenCalledWith({ followerId: UUID1, followeeId: UUID2 });
+  });
+
+  it("deleteFollow is idempotent - does nothing when not following", async () => {
+    const followRepo = makeFollowRepo({ findFollow: vi.fn().mockResolvedValue(null) });
+    const blockRepo = makeBlockRepo();
+    const service = new FollowService(followRepo, blockRepo);
+
+    await service.deleteFollow({ followerId: UUID1, followeeId: UUID2 });
+
+    expect(followRepo.unfollow).not.toHaveBeenCalled();
+  });
+
+  it("listFollowers returns followers filtered by blocks", async () => {
+    const followers: Follow[] = [
+      makeFollowObj({ id: "f1", followerId: UUID2, followeeId: UUID1 }),
+      makeFollowObj({ id: "f2", followerId: UUID3, followeeId: UUID1 }),
+    ];
+    const followRepo = makeFollowRepo({ listFollowers: vi.fn().mockResolvedValue(followers) });
+    const blockRepo = makeBlockRepo({
+      listBlockedByUser: vi.fn().mockResolvedValue([{ id: "b1", blockerId: UUID1, blockedId: UUID3, createdAt: NOW }]),
+    });
+    const service = new FollowService(followRepo, blockRepo);
+
+    const result = await service.listFollowers(UUID1, UUID1, 50);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.followerId).toBe(UUID2);
+  });
+
+  it("listFollowing returns following filtered by blocks", async () => {
+    const following: Follow[] = [
+      makeFollowObj({ id: "f1", followerId: UUID1, followeeId: UUID2 }),
+      makeFollowObj({ id: "f2", followerId: UUID1, followeeId: UUID3 }),
+    ];
+    const followRepo = makeFollowRepo({ listFollowing: vi.fn().mockResolvedValue(following) });
+    const blockRepo = makeBlockRepo({
+      listBlockedByUser: vi.fn().mockResolvedValue([{ id: "b1", blockerId: UUID1, blockedId: UUID3, createdAt: NOW }]),
+    });
+    const service = new FollowService(followRepo, blockRepo);
+
+    const result = await service.listFollowing(UUID1, UUID1, 50);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.followeeId).toBe(UUID2);
   });
 });

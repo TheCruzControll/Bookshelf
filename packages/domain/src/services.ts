@@ -590,6 +590,59 @@ export class BlockService implements BlockFilter {
   }
 }
 
+export class FollowService {
+  private readonly blockService: BlockService;
+
+  constructor(
+    private readonly follows: FollowRepository,
+    private readonly blocks: BlockRepository
+  ) {
+    this.blockService = new BlockService(blocks);
+  }
+
+  async createFollow(input: { followerId: EntityId; followeeId: EntityId }): Promise<Follow> {
+    if (input.followerId === input.followeeId) {
+      throw Object.assign(new Error("Cannot follow yourself"), { code: "BAD_REQUEST" });
+    }
+
+    // Block check: either direction blocks the follow
+    const [blockedByTarget, blockedTarget] = await Promise.all([
+      this.blocks.findBlock({ blockerId: input.followeeId, blockedId: input.followerId }),
+      this.blocks.findBlock({ blockerId: input.followerId, blockedId: input.followeeId }),
+    ]);
+    if (blockedByTarget || blockedTarget) {
+      throw Object.assign(new Error("Cannot follow this user"), { code: "FORBIDDEN" });
+    }
+
+    // Idempotent: if already following, return existing
+    const existing = await this.follows.findFollow(input);
+    if (existing) {
+      return existing;
+    }
+
+    return this.follows.follow(input);
+  }
+
+  async deleteFollow(input: { followerId: EntityId; followeeId: EntityId }): Promise<void> {
+    // Idempotent: if not following, succeed silently
+    const existing = await this.follows.findFollow(input);
+    if (!existing) {
+      return;
+    }
+    await this.follows.unfollow(input);
+  }
+
+  async listFollowers(userId: EntityId, viewerId: EntityId, _limit: number): Promise<Follow[]> {
+    const all = await this.follows.listFollowers(userId, viewerId);
+    return this.blockService.removeBlockedFollows(viewerId, all, (f) => f.followerId);
+  }
+
+  async listFollowing(userId: EntityId, viewerId: EntityId, _limit: number): Promise<Follow[]> {
+    const all = await this.follows.listFollowing(userId, viewerId);
+    return this.blockService.removeBlockedFollows(viewerId, all, (f) => f.followeeId);
+  }
+}
+
 export class SocialService {
   private readonly blockService: BlockService;
 
@@ -651,6 +704,7 @@ export class AppServices {
   readonly reviews: ReviewService;
   readonly blocks: BlockService;
   readonly social: SocialService;
+  readonly follows: FollowService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -671,6 +725,10 @@ export class AppServices {
       repositories.activity
     );
     this.blocks = new BlockService(repositories.blocks);
+    this.follows = new FollowService(
+      repositories.follows,
+      repositories.blocks
+    );
     this.social = new SocialService(
       repositories.follows,
       repositories.blocks,
