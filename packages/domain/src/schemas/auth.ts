@@ -25,7 +25,19 @@ export const AppleSignInOutputSchema = z.object({
   isNewUser: z.boolean(),
 });
 
+export const GoogleSignInInputSchema = z.object({
+  idToken: z.string().min(1),
+});
+
+export const GoogleSignInOutputSchema = z.object({
+  sessionToken: z.string(),
+  expiresAt: z.date(),
+  isNewUser: z.boolean(),
+});
+
 export type AuthIdentityInput = z.infer<typeof AuthIdentitySchema>;
 export type SessionInput = z.infer<typeof SessionSchema>;
 export type AppleSignInInput = z.infer<typeof AppleSignInInputSchema>;
 export type AppleSignInOutput = z.infer<typeof AppleSignInOutputSchema>;
+export type GoogleSignInInput = z.infer<typeof GoogleSignInInputSchema>;
+export type GoogleSignInOutput = z.infer<typeof GoogleSignInOutputSchema>;

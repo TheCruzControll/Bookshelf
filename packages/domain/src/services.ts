@@ -6,6 +6,8 @@ import type {
   AppleTokenClaims,
   AuthIdentityRepository,
   AuthProvider,
+  GoogleJwksProvider,
+  GoogleTokenClaims,
   ProfileRepository,
   RankingRepository,
   ReviewRepository,
@@ -274,6 +276,8 @@ export class ReviewService {
 }
 
 const APPLE_ISSUER = "https://appleid.apple.com";
+const GOOGLE_ISSUER_ACCOUNTS = "https://accounts.google.com";
+const GOOGLE_ISSUER_ALT = "accounts.google.com";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function base64UrlDecode(s: string): Uint8Array {
@@ -287,7 +291,9 @@ export class AuthService {
     private readonly authIdentities: AuthIdentityRepository,
     private readonly sessions: SessionRepository,
     private readonly jwksProvider: AppleJwksProvider,
-    private readonly appleAudience: string
+    private readonly appleAudience: string,
+    private readonly googleJwksProvider?: GoogleJwksProvider,
+    private readonly googleAudience?: string
   ) {}
 
   async validateAppleToken(identityToken: string, nonce?: string): Promise<AppleTokenClaims> {
@@ -374,6 +380,100 @@ export class AuthService {
       await this.authIdentities.create({
         provider: "apple",
         providerUserId: appleUserId,
+        profileId: newProfileId,
+      });
+      profileId = newProfileId;
+      isNewUser = true;
+    }
+
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    await this.sessions.create({ tokenHash, profileId, expiresAt });
+
+    return { sessionToken: rawToken, expiresAt, isNewUser };
+  }
+
+  async validateGoogleToken(idToken: string): Promise<GoogleTokenClaims> {
+    if (!this.googleJwksProvider) {
+      throw Object.assign(new Error("Google JWKS provider not configured"), { code: "INVALID_TOKEN" });
+    }
+    if (!this.googleAudience) {
+      throw Object.assign(new Error("Google audience not configured"), { code: "INVALID_TOKEN" });
+    }
+
+    const parts = idToken.split(".");
+    if (parts.length !== 3) {
+      throw Object.assign(new Error("Invalid id_token format"), { code: "INVALID_TOKEN" });
+    }
+    const [headerB64, payloadB64, sigB64] = parts as [string, string, string];
+
+    const header = JSON.parse(new TextDecoder().decode(base64UrlDecode(headerB64))) as { kid?: string; alg?: string };
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64))) as GoogleTokenClaims;
+
+    if (payload.iss !== GOOGLE_ISSUER_ACCOUNTS && payload.iss !== GOOGLE_ISSUER_ALT) {
+      throw Object.assign(new Error("Invalid token issuer"), { code: "INVALID_TOKEN" });
+    }
+    if (payload.aud !== this.googleAudience) {
+      throw Object.assign(new Error("Invalid token audience"), { code: "INVALID_TOKEN" });
+    }
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (payload.exp < nowSec) {
+      throw Object.assign(new Error("Token expired"), { code: "TOKEN_EXPIRED" });
+    }
+
+    const keys = await this.googleJwksProvider.fetchKeys();
+    const jwk = keys.find((k) => k.kid === header.kid);
+    if (!jwk) {
+      throw Object.assign(new Error("No matching JWKS key found"), { code: "INVALID_TOKEN" });
+    }
+
+    const cryptoKey = await subtle.importKey(
+      "jwk",
+      { kty: jwk.kty, kid: jwk.kid, use: jwk.use, alg: jwk.alg, n: jwk.n, e: jwk.e } as JsonWebKey,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    const signingInput = `${headerB64}.${payloadB64}`;
+    const signature = base64UrlDecode(sigB64);
+    const valid = await subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      cryptoKey,
+      signature,
+      new TextEncoder().encode(signingInput)
+    );
+    if (!valid) {
+      throw Object.assign(new Error("Token signature invalid"), { code: "INVALID_TOKEN" });
+    }
+
+    return payload;
+  }
+
+  async googleSignIn(idToken: string): Promise<{ sessionToken: string; expiresAt: Date; isNewUser: boolean }> {
+    const claims = await this.validateGoogleToken(idToken);
+
+    const googleUserId = claims.sub;
+
+    const existing = await this.authIdentities.findByProvider({ provider: "google", providerUserId: googleUserId });
+
+    let profileId: EntityId;
+    let isNewUser: boolean;
+
+    if (existing) {
+      profileId = existing.profileId;
+      isNewUser = false;
+    } else {
+      const bytes = randomBytes(16);
+      bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const hex = bytes.toString("hex");
+      const newProfileId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+      await this.authIdentities.create({
+        provider: "google",
+        providerUserId: googleUserId,
         profileId: newProfileId,
       });
       profileId = newProfileId;

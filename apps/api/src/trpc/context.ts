@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { AuthIdentity, AuthProvider, AppRepositories, AppleJwksProvider, Profile } from "@hone/domain";
+import type { AuthIdentity, AuthProvider, AppRepositories, AppleJwksProvider, GoogleJwksProvider, Profile } from "@hone/domain";
 import type { Cache } from "@hone/cache";
 
 export interface TrpcContextDeps {
@@ -11,6 +11,8 @@ export interface TrpcContextDeps {
   cache?: Cache;
   jwksProvider?: AppleJwksProvider;
   appleAudience?: string;
+  googleJwksProvider?: GoogleJwksProvider;
+  googleAudience?: string;
 }
 
 export type TrpcContext = {
@@ -20,6 +22,8 @@ export type TrpcContext = {
   cache: Cache | undefined;
   jwksProvider: AppleJwksProvider | undefined;
   appleAudience: string | undefined;
+  googleJwksProvider: GoogleJwksProvider | undefined;
+  googleAudience: string | undefined;
   [key: string]: unknown;
 };
 
@@ -68,6 +72,8 @@ export function createTrpcContext(deps: TrpcContextDeps) {
       cache: deps.cache,
       jwksProvider: deps.jwksProvider,
       appleAudience: deps.appleAudience,
+      googleJwksProvider: deps.googleJwksProvider,
+      googleAudience: deps.googleAudience,
     };
   };
 }

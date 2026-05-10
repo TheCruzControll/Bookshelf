@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { trpcServer } from "@hono/trpc-server";
 import { z } from "zod";
-import type { AppRepositories, AppleJwk, AppleJwksProvider, AuthProvider } from "@hone/domain";
+import type { AppRepositories, AppleJwk, AppleJwksProvider, GoogleJwk, GoogleJwksProvider, AuthProvider } from "@hone/domain";
 import { AppServices } from "@hone/domain";
 import { clearSentryUser, setSentryUser } from "@hone/observability";
 import type { Cache } from "@hone/cache";
@@ -10,6 +10,7 @@ import { appRouter } from "./trpc/router";
 import { requestIdMiddleware, accessLogMiddleware, otelHook, rateLimitMiddleware } from "./middleware";
 
 const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
+const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 
 export class FetchAppleJwksProvider implements AppleJwksProvider {
   async fetchKeys(): Promise<AppleJwk[]> {
@@ -22,12 +23,25 @@ export class FetchAppleJwksProvider implements AppleJwksProvider {
   }
 }
 
+export class FetchGoogleJwksProvider implements GoogleJwksProvider {
+  async fetchKeys(): Promise<GoogleJwk[]> {
+    const res = await fetch(GOOGLE_JWKS_URL);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch Google JWKS: ${res.status}`);
+    }
+    const json = await res.json() as { keys: GoogleJwk[] };
+    return json.keys;
+  }
+}
+
 export interface ApiDependencies {
   repositories?: AppRepositories;
   auth?: AuthProvider;
   cache?: Cache;
   jwksProvider?: AppleJwksProvider;
   appleAudience?: string;
+  googleJwksProvider?: GoogleJwksProvider;
+  googleAudience?: string;
 }
 
 const addBookSchema = z.object({
