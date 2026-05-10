@@ -15,13 +15,16 @@ concurrency:
 jobs:
   review:
     # Trigger when (a) the PR title matches the Implementer pattern `[#NN] ...`,
-    # (b) the PR is from one of the bot accounts, or (c) the PR carries
-    # `agent:reviewer`. Since BOT_PAT is owned by a real user, Implementer PRs
-    # show that user as author rather than a bot, so the title regex is the
-    # primary filter. Doc PRs always carry the label, so they hit (c).
+    # (b) the PR body links to a source issue (`Closes #NN` / `Refs #NN`), which
+    # all swarm-authored PRs do; (c) the PR carries `agent:reviewer`; or (d)
+    # the PR is from one of the bot accounts. The body-link check is what
+    # catches conventional-commit titles like `feat(auth): ... [E-03] (#58)`
+    # that don't start with `[#` but still close an issue.
     if: |
       startsWith(github.event.pull_request.title, '[#') ||
       startsWith(github.event.pull_request.title, 'docs: updates from #') ||
+      contains(github.event.pull_request.body, 'Closes #') ||
+      contains(github.event.pull_request.body, 'Refs #') ||
       contains(github.event.pull_request.labels.*.name, 'agent:reviewer') ||
       github.event.pull_request.user.login == 'hone-implementer[bot]' ||
       github.event.pull_request.user.login == 'hone-documenter[bot]'
