@@ -19,6 +19,14 @@
 **Shelf:**
 - `shelf.update(id, version, name?, visibility?, description?)` — update shelf metadata with optimistic locking (version must match current; stale version returns 409)
 
+### Domain Ports
+
+**Catalog:**
+- `CatalogProvider.search(query, limit)` — search catalog by title/author; returns `BookSearchResult[]` (see `packages/domain/src/ports.ts` for contract). Downstream adapters (Open Library and Google Books clients) implement this port.
+- `CatalogProvider.lookupByIsbn(isbn)` — lookup book by ISBN-10 or ISBN-13; returns `BookSearchResult | null`.
+
+`BookSearchResult` covers both Open Library and Google Books response shapes (see `packages/domain/src/types.ts`), with source field indicating `"open_library" | "google_books"`.
+
 ## Cache usage
 
 Any per-user, per-resource, or infrastructure cache **must** use `ctx.cache` from the tRPC context or app dependencies.
