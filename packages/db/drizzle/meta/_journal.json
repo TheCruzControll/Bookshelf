@@ -92,6 +92,13 @@
       "when": 1747612800000,
       "tag": "0012_handle_history",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1747699200000,
+      "tag": "0013_blocks_sessions_auth",
+      "breakpoints": true
     }
   ]
 }

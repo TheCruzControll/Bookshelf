@@ -3,7 +3,7 @@ import rootConfig from "../../vitest.config";
 
 export default mergeConfig(rootConfig, defineConfig({
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.integration.test.ts"],
     coverage: {
       exclude: [
         "**/node_modules/**",
@@ -12,7 +12,8 @@ export default mergeConfig(rootConfig, defineConfig({
         "src/index.ts",
         "src/client.ts",
         "src/schema.ts",
-        "src/repositories.ts"
+        "src/repositories.ts",
+        "src/test-helpers.ts"
       ],
       thresholds: {
         lines: 80,
