@@ -425,7 +425,7 @@ class DrizzleFollowRepository implements FollowRepository {
     return row ? toFollow(row) : null;
   }
 
-  async listFollowers(userId: EntityId) {
+  async listFollowers(userId: EntityId, _viewerId?: EntityId) {
     const rows = await this.db
       .select()
       .from(follows)
@@ -434,7 +434,7 @@ class DrizzleFollowRepository implements FollowRepository {
     return rows.map(toFollow);
   }
 
-  async listFollowing(userId: EntityId) {
+  async listFollowing(userId: EntityId, _viewerId?: EntityId) {
     const rows = await this.db
       .select()
       .from(follows)
@@ -572,7 +572,7 @@ class DrizzleRankingRepository implements RankingRepository {
     return row ? toRanking(row) : null;
   }
 
-  async listByOwner(ownerId: EntityId) {
+  async listByOwner(ownerId: EntityId, _viewerId?: EntityId) {
     const rows = await this.db
       .select()
       .from(rankings)
@@ -813,7 +813,7 @@ class DrizzleContactsRepository implements ContactsRepository {
       userId: row.profileId,
       hash: row.contactHash,
       saltVersion: row.saltVersion,
-      createdAt: row.expiresAt,
+      createdAt: new Date(),
       expiresAt: row.expiresAt,
     }));
   }
