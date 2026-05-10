@@ -81,10 +81,15 @@ Refs #${PR_NUMBER}
 EOF
 )" -R "$REPO"
 gh pr edit --add-label "type:doc" --add-label "agent:reviewer" -R "$REPO"
+
+DOC_PR_NUMBER=$(gh pr view --json number -q .number -R "$REPO")
+gh pr merge "$DOC_PR_NUMBER" --auto --squash --delete-branch -R "$REPO" || true
 ```
 
 The doc PR uses `Refs #` not `Closes #`. It does not auto-close any
-issue.
+issue. Auto-merge is enabled so the PR lands as soon as the Reviewer
+approves and `agent-tester` is green — doc PRs don't need a human to
+flip the merge button.
 
 ## When invoked from the weekly drift audit
 
@@ -113,6 +118,9 @@ gh pr create --title "docs: weekly drift sync" \
   --body "Consolidated documentation updates from the past week's merges." \
   -R "$REPO"
 gh pr edit --add-label "type:doc" --add-label "agent:reviewer" -R "$REPO"
+
+DRIFT_PR_NUMBER=$(gh pr view --json number -q .number -R "$REPO")
+gh pr merge "$DRIFT_PR_NUMBER" --auto --squash --delete-branch -R "$REPO" || true
 ```
 
 If no drift, exit silently.

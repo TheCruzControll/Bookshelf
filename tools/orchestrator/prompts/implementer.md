@@ -119,7 +119,7 @@ and skip ahead to label management.
 For a fresh implementation:
 
 ```
-gh pr create --draft --title "[#${ISSUE_NUMBER}] <issue title>" \
+gh pr create --title "[#${ISSUE_NUMBER}] <issue title>" \
   --body "$(cat <<EOF
 ## Summary
 
@@ -168,6 +168,22 @@ gh pr edit "$PR_NUMBER" \
   --add-label "lifecycle:in-review" \
   -R "$REPO"
 ```
+
+## Step 8 — enable auto-merge
+
+After labels are applied, enable auto-merge so the PR lands automatically
+once the Reviewer approves and `agent-tester` is green. The Reviewer
+will also call `gh pr merge --auto`; that's an idempotent retry, not a
+duplicate.
+
+```
+gh pr merge "$PR_NUMBER" --auto --squash --delete-branch -R "$REPO" || true
+```
+
+If the call fails (e.g. branch protection rejects auto-merge because a
+required check has already failed), don't fail the run — the Reviewer's
+parallel call will retry, and a maintainer can fall back to a direct
+merge.
 
 ## Hard rules
 
