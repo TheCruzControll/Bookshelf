@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createDrizzleRepositories } from "./repositories";
 import { startPostgresContainer, createMigratedDb } from "./test-helpers";
-import type { StartedPostgresContainer } from "./test-helpers";
-import type { HoneDb } from "./client";
+import type { StartedPostgresContainer, MigratedDb } from "./test-helpers";
 
 const DOCKER_AVAILABLE = await (async () => {
   try {
@@ -22,7 +21,7 @@ const describeIntegration = DOCKER_AVAILABLE ? describe : describe.skip;
 
 describeIntegration("repository integration tests (real Postgres)", () => {
   let container: StartedPostgresContainer;
-  let db: HoneDb;
+  let db: MigratedDb;
   let repos: ReturnType<typeof createDrizzleRepositories>;
 
   beforeAll(async () => {
@@ -32,6 +31,7 @@ describeIntegration("repository integration tests (real Postgres)", () => {
   }, 90_000);
 
   afterAll(async () => {
+    await db.endPool();
     await container.stop();
   });
 
@@ -762,8 +762,8 @@ describeIntegration("repository integration tests (real Postgres)", () => {
   });
 
   describe("DrizzleRecommendationRepository", () => {
-    const recUserId = uid("e00000000001");
-    const recBookId = uid("e00000000002");
+    const recUserId = uid("ff0000000001");
+    const recBookId = uid("ff0000000002");
 
     beforeAll(async () => {
       await repos.profiles.create({

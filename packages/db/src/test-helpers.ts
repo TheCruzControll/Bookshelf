@@ -1,7 +1,9 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import pg from "pg";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDb } from "./client";
+import * as schema from "./schema";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,8 +32,14 @@ export async function startPostgresContainer(): Promise<StartedPostgresContainer
   };
 }
 
-export async function createMigratedDb(connectionString: string) {
-  const db = createDb(connectionString);
+export type MigratedDb = ReturnType<typeof drizzle<typeof schema>> & {
+  endPool: () => Promise<void>;
+};
+
+export async function createMigratedDb(connectionString: string): Promise<MigratedDb> {
+  const pool = new pg.Pool({ connectionString });
+  const db = drizzle(pool, { schema }) as MigratedDb;
+  db.endPool = () => pool.end();
   await migrate(db, {
     migrationsFolder: path.resolve(__dirname, "../drizzle"),
   });
