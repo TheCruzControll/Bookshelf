@@ -40,6 +40,8 @@ cp .env.example .env.local
 | `APPLE_TEAM_ID` | Only if testing Apple Sign-In | Team ID from Apple Developer account |
 | `APPLE_KEY_ID` | Only if testing Apple Sign-In | Key ID of the private key used to validate Apple tokens |
 | `APPLE_PRIVATE_KEY` | Only if testing Apple Sign-In | Private key for Apple token validation (format: PEM-encoded RSA key) |
+| `GOOGLE_CLIENT_ID` | Only if testing Google Sign-In | OAuth 2.0 Client ID from [Google Cloud Console](https://console.cloud.google.com/) (format: `*-*.apps.googleusercontent.com`) |
+| `GOOGLE_CLIENT_SECRET` | Only if testing Google Sign-In | OAuth 2.0 Client Secret from Google Cloud Console (keep secret, never expose to clients) |
 
 ## Local Database
 
