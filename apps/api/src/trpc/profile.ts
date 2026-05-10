@@ -5,6 +5,7 @@ import {
   CheckHandleOutputSchema,
   CreateProfileInputSchema,
   CreateProfileOutputSchema,
+  POSTURE_C_DEFAULTS,
   ResolveOldHandleInputSchema,
   ResolveOldHandleOutputSchema,
   SetHandleInputSchema,
@@ -73,7 +74,7 @@ export const profileRouter = router({
         id: ctx.identity.userId,
         handle: input.handle.toLowerCase(),
         displayName: input.displayName,
-        defaultVisibility: input.defaultVisibility,
+        defaultVisibility: POSTURE_C_DEFAULTS,
       });
     }),
 

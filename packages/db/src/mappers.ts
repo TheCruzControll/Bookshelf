@@ -4,6 +4,7 @@ import type {
   Block,
   BlockAgainstHash,
   Book,
+  ContentType,
   ContactIndex,
   Edition,
   EmailIndex,
@@ -22,7 +23,8 @@ import type {
   Review,
   Session,
   Shelf,
-  ShelfItem
+  ShelfItem,
+  Visibility
 } from "@hone/domain";
 import type {
   accountDeletions,
@@ -88,7 +90,7 @@ export function toProfile(row: ProfileRow): Profile {
     displayName: row.displayName,
     bio: row.bio ?? undefined,
     avatarUrl: row.avatarUrl ?? undefined,
-    defaultVisibility: row.defaultVisibility,
+    defaultVisibility: row.defaultVisibility as Record<ContentType, Visibility>,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt

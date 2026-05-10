@@ -22,7 +22,7 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "@hone/domain";
-import { SYSTEM_SHELVES } from "@hone/domain";
+import { POSTURE_C_DEFAULTS, SYSTEM_SHELVES } from "@hone/domain";
 import type { HoneDb } from "./client";
 import {
   activityEvents,
@@ -348,7 +348,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
       id: event.actorId,
       handle: "unknown",
       displayName: "Unknown reader",
-      defaultVisibility: "public",
+      defaultVisibility: POSTURE_C_DEFAULTS,
       version: 1,
       createdAt: event.occurredAt,
       updatedAt: event.occurredAt

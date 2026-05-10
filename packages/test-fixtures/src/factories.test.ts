@@ -41,7 +41,8 @@ describe("makeProfile", () => {
     const profile = makeProfile();
     expect(profile.id).toBeDefined();
     expect(profile.handle).toMatch(/^user_/);
-    expect(profile.defaultVisibility).toBe("public");
+    expect(profile.defaultVisibility.identity).toBe("public");
+    expect(profile.defaultVisibility.want_to_read_shelf).toBe("followers");
     expect(profile.createdAt).toBeInstanceOf(Date);
   });
 
