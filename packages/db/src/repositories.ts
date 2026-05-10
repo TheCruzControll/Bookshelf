@@ -543,6 +543,15 @@ class DrizzleBlockRepository implements BlockRepository {
     return rows.map(toBlock);
   }
 
+  async listBlockingUser(blockedId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(blocks)
+      .where(eq(blocks.blockedId, blockedId))
+      .orderBy(desc(blocks.createdAt));
+    return rows.map(toBlock);
+  }
+
   async isBlocked(input: { viewerId: EntityId; targetId: EntityId }) {
     const row = await this.db.query.blocks.findFirst({
       where: or(

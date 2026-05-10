@@ -6,16 +6,22 @@ import type {
   AppleTokenClaims,
   AuthIdentityRepository,
   AuthProvider,
+  BlockFilter,
+  BlockRepository,
+  ContactsRepository,
+  FollowRepository,
   GoogleJwksProvider,
   GoogleTokenClaims,
   HandleHistoryRepository,
+  ListRepository,
   ProfileRepository,
   RankingRepository,
+  RecommendationRepository,
   ReviewRepository,
   SessionRepository,
   ShelfRepository
 } from "./ports";
-import type { ContentType, EntityId, Profile, Ranking, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ContentType, EntityId, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
 
 export interface SystemShelfDef {
   name: string;
@@ -530,12 +536,121 @@ export class AuthService {
   }
 }
 
+export class BlockService implements BlockFilter {
+  constructor(private readonly blocks: BlockRepository) {}
+
+  private async blockedIds(viewerId: EntityId): Promise<Set<EntityId>> {
+    const [outgoing, incoming] = await Promise.all([
+      this.blocks.listBlockedByUser(viewerId),
+      this.blocks.listBlockingUser(viewerId),
+    ]);
+    const ids = new Set<EntityId>();
+    for (const b of outgoing) ids.add(b.blockedId);
+    for (const b of incoming) ids.add(b.blockerId);
+    return ids;
+  }
+
+  async removeBlocked<T extends { id: EntityId }>(viewerId: EntityId, items: T[]): Promise<T[]> {
+    if (items.length === 0) return items;
+    const ids = await this.blockedIds(viewerId);
+    return items.filter((item) => !ids.has(item.id));
+  }
+
+  async removeBlockedIds(viewerId: EntityId, userIds: EntityId[]): Promise<EntityId[]> {
+    if (userIds.length === 0) return userIds;
+    const ids = await this.blockedIds(viewerId);
+    return userIds.filter((id) => !ids.has(id));
+  }
+
+  async removeBlockedFeedItems(viewerId: EntityId, items: FeedItem[]): Promise<FeedItem[]> {
+    if (items.length === 0) return items;
+    const ids = await this.blockedIds(viewerId);
+    return items.filter((item) => !ids.has(item.event.actorId));
+  }
+
+  async removeBlockedFollows(viewerId: EntityId, follows: Follow[], userIdFn: (f: Follow) => EntityId): Promise<Follow[]> {
+    if (follows.length === 0) return follows;
+    const ids = await this.blockedIds(viewerId);
+    return follows.filter((f) => !ids.has(userIdFn(f)));
+  }
+
+  async removeBlockedLists(viewerId: EntityId, lists: List[]): Promise<List[]> {
+    if (lists.length === 0) return lists;
+    const ids = await this.blockedIds(viewerId);
+    return lists.filter((l) => !ids.has(l.ownerId));
+  }
+
+  async removeBlockedRecommendations(viewerId: EntityId, recs: Recommendation[], sourceUserIdFn: (r: Recommendation) => EntityId | undefined): Promise<Recommendation[]> {
+    if (recs.length === 0) return recs;
+    const ids = await this.blockedIds(viewerId);
+    return recs.filter((r) => {
+      const userId = sourceUserIdFn(r);
+      return userId === undefined || !ids.has(userId);
+    });
+  }
+}
+
+export class SocialService {
+  private readonly blockService: BlockService;
+
+  constructor(
+    private readonly follows: FollowRepository,
+    private readonly blocks: BlockRepository,
+    private readonly contacts: ContactsRepository,
+    private readonly recommendations: RecommendationRepository,
+    private readonly activity: ActivityRepository,
+    private readonly profiles: ProfileRepository,
+    private readonly lists: ListRepository,
+  ) {
+    this.blockService = new BlockService(blocks);
+  }
+
+  async listFollowers(userId: EntityId, viewerId: EntityId): Promise<Follow[]> {
+    const all = await this.follows.listFollowers(userId, viewerId);
+    return this.blockService.removeBlockedFollows(viewerId, all, (f) => f.followerId);
+  }
+
+  async listFollowing(userId: EntityId, viewerId: EntityId): Promise<Follow[]> {
+    const all = await this.follows.listFollowing(userId, viewerId);
+    return this.blockService.removeBlockedFollows(viewerId, all, (f) => f.followeeId);
+  }
+
+  async findContactMatches(input: { hashes: string[]; viewerId: EntityId }): Promise<EntityId[]> {
+    const matches = await this.contacts.findMatches({ hashes: input.hashes, excludeUserId: input.viewerId });
+    return this.blockService.removeBlockedIds(input.viewerId, matches);
+  }
+
+  async getFriendFeed(input: { viewerId: EntityId; cursor?: string; limit: number }): Promise<FeedItem[]> {
+    const items = await this.activity.getFriendFeed(input);
+    return this.blockService.removeBlockedFeedItems(input.viewerId, items);
+  }
+
+  async getRecommendations(userId: EntityId, limit: number): Promise<Recommendation[]> {
+    const recs = await this.recommendations.getForUser(userId, limit);
+    return this.blockService.removeBlockedRecommendations(userId, recs, () => undefined);
+  }
+
+  async searchProfiles(handle: string, viewerId: EntityId): Promise<Profile | null> {
+    const profile = await this.profiles.findByHandle(handle);
+    if (!profile) return null;
+    const filtered = await this.blockService.removeBlocked(viewerId, [profile]);
+    return filtered[0] ?? null;
+  }
+
+  async discoverLists(ownerId: EntityId, viewerId: EntityId): Promise<List[]> {
+    const all = await this.lists.listByOwner(ownerId, viewerId);
+    return this.blockService.removeBlockedLists(viewerId, all);
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
   readonly rankings: RankingService;
   readonly reviews: ReviewService;
+  readonly blocks: BlockService;
+  readonly social: SocialService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -554,6 +669,16 @@ export class AppServices {
     this.reviews = new ReviewService(
       repositories.reviews,
       repositories.activity
+    );
+    this.blocks = new BlockService(repositories.blocks);
+    this.social = new SocialService(
+      repositories.follows,
+      repositories.blocks,
+      repositories.contacts,
+      repositories.recommendations,
+      repositories.activity,
+      repositories.profiles,
+      repositories.lists,
     );
   }
 }

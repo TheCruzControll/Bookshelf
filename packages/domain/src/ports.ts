@@ -192,6 +192,7 @@ export interface BlockRepository {
   unblock(input: { blockerId: EntityId; blockedId: EntityId }): Promise<void>;
   findBlock(input: { blockerId: EntityId; blockedId: EntityId }): Promise<Block | null>;
   listBlockedByUser(blockerId: EntityId): Promise<Block[]>;
+  listBlockingUser(blockedId: EntityId): Promise<Block[]>;
   isBlocked(input: { viewerId: EntityId; targetId: EntityId }): Promise<boolean>;
 }
 
