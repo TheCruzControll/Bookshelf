@@ -1225,4 +1225,28 @@ describe("SocialService", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.ownerId).toBe("owner-ok");
   });
+
+  it("getRecommendations calls removeBlocked on the recs surface", async () => {
+    const now = new Date();
+    const recs: Recommendation[] = [
+      { book: { id: "book-1", canonicalTitle: "Book One", createdAt: now, updatedAt: now }, score: 0.9, reason: "popular" },
+      { book: { id: "book-2", canonicalTitle: "Book Two", createdAt: now, updatedAt: now }, score: 0.8, reason: "friend liked" },
+    ];
+    const service = makeSocialService({ recs });
+    const result = await service.getRecommendations("viewer", 10);
+    expect(result).toHaveLength(2);
+  });
+
+  it("getRecommendations returns recs even when sourceUserIdFn returns undefined (book recs have no user owner)", async () => {
+    const now = new Date();
+    const recs: Recommendation[] = [
+      { book: { id: "book-1", canonicalTitle: "Book One", createdAt: now, updatedAt: now }, score: 0.9, reason: "popular" },
+    ];
+    const service = makeSocialService({
+      recs,
+      outgoing: [makeBlock("viewer", "some-other-user")],
+    });
+    const result = await service.getRecommendations("viewer", 10);
+    expect(result).toHaveLength(1);
+  });
 });
