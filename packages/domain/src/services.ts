@@ -13,6 +13,7 @@ import type {
   GoogleJwksProvider,
   GoogleTokenClaims,
   HandleHistoryRepository,
+  ImportRepository,
   ListRepository,
   ProfileRepository,
   RankingRepository,
@@ -22,6 +23,7 @@ import type {
   ShelfRepository
 } from "./ports";
 import type { ContentType, EntityId, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ReuploadStrategy } from "./schemas/imports";
 
 export interface SystemShelfDef {
   name: string;
@@ -719,6 +721,67 @@ export class SocialService {
   }
 }
 
+export const REUPLOAD_OPTIONS: ReuploadStrategy[] = [
+  "process_from_scratch",
+  "merge_changes_only",
+  "cancel",
+];
+
+export class ImportService {
+  constructor(private readonly imports: ImportRepository) {}
+
+  async checkForDuplicate(input: {
+    ownerId: EntityId;
+    fileHash: string;
+  }): Promise<{
+    isDuplicate: boolean;
+    existingImportId?: EntityId;
+    options?: ReuploadStrategy[];
+  }> {
+    const existing = await this.imports.findByOwnerAndHash({
+      ownerId: input.ownerId,
+      hash: input.fileHash,
+    });
+
+    if (!existing) {
+      return { isDuplicate: false };
+    }
+
+    return {
+      isDuplicate: true,
+      existingImportId: existing.id,
+      options: REUPLOAD_OPTIONS,
+    };
+  }
+
+  async confirmReupload(input: {
+    ownerId: EntityId;
+    fileHash: string;
+    strategy: ReuploadStrategy;
+  }): Promise<{ importId?: EntityId; status: "created" | "cancelled" }> {
+    if (input.strategy === "cancel") {
+      return { status: "cancelled" };
+    }
+
+    const id = crypto.randomUUID();
+    const importRecord = await this.imports.create({
+      id,
+      ownerId: input.ownerId,
+      source: "goodreads",
+      idempotencyHash: input.fileHash,
+    });
+
+    if (input.strategy === "merge_changes_only") {
+      await this.imports.updateStatus({
+        id: importRecord.id,
+        status: "processing",
+      });
+    }
+
+    return { importId: importRecord.id, status: "created" };
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
@@ -727,7 +790,10 @@ export class AppServices {
   readonly reviews: ReviewService;
   readonly blocks: BlockService;
   readonly social: SocialService;
+
   readonly follows: FollowService;
+
+  readonly imports: ImportService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -761,5 +827,6 @@ export class AppServices {
       repositories.profiles,
       repositories.lists,
     );
+    this.imports = new ImportService(repositories.imports);
   }
 }
