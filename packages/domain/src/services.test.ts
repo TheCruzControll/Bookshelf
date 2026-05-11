@@ -1728,8 +1728,6 @@ describe("BlockService", () => {
       )
     );
   });
-});
-
 
   it("createBlock creates a block and calls unfollow in both directions", async () => {
     const block = makeBlock("blocker", "blocked");
@@ -1811,6 +1809,8 @@ describe("BlockService", () => {
     await service.deleteBlock({ blockerId: "blocker", blockedId: "blocked" });
     expect(blockRepo.unblock).not.toHaveBeenCalled();
   });
+
+});
 
 describe("SocialService", () => {
   function makeFollowRepo(followers: Follow[] = [], following: Follow[] = []): FollowRepository {
