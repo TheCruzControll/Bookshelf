@@ -23,6 +23,9 @@ export const ActivityEventSchema = z.object({
   reviewId: EntityIdSchema.optional(),
   visibility: z.enum(["public", "followers", "mutuals", "private"]),
   occurredAt: z.date(),
+  scoreAtPublish: z.number().optional(),
+  scoreLockedAtPublish: z.boolean().optional(),
+  groupKey: z.string().optional(),
 });
 
 export const FeedItemSchema = z.object({

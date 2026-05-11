@@ -1,3 +1,4 @@
+export * from "./activity-publisher";
 export * from "./affiliate";
 export * from "./candidate";
 export * from "./heuristic-scorer";

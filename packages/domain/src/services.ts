@@ -34,6 +34,7 @@ import type { ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedIte
 import type { ReuploadStrategy } from "./schemas/imports";
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
+import { publishActivityEvent } from "./activity-publisher";
 
 export interface SystemShelfDef {
   name: string;
@@ -152,12 +153,12 @@ export class ShelfService {
   }): Promise<ShelfItem> {
     const shelfItem = await this.shelves.addBook(input);
 
-    await this.activity.append({
+    await publishActivityEvent(this.activity, null, {
       actorId: input.ownerId,
       verb: "book_added",
       bookId: input.bookId,
       shelfId: input.shelfId,
-      visibility: "followers"
+      visibility: "followers",
     });
 
     return shelfItem;
@@ -453,7 +454,7 @@ export class RankingService {
 
   /**
    * Finish ranking flow: insert or update ranking, compute score from position,
-   * and write a frozen-at-publish activity event.
+   * and write a frozen-at-publish activity event via the shared publisher.
    */
   async finishBook(input: {
     ownerId: EntityId;
@@ -470,16 +471,19 @@ export class RankingService {
       score,
     });
 
-    const event = await this.activity.append({
+    const event = await publishActivityEvent(this.activity, this.rankings, {
       actorId: input.ownerId,
       verb: "book_finished",
       bookId: input.bookId,
       visibility: "followers",
-      scoreAtPublish: score,
-      scoreLockedAtPublish: input.total < 10,
+      scoreSnapshot: {
+        score,
+        locked: input.total < 10,
+      },
     });
 
-    return { ranking, event };
+    // Event is guaranteed non-null when scoreSnapshot is provided.
+    return { ranking, event: event! };
   }
 
   /**
@@ -516,7 +520,7 @@ export class ReviewService {
     visibility: Visibility;
   }): Promise<Review> {
     const review = await this.reviews.create(input);
-    await this.activity.append({
+    await publishActivityEvent(this.activity, null, {
       actorId: input.authorId,
       verb: "book_reviewed",
       bookId: input.bookId,
