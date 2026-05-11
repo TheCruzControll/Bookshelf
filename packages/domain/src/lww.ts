@@ -27,6 +27,10 @@ export function resolveFollowLww(
   a: LwwWrite<boolean>,
   b: LwwWrite<boolean>
 ): LwwWrite<boolean> {
+  if (a.updatedAt.getTime() === b.updatedAt.getTime()) {
+    // Tiebreaker: unfollow wins (false > true) for consistency
+    return a.value <= b.value ? a : b;
+  }
   return resolveLww(a, b);
 }
 
@@ -34,6 +38,10 @@ export function resolveBlockLww(
   a: LwwWrite<boolean>,
   b: LwwWrite<boolean>
 ): LwwWrite<boolean> {
+  if (a.updatedAt.getTime() === b.updatedAt.getTime()) {
+    // Tiebreaker: block wins (true > false) for safety
+    return a.value >= b.value ? a : b;
+  }
   return resolveLww(a, b);
 }
 
