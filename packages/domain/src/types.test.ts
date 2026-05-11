@@ -137,7 +137,7 @@ describe("domain types smoke test", () => {
       id: "00000000-0000-0000-0000-000000000001",
       handle: "tester",
       displayName: "Test User",
-      defaultVisibility: {
+      verified: false,      defaultVisibility: {
         identity: "public",
         follower_list: "public",
         review: "public",

@@ -28,6 +28,7 @@ import type {
   OAuthIdentity,
   Session,
   Shelf,
+  ShelfAuthorType,
   ShelfItem,
   PhoneVerification,
   PhoneNumber,
@@ -139,6 +140,7 @@ export interface ShelfRepository {
     visibility?: Visibility | undefined;
     description?: string | undefined;
     publishedAt?: Date | null | undefined;
+    authorType?: ShelfAuthorType | undefined;
   }): Promise<Shelf>;
   delete(input: { id: EntityId; ownerId: EntityId }): Promise<void>;
   addBook(input: {
@@ -406,6 +408,7 @@ export interface PhoneNumberRepository {
   upsert(input: { profileId: EntityId; e164Hash: string }): Promise<PhoneNumber>;
   findByProfileId(profileId: EntityId): Promise<PhoneNumber | null>;
   findByHash(e164Hash: string): Promise<PhoneNumber | null>;
+}
 /**
  * Port for generating new HMAC key material.
  * Implemented by AWS KMS adapter in production and a local random stub in dev.

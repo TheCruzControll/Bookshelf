@@ -70,13 +70,17 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
     imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
-    contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+    contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn(), expireBySaltVersion: vi.fn() },
     lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
     authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
     sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
     handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
     magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
-    emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+    emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn(), expireBySaltVersion: vi.fn() },
+    inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+    phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
+    phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
+    salts: { create: vi.fn(), findActive: vi.fn(), findByVersion: vi.fn(), retire: vi.fn(), getLatestVersion: vi.fn(), listAll: vi.fn() },
     ...overrides,
   };
 }
@@ -214,6 +218,70 @@ describe("list.publish", () => {
     expect(res.status).toBe(200);
     // Should not call update since it's already published
     expect(repos.shelves.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when authorType is internal_editorial and profile is not verified", async () => {
+    const existing = makeShelf({ id: UUID2, ownerId: UUID1, kind: "list" });
+    const repos = makeRepositories({
+      shelves: {
+        ...makeRepositories().shelves,
+        findById: vi.fn().mockResolvedValue(existing),
+      },
+      profiles: {
+        ...makeRepositories().profiles,
+        findById: vi.fn().mockResolvedValue({
+          id: UUID1,
+          handle: "testuser",
+          displayName: "Test User",
+          verified: false,
+          defaultVisibility: {},
+          version: 1,
+          createdAt: NOW,
+          updatedAt: NOW,
+        }),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/list.publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, authorType: "internal_editorial" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("publishes with internal_editorial when profile is verified", async () => {
+    const existing = makeShelf({ id: UUID2, ownerId: UUID1, kind: "list" });
+    const published = makeShelf({ id: UUID2, ownerId: UUID1, kind: "list", authorType: "internal_editorial", publishedAt: NOW });
+    const repos = makeRepositories({
+      shelves: {
+        ...makeRepositories().shelves,
+        findById: vi.fn().mockResolvedValue(existing),
+        update: vi.fn().mockResolvedValue(published),
+      },
+      profiles: {
+        ...makeRepositories().profiles,
+        findById: vi.fn().mockResolvedValue({
+          id: UUID1,
+          handle: "testuser",
+          displayName: "Test User",
+          verified: true,
+          defaultVisibility: {},
+          version: 1,
+          createdAt: NOW,
+          updatedAt: NOW,
+        }),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/list.publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, authorType: "internal_editorial" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.shelf.authorType).toBe("internal_editorial");
   });
 });
 

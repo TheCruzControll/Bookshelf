@@ -167,6 +167,7 @@ export type MoveShelfItemOutput = z.infer<typeof MoveShelfItemOutputSchema>;
 export const PublishShelfInputSchema = z.object({
   id: EntityIdSchema,
   version: z.number().int().positive(),
+  authorType: ShelfAuthorTypeSchema.optional(),
 });
 
 export const PublishShelfOutputSchema = z.object({

@@ -21,6 +21,7 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     id: PROFILE_ID,
     handle: "testuser",
     displayName: "Test User",
+    verified: false,
     defaultVisibility: POSTURE_C_DEFAULTS,
     version: 1,
     createdAt: now,

@@ -21,7 +21,9 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     id: "00000000-0000-0000-0000-000000000001",
     handle: "bookworm42",
     displayName: "Book Worm",
+    verified: false,
     defaultVisibility: POSTURE_C_DEFAULTS,
+    version: 1,
     createdAt: now,
     updatedAt: now,
   };
@@ -237,7 +239,9 @@ describe("profile.createProfile", () => {
     id: "00000000-0000-0000-0000-000000000001",
     handle: "bookworm42",
     displayName: "Book Worm",
+    verified: false,
     defaultVisibility: POSTURE_C_DEFAULTS,
+    version: 1,
     createdAt: now,
     updatedAt: now,
   };

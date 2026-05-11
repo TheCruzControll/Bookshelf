@@ -58,6 +58,7 @@ export const profiles = pgTable(
     displayName: text("display_name").notNull(),
     bio: text("bio"),
     avatarUrl: text("avatar_url"),
+    verified: boolean("verified").notNull().default(false),
     defaultVisibility: jsonb("default_visibility").$type<Record<ContentType, Visibility>>().notNull(),
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })

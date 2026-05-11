@@ -30,7 +30,7 @@ import type {
   ShelfRepository,
   SmsProvider
 } from "./ports";
-import type { ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
@@ -85,7 +85,8 @@ export function slugify(name: string): string {
 export class ShelfService {
   constructor(
     private readonly shelves: ShelfRepository,
-    private readonly activity: ActivityRepository
+    private readonly activity: ActivityRepository,
+    private readonly profiles?: ProfileRepository
   ) {}
 
   async createShelf(input: {
@@ -225,6 +226,7 @@ export class ShelfService {
     id: EntityId;
     ownerId: EntityId;
     version: number;
+    authorType?: ShelfAuthorType | undefined;
   }): Promise<Shelf> {
     const shelf = await this.shelves.findById(input.id);
     if (!shelf) {
@@ -236,14 +238,28 @@ export class ShelfService {
     if (shelf.kind !== "list") {
       throw Object.assign(new Error("Only list shelves can be published"), { code: "BAD_REQUEST" });
     }
-    if (shelf.publishedAt) {
+
+    const effectiveAuthorType = input.authorType ?? shelf.authorType;
+
+    if (effectiveAuthorType === "internal_editorial") {
+      if (!this.profiles) {
+        throw Object.assign(new Error("Profile repository not configured"), { code: "INTERNAL_ERROR" });
+      }
+      const profile = await this.profiles.findById(input.ownerId);
+      if (!profile || !profile.verified) {
+        throw Object.assign(new Error("Only verified accounts can publish as internal editorial"), { code: "FORBIDDEN" });
+      }
+    }
+
+    if (shelf.publishedAt && effectiveAuthorType === shelf.authorType) {
       return shelf;
     }
     return this.shelves.update({
       id: input.id,
       ownerId: input.ownerId,
       version: input.version,
-      publishedAt: new Date(),
+      publishedAt: shelf.publishedAt ?? new Date(),
+      authorType: effectiveAuthorType,
     });
   }
 
@@ -1403,7 +1419,8 @@ export class AppServices {
   ) {
     this.shelves = new ShelfService(
       repositories.shelves,
-      repositories.activity
+      repositories.activity,
+      repositories.profiles
     );
     this.handles = new HandleService(repositories.profiles, repositories.handleHistory);
     this.profiles = new ProfileService(
