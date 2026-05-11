@@ -16,6 +16,7 @@ import type {
   GoogleTokenClaims,
   HandleHistoryRepository,
   ImportRepository,
+  InAppNotificationRepository,
   ListRepository,
   MagicLinkRepository,
   ProfileRepository,
@@ -25,7 +26,7 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "./ports";
-import type { ActivityEvent, ActivityVerb, ContentType, EntityId, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ActivityEvent, ActivityVerb, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
@@ -1094,6 +1095,25 @@ export class ContactsService {
   }
 }
 
+export class NotificationService {
+  constructor(private readonly inAppNotifications: InAppNotificationRepository) {}
+
+  async list(input: {
+    recipientId: EntityId;
+    cursor?: string;
+    limit: number;
+  }): Promise<InAppNotification[]> {
+    return this.inAppNotifications.list(input);
+  }
+
+  async markRead(input: {
+    recipientId: EntityId;
+    notificationId: EntityId;
+  }): Promise<void> {
+    await this.inAppNotifications.markRead(input);
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
@@ -1105,6 +1125,7 @@ export class AppServices {
 
   readonly follows: FollowService;
 
+  readonly notifications: NotificationService;
   readonly imports: ImportService;
   readonly contacts: ContactsService;
 
@@ -1140,6 +1161,7 @@ export class AppServices {
       repositories.profiles,
       repositories.lists,
     );
+    this.notifications = new NotificationService(repositories.inAppNotifications);
     this.imports = new ImportService(repositories.imports);
     this.contacts = new ContactsService(
       repositories.contacts,
