@@ -295,6 +295,166 @@ h1 {
   opacity: 0.45;
 }
 
+.profileStats {
+  display: flex;
+  gap: 24px;
+  margin: 16px 0;
+}
+
+.profileStat {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 15px;
+  transition: color 0.1s ease;
+}
+
+.profileStat:hover {
+  color: var(--ai);
+}
+
+.profileStat strong {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.profileStat span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.followButton,
+.followButtonFollowing {
+  border: 1px solid var(--ai);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 20px;
+  transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.followButton {
+  background: var(--ai);
+  color: var(--paper);
+}
+
+.followButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.followButtonFollowing {
+  background: transparent;
+  color: var(--ai);
+}
+
+.followButtonFollowing:hover:not(:disabled) {
+  background: var(--ai);
+  color: var(--paper);
+}
+
+.followButton:disabled,
+.followButtonFollowing:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.followButtonError {
+  color: var(--vermilion);
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
+.followList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+
+.followListItem {
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.followListItem:last-child {
+  border-bottom: none;
+}
+
+.followListCount {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 8px 0 0;
+}
+
+.followListEmpty {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 24px 0;
+}
+
+.userCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.1s ease;
+}
+
+.userCard:hover {
+  opacity: 0.85;
+}
+
+.userCardAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--ai);
+  color: var(--paper);
+  font-size: 16px;
+  font-weight: 700;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.userCardAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.userCardInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userCardName {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userCardHandle {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
 @media (max-width: 760px) {
   .shell {
     grid-template-columns: 1fr;
