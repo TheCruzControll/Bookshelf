@@ -27,19 +27,16 @@ export class LocalSaltKeyProvider implements SaltKeyProvider {
  */
 export class KmsSaltKeyProvider implements SaltKeyProvider {
   private readonly region: string;
-  private readonly kmsKeyId: string | undefined;
 
-  constructor(region: string, kmsKeyId?: string) {
+  constructor(region: string) {
     this.region = region;
-    this.kmsKeyId = kmsKeyId;
   }
 
   async generateKey(): Promise<string> {
     // Dynamic import avoids bundling @aws-sdk/client-kms in dev/test.
     // The module is only required at runtime in production deployments.
-    const kms: Record<string, unknown> = await (Function(
-      'return import("@aws-sdk/client-kms")',
-    )() as Promise<Record<string, unknown>>);
+    // @ts-expect-error — @aws-sdk/client-kms is a peer dep, not installed at build time
+    const kms = await import("@aws-sdk/client-kms");
 
     const KMSClient = kms.KMSClient as new (
       config: { region: string },
@@ -68,10 +65,9 @@ export class KmsSaltKeyProvider implements SaltKeyProvider {
  */
 export function createSaltKeyProvider(env?: {
   KMS_REGION?: string;
-  KMS_KEY_ID?: string;
 }): SaltKeyProvider {
   if (env?.KMS_REGION) {
-    return new KmsSaltKeyProvider(env.KMS_REGION, env.KMS_KEY_ID);
+    return new KmsSaltKeyProvider(env.KMS_REGION);
   }
   return new LocalSaltKeyProvider();
 }

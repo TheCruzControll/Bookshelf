@@ -37,6 +37,7 @@ function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepo
     findMatches: vi.fn().mockResolvedValue([]),
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
+    expireBySaltVersion: vi.fn().mockResolvedValue(0),
     listByUser: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
@@ -48,6 +49,7 @@ function makeEmailIndexRepo(overrides?: Partial<EmailIndexRepository>): EmailInd
     findMatches: vi.fn().mockResolvedValue([]),
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
+    expireBySaltVersion: vi.fn().mockResolvedValue(0),
     listByUser: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
@@ -150,6 +152,33 @@ describe("SaltRotationService", () => {
       );
 
       expect(newSalt.version).toBe(1);
+    });
+
+    it("marks old-salt hashes for expiration during rotation", async () => {
+      const currentSalt = makeSalt({ version: 2 });
+      saltRepo.findActive = vi.fn().mockResolvedValue(currentSalt);
+      saltRepo.getLatestVersion = vi.fn().mockResolvedValue(2);
+
+      await service.rotate();
+
+      expect(contactsRepo.expireBySaltVersion).toHaveBeenCalledWith(
+        2,
+        expect.any(Date),
+      );
+      expect(emailIndexRepo.expireBySaltVersion).toHaveBeenCalledWith(
+        2,
+        expect.any(Date),
+      );
+    });
+
+    it("skips expiration marking when no previous salt exists", async () => {
+      saltRepo.findActive = vi.fn().mockResolvedValue(null);
+      saltRepo.getLatestVersion = vi.fn().mockResolvedValue(0);
+
+      await service.rotate();
+
+      expect(contactsRepo.expireBySaltVersion).not.toHaveBeenCalled();
+      expect(emailIndexRepo.expireBySaltVersion).not.toHaveBeenCalled();
     });
 
     it("cleans up expired hashes after rotation", async () => {

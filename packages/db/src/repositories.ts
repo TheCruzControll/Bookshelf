@@ -29,7 +29,7 @@
  * surface that returns content attributed to another user: shelves, reviews,
  * activity feed, rankings, lists, and search results.
  */
-import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -974,6 +974,15 @@ class DrizzleContactsRepository implements ContactsRepository {
       .where(lt(contactsIndex.expiresAt, now));
   }
 
+  async expireBySaltVersion(saltVersion: number, expiresAt: Date): Promise<number> {
+    const result = await this.db
+      .update(contactsIndex)
+      .set({ expiresAt })
+      .where(eq(contactsIndex.saltVersion, saltVersion))
+      .returning();
+    return result.length;
+  }
+
   async listByUser(userId: EntityId): Promise<ContactsHash[]> {
     const rows = await this.db
       .select()
@@ -1045,6 +1054,15 @@ class DrizzleEmailIndexRepository implements EmailIndexRepository {
     await this.db
       .delete(emailIndex)
       .where(lt(emailIndex.expiresAt, now));
+  }
+
+  async expireBySaltVersion(saltVersion: number, expiresAt: Date): Promise<number> {
+    const result = await this.db
+      .update(emailIndex)
+      .set({ expiresAt })
+      .where(eq(emailIndex.saltVersion, saltVersion))
+      .returning();
+    return result.length;
   }
 
   async listByUser(userId: EntityId): Promise<EmailIndex[]> {
@@ -1509,7 +1527,7 @@ class DrizzleSaltRepository implements SaltRepository {
     const now = new Date();
     const row = await this.db.query.salts.findFirst({
       where: and(
-        lt(salts.activeFrom, now),
+        lte(salts.activeFrom, now),
         or(isNull(salts.activeTo), gt(salts.activeTo, now))
       ),
       orderBy: [desc(salts.version)],
