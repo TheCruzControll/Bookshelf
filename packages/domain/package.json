@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./affiliate": "./src/affiliate.ts",
+    "./contact-hash": "./src/contact-hash.ts",
     "./goodreads": "./src/goodreads.ts"
   },
   "scripts": {
