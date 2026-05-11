@@ -589,3 +589,35 @@ export const magicLinkTokens = pgTable(
     expiresAtIdx: index("magic_link_tokens_expires_at_idx").on(table.expiresAt)
   })
 );
+
+export const notificationTriggerEnum = pgEnum("notification_trigger", [
+  "new_follower",
+  "mutual_follow_back",
+  "mutual_rated_high",
+  "mutual_finished_want_to_read",
+  "security_event",
+]);
+
+export const inAppNotifications = pgTable(
+  "in_app_notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => profiles.id),
+    actorId: uuid("actor_id").references(() => profiles.id),
+    trigger: notificationTriggerEnum("trigger").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    recipientTimeIdx: index("in_app_notifications_recipient_time_idx").on(
+      table.recipientId,
+      table.createdAt
+    ),
+    actorIdx: index("in_app_notifications_actor_idx").on(table.actorId),
+  })
+);

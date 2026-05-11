@@ -2335,3 +2335,96 @@ describe("FollowService.getMutualCount", () => {
     expect(result).toBe(0);
   });
 });
+
+describe("NotificationService", () => {
+  function makeInAppNotificationRepo(overrides?: Partial<InAppNotificationRepository>): InAppNotificationRepository {
+    return {
+      list: vi.fn().mockResolvedValue([]),
+      markRead: vi.fn().mockResolvedValue(undefined),
+      findById: vi.fn().mockResolvedValue(null),
+      ...overrides,
+    };
+  }
+
+  it("list delegates to repository", async () => {
+    const notification: InAppNotification = {
+      id: "00000000-0000-0000-0000-000000000001",
+      recipientId: "00000000-0000-0000-0000-000000000002",
+      actorId: "00000000-0000-0000-0000-000000000003",
+      trigger: "new_follower",
+      payload: {},
+      createdAt: new Date(),
+    };
+    const repo = makeInAppNotificationRepo({
+      list: vi.fn().mockResolvedValue([notification]),
+    });
+    const service = new NotificationService(repo);
+    const result = await service.list({
+      recipientId: "00000000-0000-0000-0000-000000000002",
+      limit: 20,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(notification);
+    expect(repo.list).toHaveBeenCalledWith({
+      recipientId: "00000000-0000-0000-0000-000000000002",
+      limit: 20,
+    });
+  });
+
+  it("markRead delegates to repository (idempotent)", async () => {
+    const repo = makeInAppNotificationRepo();
+    const service = new NotificationService(repo);
+    await service.markRead({
+      recipientId: "00000000-0000-0000-0000-000000000002",
+      notificationId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(repo.markRead).toHaveBeenCalledWith({
+      recipientId: "00000000-0000-0000-0000-000000000002",
+      notificationId: "00000000-0000-0000-0000-000000000001",
+    });
+  });
+
+  it("markRead calling twice does not throw", async () => {
+    const repo = makeInAppNotificationRepo();
+    const service = new NotificationService(repo);
+    const input = {
+      recipientId: "00000000-0000-0000-0000-000000000002",
+      notificationId: "00000000-0000-0000-0000-000000000001",
+    };
+    await service.markRead(input);
+    await service.markRead(input);
+    expect(repo.markRead).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("AppServices includes notifications", () => {
+  it("exposes notifications service", () => {
+    const repositories: AppRepositories = {
+      profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
+      books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
+      shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
+      recommendations: { getForUser: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn() },
+      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
+      rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
+      notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
+      imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
+      contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+      emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+      lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
+      authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
+      sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
+      handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
+      magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
+      inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+    };
+    const auth: AuthProvider = {
+      getCurrentIdentity: vi.fn().mockResolvedValue(null),
+    };
+
+    const services = new AppServices(repositories, auth);
+    expect(services.notifications).toBeInstanceOf(NotificationService);
+  });
+});

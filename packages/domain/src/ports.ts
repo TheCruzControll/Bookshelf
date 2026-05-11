@@ -13,6 +13,7 @@ import type {
   Import,
   ImportSource,
   ImportStatus,
+  InAppNotification,
   List,
   ListItem,
   MagicLinkToken,
@@ -244,6 +245,19 @@ export interface NotificationRepository {
   listSettings(profileId: EntityId): Promise<NotificationSetting[]>;
 }
 
+export interface InAppNotificationRepository {
+  list(input: {
+    recipientId: EntityId;
+    cursor?: string;
+    limit: number;
+  }): Promise<InAppNotification[]>;
+  markRead(input: {
+    recipientId: EntityId;
+    notificationId: EntityId;
+  }): Promise<void>;
+  findById(id: EntityId): Promise<InAppNotification | null>;
+}
+
 export interface ImportRepository {
   create(input: {
     id: EntityId;
@@ -382,6 +396,7 @@ export interface AppRepositories {
   sessions: SessionRepository;
   handleHistory: HandleHistoryRepository;
   magicLinks: MagicLinkRepository;
+  inAppNotifications: InAppNotificationRepository;
 }
 
 export interface BlockFilter {
