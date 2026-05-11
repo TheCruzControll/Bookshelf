@@ -33,6 +33,7 @@ type _FollowRepositoryHasFindFollow = Assert<HasKey<FollowRepository, "findFollo
 type _FollowRepositoryHasListFollowers = Assert<HasKey<FollowRepository, "listFollowers">>;
 type _FollowRepositoryHasListFollowing = Assert<HasKey<FollowRepository, "listFollowing">>;
 type _FollowRepositoryHasIsMutual = Assert<HasKey<FollowRepository, "isMutual">>;
+type _FollowRepositoryHasCountMutuals = Assert<HasKey<FollowRepository, "countMutuals">>;
 
 type _BlockRepositoryHasBlock = Assert<HasKey<BlockRepository, "block">>;
 type _BlockRepositoryHasUnblock = Assert<HasKey<BlockRepository, "unblock">>;
@@ -110,6 +111,7 @@ export type {
   _FollowRepositoryHasListFollowers,
   _FollowRepositoryHasListFollowing,
   _FollowRepositoryHasIsMutual,
+  _FollowRepositoryHasCountMutuals,
   _BlockRepositoryHasBlock,
   _BlockRepositoryHasUnblock,
   _BlockRepositoryHasFindBlock,

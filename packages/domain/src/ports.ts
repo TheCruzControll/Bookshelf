@@ -201,6 +201,7 @@ export interface FollowRepository {
   listFollowers(userId: EntityId, viewerId?: EntityId): Promise<Follow[]>;
   listFollowing(userId: EntityId, viewerId?: EntityId): Promise<Follow[]>;
   isMutual(input: { userA: EntityId; userB: EntityId }): Promise<boolean>;
+  countMutuals(userId: EntityId): Promise<number>;
 }
 
 export interface BlockRepository {

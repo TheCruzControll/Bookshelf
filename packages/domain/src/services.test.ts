@@ -283,7 +283,7 @@ describe("AppServices", () => {
       reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
       recommendations: { getForUser: vi.fn() },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0) },
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
@@ -1651,7 +1651,7 @@ describe("SocialService", () => {
       findFollow: vi.fn(),
       listFollowers: vi.fn().mockResolvedValue(followers),
       listFollowing: vi.fn().mockResolvedValue(following),
-      isMutual: vi.fn(),
+      isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0),
     };
   }
 
@@ -1888,7 +1888,7 @@ describe("FollowService", () => {
       findFollow: vi.fn().mockResolvedValue(null),
       listFollowers: vi.fn().mockResolvedValue([]),
       listFollowing: vi.fn().mockResolvedValue([]),
-      isMutual: vi.fn().mockResolvedValue(false),
+      isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn().mockResolvedValue(0),
       ...overrides,
     };
   }
@@ -2286,5 +2286,52 @@ describe("MagicLinkService", () => {
     expect(authIdentities.create).not.toHaveBeenCalled();
     expect(result.isNewUser).toBe(false);
     expect(result.sessionToken).toBeDefined();
+  });
+});
+
+describe("FollowService.getMutualCount", () => {
+  const UUID1 = "00000000-0000-0000-0000-000000000001";
+
+  function makeFollowRepo(overrides?: Partial<FollowRepository>): FollowRepository {
+    return {
+      follow: vi.fn(),
+      unfollow: vi.fn(),
+      findFollow: vi.fn(),
+      listFollowers: vi.fn().mockResolvedValue([]),
+      listFollowing: vi.fn().mockResolvedValue([]),
+      isMutual: vi.fn().mockResolvedValue(false),
+      countMutuals: vi.fn().mockResolvedValue(0),
+      ...overrides,
+    };
+  }
+
+  function makeBlockRepoLocal(): BlockRepository {
+    return {
+      block: vi.fn(),
+      unblock: vi.fn(),
+      findBlock: vi.fn().mockResolvedValue(null),
+      listBlockedByUser: vi.fn().mockResolvedValue([]),
+      listBlockingUser: vi.fn().mockResolvedValue([]),
+      isBlocked: vi.fn().mockResolvedValue(false),
+    };
+  }
+
+  it("returns the count from the repository", async () => {
+    const followRepo = makeFollowRepo({ countMutuals: vi.fn().mockResolvedValue(5) });
+    const service = new FollowService(followRepo, makeBlockRepoLocal());
+
+    const result = await service.getMutualCount(UUID1);
+
+    expect(followRepo.countMutuals).toHaveBeenCalledWith(UUID1);
+    expect(result).toBe(5);
+  });
+
+  it("returns 0 when user has no mutuals", async () => {
+    const followRepo = makeFollowRepo({ countMutuals: vi.fn().mockResolvedValue(0) });
+    const service = new FollowService(followRepo, makeBlockRepoLocal());
+
+    const result = await service.getMutualCount(UUID1);
+
+    expect(result).toBe(0);
   });
 });

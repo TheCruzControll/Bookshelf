@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import { trpcServer } from "@hono/trpc-server";
-import { createTrpcContext } from "./context";
+import { createTrpcContext, type TrpcContextDeps } from "./context";
 import { router } from "./trpc";
 import { followRouter } from "./follow";
 import type { AppRepositories, AuthIdentity, Follow, Block } from "@hone/domain";
+import type { Cache } from "@hone/cache";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -64,6 +65,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       listFollowers: vi.fn().mockResolvedValue([]),
       listFollowing: vi.fn().mockResolvedValue([]),
       isMutual: vi.fn().mockResolvedValue(false),
+      countMutuals: vi.fn().mockResolvedValue(0),
       ...overrides?.follows,
     },
     blocks: {
@@ -95,15 +97,35 @@ function makeIdentity(overrides?: Partial<AuthIdentity>): AuthIdentity {
   };
 }
 
-function buildApp(identity: AuthIdentity | null, repositories: AppRepositories) {
+function makeCache(store: Map<string, unknown> = new Map()): Cache {
+  return {
+    get: vi.fn(async (key: string) => store.get(key) ?? null) as Cache["get"],
+    set: vi.fn(async (key: string, value: unknown, _ttlMs: number) => { store.set(key, value); }) as Cache["set"],
+    del: vi.fn(async (key: string) => { store.delete(key); }),
+    mget: vi.fn(async (keys: string[]) => keys.map((k) => store.get(k) ?? null)) as Cache["mget"],
+    mset: vi.fn(async (entries: { key: string; value: unknown; ttlMs: number }[]) => {
+      for (const e of entries) store.set(e.key, e.value);
+    }) as Cache["mset"],
+    incr: vi.fn(async (key: string, by: number, _ttlMs: number) => {
+      const cur = (store.get(key) as number) ?? 0;
+      const next = cur + by;
+      store.set(key, next);
+      return next;
+    }),
+  };
+}
+
+function buildApp(identity: AuthIdentity | null, repositories: AppRepositories, cache?: Cache) {
   const testRouter = router({ follow: followRouter });
   const app = new Hono();
   const auth = { getCurrentIdentity: async () => identity };
+  const deps: TrpcContextDeps = { repositories, auth };
+  if (cache) deps.cache = cache;
   app.use(
     "/trpc/*",
     trpcServer({
       router: testRouter,
-      createContext: createTrpcContext({ repositories, auth }),
+      createContext: createTrpcContext(deps),
     })
   );
   return app;
@@ -233,6 +255,32 @@ describe("follow.create", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("invalidates mutual count cache for both users on create", async () => {
+    const follow = makeFollow({ followerId: UUID1, followeeId: UUID2 });
+    const repos = makeRepositories({
+      follows: {
+        ...makeRepositories().follows,
+        follow: vi.fn().mockResolvedValue(follow),
+        findFollow: vi.fn().mockResolvedValue(null),
+      },
+    });
+    const store = new Map<string, unknown>();
+    store.set(`mutual-count:${UUID1}`, 3);
+    store.set(`mutual-count:${UUID2}`, 5);
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos, cache);
+    const res = await app.request("/trpc/follow.create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ followeeId: UUID2 }),
+    });
+    expect(res.status).toBe(200);
+    expect(cache.del).toHaveBeenCalledWith(`mutual-count:${UUID1}`);
+    expect(cache.del).toHaveBeenCalledWith(`mutual-count:${UUID2}`);
+    expect(store.has(`mutual-count:${UUID1}`)).toBe(false);
+    expect(store.has(`mutual-count:${UUID2}`)).toBe(false);
+  });
 });
 
 describe("follow.delete", () => {
@@ -305,6 +353,32 @@ describe("follow.delete", () => {
       body: JSON.stringify({ followeeId: "not-a-uuid" }),
     });
     expect(res.status).toBe(400);
+  });
+
+  it("invalidates mutual count cache for both users on delete", async () => {
+    const existingFollow = makeFollow({ followerId: UUID1, followeeId: UUID2 });
+    const repos = makeRepositories({
+      follows: {
+        ...makeRepositories().follows,
+        findFollow: vi.fn().mockResolvedValue(existingFollow),
+        unfollow: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const store = new Map<string, unknown>();
+    store.set(`mutual-count:${UUID1}`, 3);
+    store.set(`mutual-count:${UUID2}`, 5);
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos, cache);
+    const res = await app.request("/trpc/follow.delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ followeeId: UUID2 }),
+    });
+    expect(res.status).toBe(200);
+    expect(cache.del).toHaveBeenCalledWith(`mutual-count:${UUID1}`);
+    expect(cache.del).toHaveBeenCalledWith(`mutual-count:${UUID2}`);
+    expect(store.has(`mutual-count:${UUID1}`)).toBe(false);
+    expect(store.has(`mutual-count:${UUID2}`)).toBe(false);
   });
 });
 
@@ -467,6 +541,107 @@ describe("follow.list", () => {
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
       `/trpc/follow.list?input=${encodeURIComponent(JSON.stringify({ userId: UUID1, type: "followers", limit: 101 }))}`
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("follow.mutualCount", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the mutual count for a user", async () => {
+    const repos = makeRepositories({
+      follows: {
+        ...makeRepositories().follows,
+        countMutuals: vi.fn().mockResolvedValue(7),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request(
+      `/trpc/follow.mutualCount?input=${encodeURIComponent(JSON.stringify({ userId: UUID1 }))}`
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.userId).toBe(UUID1);
+    expect(body.result.data.count).toBe(7);
+  });
+
+  it("returns 0 when user has no mutuals", async () => {
+    const repos = makeRepositories({
+      follows: {
+        ...makeRepositories().follows,
+        countMutuals: vi.fn().mockResolvedValue(0),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request(
+      `/trpc/follow.mutualCount?input=${encodeURIComponent(JSON.stringify({ userId: UUID1 }))}`
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.count).toBe(0);
+  });
+
+  it("returns cached value when cache hit", async () => {
+    const repos = makeRepositories();
+    const store = new Map<string, unknown>();
+    store.set(`mutual-count:${UUID1}`, 42);
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos, cache);
+    const res = await app.request(
+      `/trpc/follow.mutualCount?input=${encodeURIComponent(JSON.stringify({ userId: UUID1 }))}`
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.count).toBe(42);
+    // Should not have called countMutuals since the cache had the value
+    expect(repos.follows.countMutuals).not.toHaveBeenCalled();
+  });
+
+  it("fetches from repo and caches when cache miss", async () => {
+    const repos = makeRepositories({
+      follows: {
+        ...makeRepositories().follows,
+        countMutuals: vi.fn().mockResolvedValue(10),
+      },
+    });
+    const store = new Map<string, unknown>();
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos, cache);
+    const res = await app.request(
+      `/trpc/follow.mutualCount?input=${encodeURIComponent(JSON.stringify({ userId: UUID1 }))}`
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.count).toBe(10);
+    expect(repos.follows.countMutuals).toHaveBeenCalledWith(UUID1);
+    expect(cache.set).toHaveBeenCalledWith(`mutual-count:${UUID1}`, 10, 300000);
+    expect(store.get(`mutual-count:${UUID1}`)).toBe(10);
+  });
+
+  it("works without authentication", async () => {
+    const repos = makeRepositories({
+      follows: {
+        ...makeRepositories().follows,
+        countMutuals: vi.fn().mockResolvedValue(3),
+      },
+    });
+    const app = buildApp(null, repos);
+    const res = await app.request(
+      `/trpc/follow.mutualCount?input=${encodeURIComponent(JSON.stringify({ userId: UUID1 }))}`
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.count).toBe(3);
+  });
+
+  it("rejects invalid userId (non-UUID)", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request(
+      `/trpc/follow.mutualCount?input=${encodeURIComponent(JSON.stringify({ userId: "not-a-uuid" }))}`
     );
     expect(res.status).toBe(400);
   });

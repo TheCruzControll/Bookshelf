@@ -36,3 +36,15 @@ export type FollowDeleteInput = z.infer<typeof FollowDeleteInputSchema>;
 export type FollowDeleteOutput = z.infer<typeof FollowDeleteOutputSchema>;
 export type FollowListInput = z.infer<typeof FollowListInputSchema>;
 export type FollowListOutput = z.infer<typeof FollowListOutputSchema>;
+
+export const MutualCountInputSchema = z.object({
+  userId: EntityIdSchema,
+});
+
+export const MutualCountOutputSchema = z.object({
+  userId: EntityIdSchema,
+  count: z.number().int().min(0),
+});
+
+export type MutualCountInput = z.infer<typeof MutualCountInputSchema>;
+export type MutualCountOutput = z.infer<typeof MutualCountOutputSchema>;

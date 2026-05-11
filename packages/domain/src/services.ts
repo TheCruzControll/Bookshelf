@@ -924,6 +924,10 @@ export class FollowService {
     const all = await this.follows.listFollowing(userId, viewerId);
     return this.blockService.removeBlockedFollows(viewerId, all, (f) => f.followeeId);
   }
+
+  async getMutualCount(userId: EntityId): Promise<number> {
+    return this.follows.countMutuals(userId);
+  }
 }
 
 export class SocialService {

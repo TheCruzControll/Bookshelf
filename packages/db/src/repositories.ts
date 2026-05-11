@@ -597,6 +597,18 @@ class DrizzleFollowRepository implements FollowRepository {
     ]);
     return aFollowsB !== undefined && bFollowsA !== undefined;
   }
+
+  async countMutuals(userId: EntityId): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(follows)
+      .innerJoin(
+        sql`${follows} AS f2`,
+        sql`${follows}.followee_id = f2.follower_id AND ${follows}.follower_id = f2.followee_id`
+      )
+      .where(eq(follows.followerId, userId));
+    return result[0]?.count ?? 0;
+  }
 }
 
 class DrizzleBlockRepository implements BlockRepository {
