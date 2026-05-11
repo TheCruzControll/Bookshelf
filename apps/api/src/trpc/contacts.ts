@@ -24,6 +24,21 @@ export const contactsRouter = router({
         getCurrentIdentity: async () => ctx.identity,
       });
 
+      // Validate the submitted salt version matches the active salt
+      try {
+        await services.contacts.validateSaltVersion(input.saltVersion);
+      } catch (err: unknown) {
+        const error = err as { code?: string; expectedVersion?: number; message?: string };
+        if (error.code === "STALE_SALT") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: error.message ?? "Stale salt version",
+            cause: err,
+          });
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Salt validation failed" });
+      }
+
       const phoneHashes = input.phoneHashes;
       const emailHashes = input.emailHashes;
 
