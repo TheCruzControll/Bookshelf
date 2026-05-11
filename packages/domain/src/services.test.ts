@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey } from "./services";
-import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, EmailProvider, FollowRepository, ListRepository, MagicLinkRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository } from "./ports";
-import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem } from "./types";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey, NotificationService } from "./services";
+import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, EmailProvider, FollowRepository, ListRepository, MagicLinkRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository, InAppNotificationRepository } from "./ports";
+import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, InAppNotification } from "./types";
 
 function makeShelfItem(overrides?: Partial<ShelfItem>): ShelfItem {
   const now = new Date();
@@ -295,6 +295,9 @@ describe("AppServices", () => {
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
       handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
       magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
+      inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+      phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
+      phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null)
@@ -436,7 +439,7 @@ describe("ShelfService – ShelfItem CRUD", () => {
     };
   }
   function makeActivity(): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn() };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() };
   }
 
   it("upsertShelfItem defaults position to maxPosition + 1 when not provided", async () => {
@@ -2402,11 +2405,11 @@ describe("AppServices includes notifications", () => {
     const repositories: AppRepositories = {
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-      shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
+      shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn() },
       reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
       recommendations: { getForUser: vi.fn() },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0) },
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
@@ -2419,6 +2422,8 @@ describe("AppServices includes notifications", () => {
       handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
       magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
       inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+      phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
+      phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null),

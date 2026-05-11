@@ -54,6 +54,8 @@ import type {
   Recommendation,
   RecommendationRepository,
   ReviewRepository,
+  PhoneNumberRepository,
+  PhoneVerificationRepository,
   SessionRepository,
   ShelfRepository
 } from "@hone/domain";
@@ -79,6 +81,8 @@ import {
   recommendationScores,
   reviews,
   sessions,
+  phoneNumbers,
+  phoneVerifications,
   shelfItems,
   shelves
 } from "./schema";
@@ -97,6 +101,8 @@ import {
   toNotificationSetting,
   toNotificationToken,
   toOAuthIdentity,
+  toPhoneNumber,
+  toPhoneVerification,
   toProfile,
   toRanking,
   toReview,
@@ -1378,6 +1384,101 @@ class DrizzleInAppNotificationRepository implements InAppNotificationRepository 
   }
 }
 
+export class DrizzlePhoneVerificationRepository implements PhoneVerificationRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async upsert(input: {
+    phoneE164: string;
+    codeHash: string;
+    attempts: number;
+    expiresAt: Date;
+  }) {
+    const [row] = await this.db
+      .insert(phoneVerifications)
+      .values({
+        phoneE164: input.phoneE164,
+        codeHash: input.codeHash,
+        attempts: input.attempts,
+        expiresAt: input.expiresAt,
+      })
+      .onConflictDoUpdate({
+        target: [phoneVerifications.phoneE164],
+        set: {
+          codeHash: input.codeHash,
+          attempts: input.attempts,
+          expiresAt: input.expiresAt,
+        },
+      })
+      .returning();
+    if (!row) throw new Error("Failed to upsert phone verification");
+    return toPhoneVerification(row);
+  }
+
+  async findByPhone(phoneE164: string) {
+    const row = await this.db.query.phoneVerifications.findFirst({
+      where: eq(phoneVerifications.phoneE164, phoneE164),
+    });
+    return row ? toPhoneVerification(row) : null;
+  }
+
+  async incrementAttempts(phoneE164: string) {
+    const [row] = await this.db
+      .update(phoneVerifications)
+      .set({ attempts: sql`${phoneVerifications.attempts} + 1` })
+      .where(eq(phoneVerifications.phoneE164, phoneE164))
+      .returning();
+    if (!row) throw new Error("Phone verification not found");
+    return toPhoneVerification(row);
+  }
+
+  async deleteByPhone(phoneE164: string) {
+    await this.db
+      .delete(phoneVerifications)
+      .where(eq(phoneVerifications.phoneE164, phoneE164));
+  }
+
+  async deleteExpired() {
+    const now = new Date();
+    await this.db
+      .delete(phoneVerifications)
+      .where(lt(phoneVerifications.expiresAt, now));
+  }
+}
+
+export class DrizzlePhoneNumberRepository implements PhoneNumberRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async upsert(input: { profileId: EntityId; e164Hash: string }) {
+    const [row] = await this.db
+      .insert(phoneNumbers)
+      .values({
+        profileId: input.profileId,
+        e164Hash: input.e164Hash,
+      })
+      .onConflictDoUpdate({
+        target: [phoneNumbers.profileId],
+        set: { e164Hash: input.e164Hash },
+      })
+      .returning();
+    if (!row) throw new Error("Failed to upsert phone number");
+    return toPhoneNumber(row);
+  }
+
+  async findByProfileId(profileId: EntityId) {
+    const row = await this.db.query.phoneNumbers.findFirst({
+      where: eq(phoneNumbers.profileId, profileId),
+    });
+    return row ? toPhoneNumber(row) : null;
+  }
+
+  async findByHash(e164Hash: string) {
+    const row = await this.db.query.phoneNumbers.findFirst({
+      where: eq(phoneNumbers.e164Hash, e164Hash),
+    });
+    return row ? toPhoneNumber(row) : null;
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -1399,5 +1500,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     handleHistory: new DrizzleHandleHistoryRepository(db),
     magicLinks: new DrizzleMagicLinkRepository(db),
     inAppNotifications: new DrizzleInAppNotificationRepository(db),
+    phoneVerifications: new DrizzlePhoneVerificationRepository(db),
+    phoneNumbers: new DrizzlePhoneNumberRepository(db),
   };
 }

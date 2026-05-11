@@ -51,6 +51,11 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       addBook: vi.fn(),
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn(),
+      findShelfItem: vi.fn(),
+      upsertShelfItem: vi.fn(),
+      deleteShelfItem: vi.fn(),
+      getMaxPosition: vi.fn().mockResolvedValue(0),
+      moveShelfItem: vi.fn(),
     },
     reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
@@ -66,11 +71,14 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
     handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
     magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
+    emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
     inAppNotifications: {
       list: vi.fn().mockResolvedValue([]),
       markRead: vi.fn().mockResolvedValue(undefined),
       findById: vi.fn(),
     },
+    phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
+    phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
     ...overrides,
   };
 }

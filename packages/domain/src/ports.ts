@@ -29,6 +29,8 @@ import type {
   Session,
   Shelf,
   ShelfItem,
+  PhoneVerification,
+  PhoneNumber,
   Visibility
 } from "./types";
 
@@ -377,6 +379,29 @@ export interface EmailProvider {
   sendMagicLink(input: { to: string; token: string; expiresInMinutes: number }): Promise<void>;
 }
 
+export interface SmsProvider {
+  sendVerificationCode(input: { to: string; code: string }): Promise<void>;
+}
+
+export interface PhoneVerificationRepository {
+  upsert(input: {
+    phoneE164: string;
+    codeHash: string;
+    attempts: number;
+    expiresAt: Date;
+  }): Promise<PhoneVerification>;
+  findByPhone(phoneE164: string): Promise<PhoneVerification | null>;
+  incrementAttempts(phoneE164: string): Promise<PhoneVerification>;
+  deleteByPhone(phoneE164: string): Promise<void>;
+  deleteExpired(): Promise<void>;
+}
+
+export interface PhoneNumberRepository {
+  upsert(input: { profileId: EntityId; e164Hash: string }): Promise<PhoneNumber>;
+  findByProfileId(profileId: EntityId): Promise<PhoneNumber | null>;
+  findByHash(e164Hash: string): Promise<PhoneNumber | null>;
+}
+
 export interface AppRepositories {
   profiles: ProfileRepository;
   books: BookRepository;
@@ -397,6 +422,8 @@ export interface AppRepositories {
   handleHistory: HandleHistoryRepository;
   magicLinks: MagicLinkRepository;
   inAppNotifications: InAppNotificationRepository;
+  phoneVerifications: PhoneVerificationRepository;
+  phoneNumbers: PhoneNumberRepository;
 }
 
 export interface BlockFilter {

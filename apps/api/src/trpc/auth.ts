@@ -8,8 +8,12 @@ import {
   RequestMagicLinkOutputSchema,
   ConsumeMagicLinkInputSchema,
   ConsumeMagicLinkOutputSchema,
+  StartPhoneVerifyInputSchema,
+  StartPhoneVerifyOutputSchema,
+  ConfirmPhoneVerifyInputSchema,
+  ConfirmPhoneVerifyOutputSchema,
 } from "@hone/domain";
-import { AuthService, MagicLinkService } from "@hone/domain";
+import { AuthService, MagicLinkService, PhoneVerifyService } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
 
 export const authRouter = router({
@@ -139,6 +143,86 @@ export const authRouter = router({
           }
           if (code === "TOKEN_EXPIRED") {
             throw new TRPCError({ code: "UNAUTHORIZED", message: "Magic link expired" });
+          }
+        }
+        throw err;
+      }
+    }),
+
+  startPhoneVerify: publicProcedure
+    .input(StartPhoneVerifyInputSchema)
+    .output(StartPhoneVerifyOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.smsProvider) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "SMS provider not configured" });
+      }
+
+      const phoneVerifyService = new PhoneVerifyService(
+        ctx.repositories.phoneVerifications,
+        ctx.repositories.phoneNumbers,
+        ctx.smsProvider,
+      );
+
+      try {
+        const result = await phoneVerifyService.startVerification(input.phoneNumber, ctx.cache);
+        return result;
+      } catch (err) {
+        if (err instanceof Error) {
+          const code = (err as Error & { code?: string }).code;
+          if (code === "INVALID_PHONE") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+          }
+          if (code === "RATE_LIMITED") {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
+          }
+        }
+        throw err;
+      }
+    }),
+
+  confirmPhoneVerify: publicProcedure
+    .input(ConfirmPhoneVerifyInputSchema)
+    .output(ConfirmPhoneVerifyOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.smsProvider) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "SMS provider not configured" });
+      }
+      if (!ctx.viewer) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
+      }
+
+      const phoneVerifyService = new PhoneVerifyService(
+        ctx.repositories.phoneVerifications,
+        ctx.repositories.phoneNumbers,
+        ctx.smsProvider,
+      );
+
+      try {
+        const result = await phoneVerifyService.confirmVerification(input.phoneNumber, input.code, ctx.viewer.id);
+        return result;
+      } catch (err) {
+        if (err instanceof Error) {
+          const code = (err as Error & { code?: string }).code;
+          if (code === "INVALID_PHONE") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+          }
+          if (code === "NOT_FOUND") {
+            throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+          }
+          if (code === "CODE_EXPIRED") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+          }
+          if (code === "RATE_LIMITED") {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: err.message });
+          }
+          if (code === "INVALID_CODE") {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: err.message });
           }
         }
         throw err;
