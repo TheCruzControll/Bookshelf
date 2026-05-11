@@ -177,6 +177,9 @@ importers:
 
   packages/catalog:
     dependencies:
+      '@hone/cache':
+        specifier: workspace:*
+        version: link:../cache
       '@hone/domain':
         specifier: workspace:*
         version: link:../domain
