@@ -344,6 +344,15 @@ export interface MagicLinkToken {
   consumedAt?: Date | undefined;
 }
 
+export interface Salt {
+  id: EntityId;
+  version: number;
+  keyMaterial: string;
+  activeFrom: Date;
+  activeTo: Date | undefined;
+  createdAt: Date;
+}
+
 export type CatalogSource = "open_library" | "google_books";
 
 export interface BookSearchResult {

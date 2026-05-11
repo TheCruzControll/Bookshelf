@@ -553,6 +553,26 @@ export const notificationSettings = pgTable(
   })
 );
 
+export const salts = pgTable(
+  "salts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    version: integer("version").notNull(),
+    keyMaterial: text("key_material").notNull(),
+    activeFrom: timestamp("active_from", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    activeTo: timestamp("active_to", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    versionIdx: uniqueIndex("salts_version_idx").on(table.version),
+    activeIdx: index("salts_active_idx").on(table.activeFrom, table.activeTo)
+  })
+);
+
 export const handleHistory = pgTable(
   "handle_history",
   {

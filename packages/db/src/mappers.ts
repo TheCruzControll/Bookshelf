@@ -22,6 +22,7 @@ import type {
   PhoneVerification,
   Profile,
   Ranking,
+  Salt,
   Review,
   Session,
   Shelf,
@@ -50,6 +51,7 @@ import type {
   profiles,
   rankings,
   reviews,
+  salts,
   sessions,
   shelfItems,
   shelves
@@ -313,6 +315,19 @@ export function toHandleHistory(row: HandleHistoryRow): HandleHistory {
     oldHandle: row.oldHandle,
     retiredAt: row.retiredAt,
     expiresAt: row.expiresAt
+  };
+}
+
+type SaltRow = typeof salts.$inferSelect;
+
+export function toSalt(row: SaltRow): Salt {
+  return {
+    id: row.id,
+    version: row.version,
+    keyMaterial: row.keyMaterial,
+    activeFrom: row.activeFrom,
+    activeTo: row.activeTo ?? undefined,
+    createdAt: row.createdAt,
   };
 }
 
