@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { EntityIdSchema } from "./auth";
 
+/**
+ * Maximum number of contact hashes allowed per upload batch.
+ * Caps memory and database load from a single request.
+ */
+export const CONTACTS_BATCH_MAX = 1000;
+
 const ContactHashEntrySchema = z.object({
   hash: z.string().min(1),
   saltVersion: z.number().int().min(0),
@@ -8,8 +14,9 @@ const ContactHashEntrySchema = z.object({
 });
 
 export const ContactsUploadInputSchema = z.object({
-  phoneHashes: z.array(ContactHashEntrySchema).optional().default([]),
-  emailHashes: z.array(ContactHashEntrySchema).optional().default([]),
+  saltVersion: z.number().int().min(0),
+  phoneHashes: z.array(ContactHashEntrySchema).max(CONTACTS_BATCH_MAX).optional().default([]),
+  emailHashes: z.array(ContactHashEntrySchema).max(CONTACTS_BATCH_MAX).optional().default([]),
 });
 
 export const ContactsUploadOutputSchema = z.object({

@@ -1487,6 +1487,7 @@ export class AppServices {
       repositories.contacts,
       repositories.emailIndex,
       repositories.blocks,
+      repositories.salts,
     );
     // PhoneVerifyService requires an SmsProvider; it's initialized
     // externally when the provider is available. This placeholder uses
