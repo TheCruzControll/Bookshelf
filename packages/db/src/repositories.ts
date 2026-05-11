@@ -38,6 +38,8 @@ import type {
   BookRepository,
   ContactsHash,
   ContactsRepository,
+  EmailIndex,
+  EmailIndexRepository,
   EntityId,
   FeedItem,
   FollowRepository,
@@ -61,6 +63,7 @@ import {
   blocks,
   books,
   contactsIndex,
+  emailIndex,
   editions,
   follows,
   handleHistory,
@@ -870,6 +873,77 @@ class DrizzleContactsRepository implements ContactsRepository {
   }
 }
 
+class DrizzleEmailIndexRepository implements EmailIndexRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async upsertHashes(input: {
+    userId: EntityId;
+    hashes: Array<{ hash: string; saltVersion: number; expiresAt: Date }>;
+  }) {
+    if (input.hashes.length === 0) return;
+    await this.db
+      .insert(emailIndex)
+      .values(
+        input.hashes.map((h) => ({
+          profileId: input.userId,
+          emailHash: h.hash,
+          saltVersion: h.saltVersion,
+          expiresAt: h.expiresAt,
+        }))
+      )
+      .onConflictDoUpdate({
+        target: [emailIndex.profileId, emailIndex.emailHash],
+        set: {
+          saltVersion: sql`excluded.salt_version`,
+          expiresAt: sql`excluded.expires_at`,
+        },
+      });
+  }
+
+  async findMatches(input: { hashes: string[]; excludeUserId: EntityId }) {
+    if (input.hashes.length === 0) return [];
+    const now = new Date();
+    const rows = await this.db
+      .select({ profileId: emailIndex.profileId })
+      .from(emailIndex)
+      .where(
+        and(
+          inArray(emailIndex.emailHash, input.hashes),
+          gt(emailIndex.expiresAt, now)
+        )
+      );
+    return rows
+      .map((r) => r.profileId)
+      .filter((id) => id !== input.excludeUserId);
+  }
+
+  async deleteForUser(userId: EntityId) {
+    await this.db
+      .delete(emailIndex)
+      .where(eq(emailIndex.profileId, userId));
+  }
+
+  async deleteExpired() {
+    const now = new Date();
+    await this.db
+      .delete(emailIndex)
+      .where(lt(emailIndex.expiresAt, now));
+  }
+
+  async listByUser(userId: EntityId): Promise<EmailIndex[]> {
+    const rows = await this.db
+      .select()
+      .from(emailIndex)
+      .where(eq(emailIndex.profileId, userId));
+    return rows.map((row) => ({
+      profileId: row.profileId,
+      emailHash: row.emailHash,
+      saltVersion: row.saltVersion,
+      expiresAt: row.expiresAt,
+    }));
+  }
+}
+
 class DrizzleListRepository implements ListRepository {
   constructor(private readonly db: HoneDb) {}
 
@@ -1114,6 +1188,7 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     notifications: new DrizzleNotificationRepository(db),
     imports: new DrizzleImportRepository(db),
     contacts: new DrizzleContactsRepository(db),
+    emailIndex: new DrizzleEmailIndexRepository(db),
     lists: new DrizzleListRepository(db),
     authIdentities: new DrizzleAuthIdentityRepository(db),
     sessions: new DrizzleSessionRepository(db),

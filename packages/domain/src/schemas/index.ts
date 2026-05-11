@@ -1,4 +1,5 @@
 export * from "./auth";
+export * from "./contacts";
 export * from "./feed";
 export * from "./follows";
 export * from "./imports";

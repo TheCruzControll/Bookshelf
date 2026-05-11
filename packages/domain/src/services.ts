@@ -9,6 +9,7 @@ import type {
   BlockFilter,
   BlockRepository,
   ContactsRepository,
+  EmailIndexRepository,
   FollowRepository,
   GoogleJwksProvider,
   GoogleTokenClaims,
@@ -829,6 +830,56 @@ export class ImportService {
   }
 }
 
+export class ContactsService {
+  private readonly blockService: BlockService;
+
+  constructor(
+    private readonly contacts: ContactsRepository,
+    private readonly emailIndex: EmailIndexRepository,
+    private readonly blocks: BlockRepository,
+  ) {
+    this.blockService = new BlockService(blocks);
+  }
+
+  async uploadPhoneHashes(input: {
+    userId: EntityId;
+    hashes: Array<{ hash: string; saltVersion: number; expiresAt: Date }>;
+  }): Promise<void> {
+    await this.contacts.upsertHashes(input);
+  }
+
+  async uploadEmailHashes(input: {
+    userId: EntityId;
+    hashes: Array<{ hash: string; saltVersion: number; expiresAt: Date }>;
+  }): Promise<void> {
+    await this.emailIndex.upsertHashes(input);
+  }
+
+  async matchPhones(input: { hashes: string[]; viewerId: EntityId }): Promise<EntityId[]> {
+    const matches = await this.contacts.findMatches({ hashes: input.hashes, excludeUserId: input.viewerId });
+    return this.blockService.removeBlockedIds(input.viewerId, matches);
+  }
+
+  async matchEmails(input: { hashes: string[]; viewerId: EntityId }): Promise<EntityId[]> {
+    const matches = await this.emailIndex.findMatches({ hashes: input.hashes, excludeUserId: input.viewerId });
+    return this.blockService.removeBlockedIds(input.viewerId, matches);
+  }
+
+  async deleteForUser(userId: EntityId): Promise<void> {
+    await Promise.all([
+      this.contacts.deleteForUser(userId),
+      this.emailIndex.deleteForUser(userId),
+    ]);
+  }
+
+  async deleteExpired(): Promise<void> {
+    await Promise.all([
+      this.contacts.deleteExpired(),
+      this.emailIndex.deleteExpired(),
+    ]);
+  }
+}
+
 export class AppServices {
   readonly shelves: ShelfService;
   readonly handles: HandleService;
@@ -841,6 +892,7 @@ export class AppServices {
   readonly follows: FollowService;
 
   readonly imports: ImportService;
+  readonly contacts: ContactsService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -875,5 +927,10 @@ export class AppServices {
       repositories.lists,
     );
     this.imports = new ImportService(repositories.imports);
+    this.contacts = new ContactsService(
+      repositories.contacts,
+      repositories.emailIndex,
+      repositories.blocks,
+    );
   }
 }
