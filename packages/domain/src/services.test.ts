@@ -417,6 +417,90 @@ describe("ShelfService CRUD", () => {
     expect(shelvesRepo.listShelves).toHaveBeenCalledWith("00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002");
     expect(result).toHaveLength(1);
   });
+
+  it("publishShelf sets publishedAt on a list shelf", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false, kind: "list" });
+    const published = makeShelf({ ...shelf, publishedAt: new Date() });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf), update: vi.fn().mockResolvedValue(published) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.publishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 });
+    expect(shelvesRepo.update).toHaveBeenCalledWith(expect.objectContaining({ publishedAt: expect.any(Date) }));
+    expect(result.publishedAt).toBeTruthy();
+  });
+
+  it("publishShelf throws NOT_FOUND when shelf does not exist", async () => {
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(null) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.publishShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000001", version: 1 }))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("publishShelf throws FORBIDDEN when caller is not the owner", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000099", kind: "list" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.publishShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001", version: 1 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("publishShelf throws BAD_REQUEST when shelf kind is not list", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", kind: "custom" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.publishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("publishShelf is idempotent when already published", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", kind: "list", publishedAt: new Date() });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.publishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 });
+    expect(shelvesRepo.update).not.toHaveBeenCalled();
+    expect(result).toEqual(shelf);
+  });
+
+  it("unpublishShelf clears publishedAt on a list shelf", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false, kind: "list", publishedAt: new Date() });
+    const unpublished = makeShelf({ ...shelf, publishedAt: undefined });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf), update: vi.fn().mockResolvedValue(unpublished) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.unpublishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 });
+    expect(shelvesRepo.update).toHaveBeenCalledWith(expect.objectContaining({ publishedAt: null }));
+    expect(result.publishedAt).toBeFalsy();
+  });
+
+  it("unpublishShelf throws NOT_FOUND when shelf does not exist", async () => {
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(null) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.unpublishShelf({ id: "00000000-0000-0000-0000-000000000002", ownerId: "00000000-0000-0000-0000-000000000001", version: 1 }))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("unpublishShelf throws FORBIDDEN when caller is not the owner", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000099", kind: "list", publishedAt: new Date() });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.unpublishShelf({ id: shelf.id, ownerId: "00000000-0000-0000-0000-000000000001", version: 1 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("unpublishShelf throws BAD_REQUEST when shelf kind is not list", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", kind: "custom", publishedAt: new Date() });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    await expect(service.unpublishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 }))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("unpublishShelf is idempotent when already unpublished", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", kind: "list" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.unpublishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 });
+    expect(shelvesRepo.update).not.toHaveBeenCalled();
+    expect(result).toEqual(shelf);
+  });
 });
 
 describe("ShelfService – ShelfItem CRUD", () => {

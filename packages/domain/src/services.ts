@@ -221,6 +221,58 @@ export class ShelfService {
     });
   }
 
+  async publishShelf(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    version: number;
+  }): Promise<Shelf> {
+    const shelf = await this.shelves.findById(input.id);
+    if (!shelf) {
+      throw Object.assign(new Error("Shelf not found"), { code: "NOT_FOUND" });
+    }
+    if (shelf.ownerId !== input.ownerId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+    if (shelf.kind !== "list") {
+      throw Object.assign(new Error("Only list shelves can be published"), { code: "BAD_REQUEST" });
+    }
+    if (shelf.publishedAt) {
+      return shelf;
+    }
+    return this.shelves.update({
+      id: input.id,
+      ownerId: input.ownerId,
+      version: input.version,
+      publishedAt: new Date(),
+    });
+  }
+
+  async unpublishShelf(input: {
+    id: EntityId;
+    ownerId: EntityId;
+    version: number;
+  }): Promise<Shelf> {
+    const shelf = await this.shelves.findById(input.id);
+    if (!shelf) {
+      throw Object.assign(new Error("Shelf not found"), { code: "NOT_FOUND" });
+    }
+    if (shelf.ownerId !== input.ownerId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+    if (shelf.kind !== "list") {
+      throw Object.assign(new Error("Only list shelves can be unpublished"), { code: "BAD_REQUEST" });
+    }
+    if (!shelf.publishedAt) {
+      return shelf;
+    }
+    return this.shelves.update({
+      id: input.id,
+      ownerId: input.ownerId,
+      version: input.version,
+      publishedAt: null,
+    });
+  }
+
   async deleteShelfItem(input: {
     ownerId: EntityId;
     shelfId: EntityId;

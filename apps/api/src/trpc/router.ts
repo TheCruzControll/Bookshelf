@@ -3,6 +3,7 @@ import { authRouter } from "./auth";
 import { contactsRouter } from "./contacts";
 import { followRouter } from "./follow";
 import { importRouter } from "./import";
+import { listRouter } from "./list";
 import { notificationsRouter } from "./notifications";
 import { profileRouter } from "./profile";
 import { rankingRouter } from "./ranking";
@@ -18,6 +19,7 @@ export const appRouter = router({
   contacts: contactsRouter,
   follow: followRouter,
   import: importRouter,
+  list: listRouter,
   notifications: notificationsRouter,
   profile: profileRouter,
   ranking: rankingRouter,

@@ -137,6 +137,7 @@ export interface ShelfRepository {
     name?: string | undefined;
     visibility?: Visibility | undefined;
     description?: string | undefined;
+    publishedAt?: Date | null | undefined;
   }): Promise<Shelf>;
   delete(input: { id: EntityId; ownerId: EntityId }): Promise<void>;
   addBook(input: {
