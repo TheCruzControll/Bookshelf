@@ -13,6 +13,7 @@ import type {
   Import,
   List,
   ListItem,
+  MagicLinkToken,
   NotificationSetting,
   NotificationToken,
   OAuthIdentity,
@@ -39,6 +40,7 @@ import type {
   follows,
   handleHistory,
   imports,
+  magicLinkTokens,
   notificationSettings,
   notificationTokens,
   phoneNumbers,
@@ -73,6 +75,7 @@ type ActivityRow = typeof activityEvents.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
 type SessionRow = typeof sessions.$inferSelect;
 type HandleHistoryRow = typeof handleHistory.$inferSelect;
+type MagicLinkTokenRow = typeof magicLinkTokens.$inferSelect;
 
 export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
   return {
@@ -339,5 +342,14 @@ export function toListItem(row: ShelfItemRow): ListItem {
     bookId: row.bookId,
     position: row.position ?? 0,
     addedAt: row.addedAt
+  };
+}
+
+export function toMagicLinkToken(row: MagicLinkTokenRow): MagicLinkToken {
+  return {
+    email: row.email,
+    tokenHash: row.tokenHash,
+    expiresAt: row.expiresAt,
+    consumedAt: row.consumedAt ?? undefined
   };
 }

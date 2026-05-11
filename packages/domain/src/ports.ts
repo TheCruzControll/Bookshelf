@@ -15,6 +15,7 @@ import type {
   ImportStatus,
   List,
   ListItem,
+  MagicLinkToken,
   NotificationPlatform,
   NotificationSetting,
   NotificationToken,
@@ -335,6 +336,21 @@ export interface HandleHistoryRepository {
   findCurrentByOldHandle(oldHandle: string): Promise<HandleHistory | null>;
 }
 
+export interface MagicLinkRepository {
+  create(input: {
+    email: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<MagicLinkToken>;
+  findByTokenHash(tokenHash: string): Promise<MagicLinkToken | null>;
+  markConsumed(tokenHash: string): Promise<void>;
+  deleteExpiredForEmail(email: string): Promise<void>;
+}
+
+export interface EmailProvider {
+  sendMagicLink(input: { to: string; token: string; expiresInMinutes: number }): Promise<void>;
+}
+
 export interface AppRepositories {
   profiles: ProfileRepository;
   books: BookRepository;
@@ -353,6 +369,7 @@ export interface AppRepositories {
   authIdentities: AuthIdentityRepository;
   sessions: SessionRepository;
   handleHistory: HandleHistoryRepository;
+  magicLinks: MagicLinkRepository;
 }
 
 export interface BlockFilter {
