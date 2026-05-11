@@ -11,6 +11,7 @@ function makeActivity(overrides?: Partial<ActivityRepository>): ActivityReposito
       occurredAt: new Date(),
     })),
     getFriendFeed: vi.fn(),
+    getFriendFeedGrouped: vi.fn(),
     deleteByReviewId: vi.fn(),
     ...overrides,
   };

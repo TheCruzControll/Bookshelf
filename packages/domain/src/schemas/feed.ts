@@ -36,12 +36,32 @@ export const FeedItemSchema = z.object({
   review: ReviewSchema.optional(),
 });
 
+/** A group of feed items sharing the same groupKey */
+export const FeedGroupSchema = z.object({
+  groupKey: z.string(),
+  occurredAt: z.date(),
+  items: z.array(FeedItemSchema),
+});
+
 export const FeedCursorSchema = z.object({
   cursor: z.string().optional(),
   limit: z.number().int().positive().max(50).default(20),
 });
 
+export const FeedListInputSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.number().int().positive().max(50).default(20),
+});
+
+export const FeedListOutputSchema = z.object({
+  groups: z.array(FeedGroupSchema),
+  nextCursor: z.string().nullable(),
+});
+
 export type ActivityVerbInput = z.infer<typeof ActivityVerbSchema>;
 export type ActivityEventInput = z.infer<typeof ActivityEventSchema>;
 export type FeedItemInput = z.infer<typeof FeedItemSchema>;
+export type FeedGroupInput = z.infer<typeof FeedGroupSchema>;
 export type FeedCursorInput = z.infer<typeof FeedCursorSchema>;
+export type FeedListInput = z.infer<typeof FeedListInputSchema>;
+export type FeedListOutput = z.infer<typeof FeedListOutputSchema>;

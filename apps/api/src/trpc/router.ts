@@ -2,6 +2,7 @@ import { router, publicProcedure } from "./trpc";
 import { authRouter } from "./auth";
 import { blockRouter } from "./block";
 import { contactsRouter } from "./contacts";
+import { feedRouter } from "./feed";
 import { followRouter } from "./follow";
 import { importRouter } from "./import";
 import { listRouter } from "./list";
@@ -19,6 +20,7 @@ export const appRouter = router({
   auth: authRouter,
   block: blockRouter,
   contacts: contactsRouter,
+  feed: feedRouter,
   follow: followRouter,
   import: importRouter,
   list: listRouter,
