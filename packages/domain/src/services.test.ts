@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SessionService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey, NotificationService, encodeFeedCursor, decodeFeedCursor, groupFeedItems } from "./services";
+import { AccountDeletionService, ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SessionService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey, NotificationService, encodeFeedCursor, decodeFeedCursor, groupFeedItems } from "./services";
 import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, EmailProvider, FollowRepository, ListRepository, MagicLinkRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository, InAppNotificationRepository } from "./ports";
 import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, InAppNotification } from "./types";
 
@@ -280,6 +280,7 @@ describe("ProfileService", () => {
 describe("AppServices", () => {
   it("exposes shelves, handles, and profiles services", () => {
     const repositories: AppRepositories = {
+      accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn() },
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn() },
@@ -2779,6 +2780,7 @@ describe("NotificationService", () => {
 describe("AppServices includes notifications", () => {
   it("exposes notifications service", () => {
     const repositories: AppRepositories = {
+      accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn() },
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn() },
@@ -3105,5 +3107,144 @@ describe("groupFeedItems", () => {
 
   it("returns empty array for empty input", () => {
     expect(groupFeedItems([])).toEqual([]);
+  });
+});
+
+describe("AccountDeletionService", () => {
+  const UUID1 = "00000000-0000-0000-0000-000000000001";
+  const NOW = new Date("2026-05-11T00:00:00Z");
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
+  function makeDeletionRepo(overrides?: Record<string, unknown>) {
+    return {
+      create: vi.fn().mockImplementation(async (input: { profileId: string; requestedAt: Date; hardDeleteAfter: Date }) => ({
+        profileId: input.profileId,
+        requestedAt: input.requestedAt,
+        hardDeleteAfter: input.hardDeleteAfter,
+      })),
+      findByProfileId: vi.fn().mockResolvedValue(null),
+      delete: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  function makeSessionRepo() {
+    return {
+      create: vi.fn(),
+      findByTokenHash: vi.fn(),
+      revokeByTokenHash: vi.fn(),
+      revokeAllForProfile: vi.fn(),
+    };
+  }
+
+  it("creates a deletion record with 30-day grace period", async () => {
+    const deletionRepo = makeDeletionRepo();
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    const result = await service.requestDelete(UUID1);
+
+    expect(result.profileId).toBe(UUID1);
+    const diff = result.hardDeleteAfter.getTime() - result.requestedAt.getTime();
+    expect(diff).toBe(THIRTY_DAYS);
+    expect(deletionRepo.create).toHaveBeenCalledOnce();
+  });
+
+  it("revokes all sessions on delete request", async () => {
+    const deletionRepo = makeDeletionRepo();
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    await service.requestDelete(UUID1);
+
+    expect(sessionRepo.revokeAllForProfile).toHaveBeenCalledWith(UUID1);
+  });
+
+  it("is idempotent — returns existing record if already pending", async () => {
+    const existing = {
+      profileId: UUID1,
+      requestedAt: NOW,
+      hardDeleteAfter: new Date(NOW.getTime() + THIRTY_DAYS),
+    };
+    const deletionRepo = makeDeletionRepo({
+      findByProfileId: vi.fn().mockResolvedValue(existing),
+    });
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    const result = await service.requestDelete(UUID1);
+
+    expect(result).toBe(existing);
+    expect(deletionRepo.create).not.toHaveBeenCalled();
+    expect(sessionRepo.revokeAllForProfile).not.toHaveBeenCalled();
+  });
+
+  it("cancelDelete removes the record within grace period", async () => {
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    const deletionRepo = makeDeletionRepo({
+      findByProfileId: vi.fn().mockResolvedValue({
+        profileId: UUID1,
+        requestedAt: NOW,
+        hardDeleteAfter: futureDate,
+      }),
+    });
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    const cancelled = await service.cancelDelete(UUID1);
+
+    expect(cancelled).toBe(true);
+    expect(deletionRepo.delete).toHaveBeenCalledWith(UUID1);
+  });
+
+  it("cancelDelete returns false when no deletion exists", async () => {
+    const deletionRepo = makeDeletionRepo();
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    const cancelled = await service.cancelDelete(UUID1);
+
+    expect(cancelled).toBe(false);
+    expect(deletionRepo.delete).not.toHaveBeenCalled();
+  });
+
+  it("cancelDelete returns false when grace period has expired", async () => {
+    const pastDate = new Date(Date.now() - 1000);
+    const deletionRepo = makeDeletionRepo({
+      findByProfileId: vi.fn().mockResolvedValue({
+        profileId: UUID1,
+        requestedAt: NOW,
+        hardDeleteAfter: pastDate,
+      }),
+    });
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    const cancelled = await service.cancelDelete(UUID1);
+
+    expect(cancelled).toBe(false);
+    expect(deletionRepo.delete).not.toHaveBeenCalled();
+  });
+
+  it("isSoftDeleted returns true when deletion exists", async () => {
+    const deletionRepo = makeDeletionRepo({
+      findByProfileId: vi.fn().mockResolvedValue({
+        profileId: UUID1,
+        requestedAt: NOW,
+        hardDeleteAfter: new Date(NOW.getTime() + THIRTY_DAYS),
+      }),
+    });
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    expect(await service.isSoftDeleted(UUID1)).toBe(true);
+  });
+
+  it("isSoftDeleted returns false when no deletion exists", async () => {
+    const deletionRepo = makeDeletionRepo();
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    expect(await service.isSoftDeleted(UUID1)).toBe(false);
   });
 });

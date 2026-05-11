@@ -1,4 +1,5 @@
 import { router, publicProcedure } from "./trpc";
+import { accountRouter } from "./account";
 import { authRouter } from "./auth";
 import { blockRouter } from "./block";
 import { contactsRouter } from "./contacts";
@@ -17,6 +18,7 @@ export { router, publicProcedure };
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ ok: true, service: "hone-api" })),
+  account: accountRouter,
   auth: authRouter,
   block: blockRouter,
   contacts: contactsRouter,

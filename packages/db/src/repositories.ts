@@ -31,6 +31,8 @@
  */
 import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type {
+  AccountDeletion,
+  AccountDeletionRepository,
   ActivityRepository,
   AppRepositories,
   AuthIdentityRepository,
@@ -64,6 +66,7 @@ import type {
 import { computeGroupKey, POSTURE_C_DEFAULTS, SYSTEM_SHELVES } from "@hone/domain";
 import type { HoneDb } from "./client";
 import {
+  accountDeletions,
   activityEvents,
   authIdentities,
   blocks,
@@ -90,6 +93,7 @@ import {
   shelves
 } from "./schema";
 import {
+  toAccountDeletion,
   toActivityEvent,
   toBlock,
   toBook,
@@ -114,6 +118,45 @@ import {
   toShelf,
   toShelfItem
 } from "./mappers";
+
+export class DrizzleAccountDeletionRepository implements AccountDeletionRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async create(input: {
+    profileId: EntityId;
+    requestedAt: Date;
+    hardDeleteAfter: Date;
+  }): Promise<AccountDeletion> {
+    const [row] = await this.db
+      .insert(accountDeletions)
+      .values({
+        profileId: input.profileId,
+        requestedAt: input.requestedAt,
+        hardDeleteAfter: input.hardDeleteAfter,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!row) {
+      const existing = await this.findByProfileId(input.profileId);
+      if (existing) return existing;
+      throw new Error("Failed to create account deletion record");
+    }
+    return toAccountDeletion(row);
+  }
+
+  async findByProfileId(profileId: EntityId): Promise<AccountDeletion | null> {
+    const row = await this.db.query.accountDeletions.findFirst({
+      where: eq(accountDeletions.profileId, profileId),
+    });
+    return row ? toAccountDeletion(row) : null;
+  }
+
+  async delete(profileId: EntityId): Promise<void> {
+    await this.db
+      .delete(accountDeletions)
+      .where(eq(accountDeletions.profileId, profileId));
+  }
+}
 
 export class DrizzleProfileRepository implements ProfileRepository {
   constructor(private readonly db: HoneDb) {}
@@ -1643,6 +1686,7 @@ class DrizzleSaltRepository implements SaltRepository {
 
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
+    accountDeletions: new DrizzleAccountDeletionRepository(db),
     profiles: new DrizzleProfileRepository(db),
     books: new DrizzleBookRepository(db),
     shelves: new DrizzleShelfRepository(db),

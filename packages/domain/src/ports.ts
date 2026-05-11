@@ -1,4 +1,5 @@
 import type {
+  AccountDeletion,
   ActivityEvent,
   Block,
   Book,
@@ -453,7 +454,18 @@ export interface SaltRepository {
   listAll(): Promise<Salt[]>;
 }
 
+export interface AccountDeletionRepository {
+  create(input: {
+    profileId: EntityId;
+    requestedAt: Date;
+    hardDeleteAfter: Date;
+  }): Promise<AccountDeletion>;
+  findByProfileId(profileId: EntityId): Promise<AccountDeletion | null>;
+  delete(profileId: EntityId): Promise<void>;
+}
+
 export interface AppRepositories {
+  accountDeletions: AccountDeletionRepository;
   profiles: ProfileRepository;
   books: BookRepository;
   shelves: ShelfRepository;

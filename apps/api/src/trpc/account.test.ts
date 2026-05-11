@@ -1,0 +1,275 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Hono } from "hono";
+import { trpcServer } from "@hono/trpc-server";
+import { createTrpcContext, type TrpcContextDeps } from "./context";
+import { router } from "./trpc";
+import { accountRouter } from "./account";
+import type { AppRepositories, AuthIdentity, AccountDeletion } from "@hone/domain";
+
+vi.mock("@hone/observability", () => ({
+  captureException: vi.fn(),
+  createLogger: vi.fn(() => ({ info: vi.fn(), error: vi.fn() })),
+  initSentry: vi.fn(),
+  setSentryUser: vi.fn(),
+  clearSentryUser: vi.fn(),
+}));
+
+const UUID1 = "00000000-0000-0000-0000-000000000001";
+const NOW = new Date("2026-05-11T00:00:00Z");
+const HARD_DELETE_AFTER = new Date("2026-06-10T00:00:00Z");
+
+function makeDeletion(overrides?: Partial<AccountDeletion>): AccountDeletion {
+  return {
+    profileId: UUID1,
+    requestedAt: NOW,
+    hardDeleteAfter: HARD_DELETE_AFTER,
+    ...overrides,
+  };
+}
+
+function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories {
+  return {
+    accountDeletions: {
+      create: vi.fn().mockResolvedValue(makeDeletion()),
+      findByProfileId: vi.fn().mockResolvedValue(null),
+      delete: vi.fn(),
+      ...overrides?.accountDeletions,
+    },
+    profiles: {
+      findById: vi.fn(),
+      findByHandle: vi.fn(),
+      create: vi.fn(),
+      isHandleTaken: vi.fn(),
+      setHandle: vi.fn(),
+    },
+    books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
+    shelves: {
+      listShelves: vi.fn().mockResolvedValue([]),
+      findById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      addBook: vi.fn(),
+      rankShelfItem: vi.fn(),
+      createSystemShelves: vi.fn(),
+      findShelfItem: vi.fn(),
+      upsertShelfItem: vi.fn(),
+      deleteShelfItem: vi.fn(),
+      getMaxPosition: vi.fn().mockResolvedValue(0),
+      moveShelfItem: vi.fn(),
+    },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() },
+    recommendations: { getForUser: vi.fn() },
+    follows: {
+      follow: vi.fn(),
+      unfollow: vi.fn().mockResolvedValue(undefined),
+      findFollow: vi.fn().mockResolvedValue(null),
+      listFollowers: vi.fn().mockResolvedValue([]),
+      listFollowing: vi.fn().mockResolvedValue([]),
+      isMutual: vi.fn().mockResolvedValue(false),
+      countMutuals: vi.fn().mockResolvedValue(0),
+    },
+    blocks: {
+      block: vi.fn(),
+      unblock: vi.fn().mockResolvedValue(undefined),
+      findBlock: vi.fn().mockResolvedValue(null),
+      listBlockedByUser: vi.fn().mockResolvedValue([]),
+      listBlockingUser: vi.fn().mockResolvedValue([]),
+      isBlocked: vi.fn().mockResolvedValue(false),
+    },
+    rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
+    notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
+    imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
+    contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), deleteByTargetHash: vi.fn(), listByUser: vi.fn(), expireBySaltVersion: vi.fn() },
+    emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), deleteByTargetHash: vi.fn(), listByUser: vi.fn(), expireBySaltVersion: vi.fn() },
+    lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
+    authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
+    sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
+    handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
+    magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
+    inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+    phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
+    phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
+    salts: { create: vi.fn(), findActive: vi.fn(), findByVersion: vi.fn(), retire: vi.fn(), getLatestVersion: vi.fn(), listAll: vi.fn() },
+    ...overrides,
+  };
+}
+
+function makeIdentity(overrides?: Partial<AuthIdentity>): AuthIdentity {
+  return {
+    userId: UUID1,
+    ...overrides,
+  };
+}
+
+function buildApp(identity: AuthIdentity | null, repositories: AppRepositories) {
+  const testRouter = router({ account: accountRouter });
+  const app = new Hono();
+  const auth = { getCurrentIdentity: async () => identity };
+  const deps: TrpcContextDeps = { repositories, auth };
+  app.use(
+    "/trpc/*",
+    trpcServer({
+      router: testRouter,
+      createContext: createTrpcContext(deps),
+    })
+  );
+  return app;
+}
+
+describe("account.requestDelete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("creates an account_deletions row and revokes sessions", async () => {
+    const deletion = makeDeletion();
+    const repos = makeRepositories({
+      accountDeletions: {
+        create: vi.fn().mockResolvedValue(deletion),
+        findByProfileId: vi.fn().mockResolvedValue(null),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/account.requestDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.deletion.profileId).toBe(UUID1);
+    expect(repos.accountDeletions.create).toHaveBeenCalled();
+    expect(repos.sessions.revokeAllForProfile).toHaveBeenCalledWith(UUID1);
+  });
+
+  it("is idempotent — returns existing deletion if already requested", async () => {
+    const existingDeletion = makeDeletion();
+    const repos = makeRepositories({
+      accountDeletions: {
+        create: vi.fn(),
+        findByProfileId: vi.fn().mockResolvedValue(existingDeletion),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/account.requestDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.deletion.profileId).toBe(UUID1);
+    expect(repos.accountDeletions.create).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/account.requestDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("sets hardDeleteAfter to 30 days from request time", async () => {
+    const repos = makeRepositories({
+      accountDeletions: {
+        create: vi.fn().mockImplementation(async (input) => ({
+          profileId: input.profileId,
+          requestedAt: input.requestedAt,
+          hardDeleteAfter: input.hardDeleteAfter,
+        })),
+        findByProfileId: vi.fn().mockResolvedValue(null),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    await app.request("/trpc/account.requestDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    const createCall = (repos.accountDeletions.create as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    const requestedAt = new Date(createCall.requestedAt).getTime();
+    const hardDeleteAfter = new Date(createCall.hardDeleteAfter).getTime();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(hardDeleteAfter - requestedAt).toBe(thirtyDaysMs);
+  });
+});
+
+describe("account.cancelDelete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("cancels an existing deletion within grace period", async () => {
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    const repos = makeRepositories({
+      accountDeletions: {
+        create: vi.fn(),
+        findByProfileId: vi.fn().mockResolvedValue(makeDeletion({ hardDeleteAfter: futureDate })),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/account.cancelDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.cancelled).toBe(true);
+    expect(repos.accountDeletions.delete).toHaveBeenCalledWith(UUID1);
+  });
+
+  it("returns cancelled=false when no deletion exists", async () => {
+    const repos = makeRepositories({
+      accountDeletions: {
+        create: vi.fn(),
+        findByProfileId: vi.fn().mockResolvedValue(null),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/account.cancelDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.cancelled).toBe(false);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/account.cancelDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(401);
+  });
+});
