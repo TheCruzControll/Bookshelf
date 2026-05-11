@@ -306,6 +306,13 @@ export class DrizzleShelfRepository implements ShelfRepository {
 export class DrizzleReviewRepository implements ReviewRepository {
   constructor(private readonly db: HoneDb) {}
 
+  async findById(id: EntityId) {
+    const row = await this.db.query.reviews.findFirst({
+      where: eq(reviews.id, id),
+    });
+    return row ? toReview(row) : null;
+  }
+
   async create(input: Parameters<ReviewRepository["create"]>[0]) {
     const [row] = await this.db.insert(reviews).values(input).returning();
     if (!row) {

@@ -57,7 +57,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       createSystemShelves: vi.fn(),
       ...overrides?.shelves,
     },
-    reviews: { create: vi.fn(), update: vi.fn() },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn() },
     activity: { append: vi.fn(), getFriendFeed: vi.fn() },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },

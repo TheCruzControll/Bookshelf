@@ -319,6 +319,29 @@ export class ReviewService {
     });
     return review;
   }
+
+  async updateReview(input: {
+    id: EntityId;
+    authorId: EntityId;
+    version: number;
+    body?: string | undefined;
+    visibility?: Visibility | undefined;
+  }): Promise<Review> {
+    const existing = await this.reviews.findById(input.id);
+    if (!existing) {
+      throw Object.assign(new Error("Review not found"), { code: "NOT_FOUND" });
+    }
+    if (existing.authorId !== input.authorId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+    if (existing.version !== input.version) {
+      throw Object.assign(new Error("Version conflict"), {
+        code: "VERSION_CONFLICT",
+        currentReview: existing,
+      });
+    }
+    return this.reviews.update(input);
+  }
 }
 
 const APPLE_ISSUER = "https://appleid.apple.com";

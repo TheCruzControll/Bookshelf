@@ -53,6 +53,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       createSystemShelves: vi.fn(),
     },
     reviews: {
+      findById: vi.fn(),
       create: vi.fn().mockResolvedValue(makeReview()),
       update: vi.fn(),
     },
@@ -101,7 +102,7 @@ describe("review.create", () => {
   it("creates a review with public visibility by default", async () => {
     const review = makeReview({ visibility: "public" });
     const repos = makeRepositories({
-      reviews: { create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -117,7 +118,7 @@ describe("review.create", () => {
   it("creates a review with followers visibility", async () => {
     const review = makeReview({ visibility: "followers" });
     const repos = makeRepositories({
-      reviews: { create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -133,7 +134,7 @@ describe("review.create", () => {
   it("creates a review with mutuals visibility", async () => {
     const review = makeReview({ visibility: "mutuals" });
     const repos = makeRepositories({
-      reviews: { create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -149,7 +150,7 @@ describe("review.create", () => {
   it("creates a review with private visibility", async () => {
     const review = makeReview({ visibility: "private" });
     const repos = makeRepositories({
-      reviews: { create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -195,7 +196,7 @@ describe("review.create", () => {
   it("activity event visibility matches review visibility", async () => {
     const review = makeReview({ visibility: "mutuals" });
     const repos = makeRepositories({
-      reviews: { create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
     await app.request("/trpc/review.create", {
@@ -244,7 +245,7 @@ describe("review.create", () => {
   it("returns the review id and body in the response", async () => {
     const review = makeReview({ id: UUID2, body: "A great book" });
     const repos = makeRepositories({
-      reviews: { create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -256,5 +257,178 @@ describe("review.create", () => {
     const body = await res.json();
     expect(body.result.data.review.id).toBe(UUID2);
     expect(body.result.data.review.body).toBe("A great book");
+  });
+});
+
+describe("review.update", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("updates review body with matching version", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID1, version: 1 });
+    const updated = makeReview({ id: UUID2, authorId: UUID1, body: "Updated text", version: 2 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn().mockResolvedValue(updated),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, body: "Updated text" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.review.body).toBe("Updated text");
+    expect(body.result.data.review.version).toBe(2);
+  });
+
+  it("updates review visibility with matching version", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID1, version: 1, visibility: "public" });
+    const updated = makeReview({ id: UUID2, authorId: UUID1, visibility: "mutuals", version: 2 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn().mockResolvedValue(updated),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, visibility: "mutuals" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.review.visibility).toBe("mutuals");
+  });
+
+  it("returns 409 when version does not match (stale version)", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID1, version: 3 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, body: "Stale edit" }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("returns current review value in error cause on version conflict", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID1, version: 3, body: "Current body" });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, body: "Stale edit" }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error.data.code).toBe("CONFLICT");
+  });
+
+  it("returns 404 when review does not exist", async () => {
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, body: "Some text" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 403 when user is not the author", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID2, version: 1 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, body: "Hijack attempt" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, body: "Some text" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects missing review id", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: 1, body: "Some text" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects missing version", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, body: "Some text" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("does not call repository update when version conflicts", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID1, version: 3 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    await app.request("/trpc/review.update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2, version: 1, body: "Stale edit" }),
+    });
+    expect(repos.reviews.update).not.toHaveBeenCalled();
   });
 });

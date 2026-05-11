@@ -35,8 +35,14 @@ export const CreateReviewOutputSchema = z.object({
 });
 
 export const UpdateReviewInputSchema = z.object({
+  id: EntityIdSchema,
+  version: z.number().int().positive(),
   body: z.string().min(1).optional(),
   visibility: z.enum(["public", "followers", "mutuals", "private"]).optional(),
+});
+
+export const UpdateReviewOutputSchema = z.object({
+  review: ReviewSchema,
 });
 
 export const StartBucketInputSchema = z.object({
@@ -75,6 +81,7 @@ export type ReviewInput = z.infer<typeof ReviewSchema>;
 export type CreateReviewInput = z.infer<typeof CreateReviewInputSchema>;
 export type CreateReviewOutput = z.infer<typeof CreateReviewOutputSchema>;
 export type UpdateReviewInput = z.infer<typeof UpdateReviewInputSchema>;
+export type UpdateReviewOutput = z.infer<typeof UpdateReviewOutputSchema>;
 export type StartBucketInput = z.infer<typeof StartBucketInputSchema>;
 export type StartBucketOutput = z.infer<typeof StartBucketOutputSchema>;
 export type CompareInput = z.infer<typeof CompareInputSchema>;
