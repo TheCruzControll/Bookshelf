@@ -1,6 +1,6 @@
 export * from "./affiliate";
 export * from "./candidate";
-export * from "./goodreads";
+// goodreads uses node:crypto — server-only, import from "@hone/domain/goodreads"
 export * from "./isbn";
 export * from "./lww";
 export * from "./ports";

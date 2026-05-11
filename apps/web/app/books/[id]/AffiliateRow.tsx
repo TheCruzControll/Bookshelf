@@ -7,7 +7,7 @@ import {
   type AffiliateLocale,
   type AffiliateUrlInput,
   type AffiliateRetailer
-} from "@hone/domain";
+} from "@hone/domain/affiliate";
 
 const RETAILER_LABELS: Record<AffiliateRetailer, string> = {
   bookshop: "Bookshop",

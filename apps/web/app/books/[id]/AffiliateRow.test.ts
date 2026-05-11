@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildAffiliateUrl, getLocaleRetailers } from "@hone/domain";
-import type { AffiliateLocale, AffiliateRetailer } from "@hone/domain";
+import { buildAffiliateUrl, getLocaleRetailers } from "@hone/domain/affiliate";
+import type { AffiliateLocale, AffiliateRetailer } from "@hone/domain/affiliate";
 import { trackBuyClick } from "./analytics";
 
 describe("AffiliateRow locale retailer resolution", () => {
