@@ -157,6 +157,83 @@ export class ShelfService {
 
     return shelfItem;
   }
+
+  async upsertShelfItem(input: {
+    ownerId: EntityId;
+    shelfId: EntityId;
+    bookId: EntityId;
+    editionId?: EntityId | undefined;
+    notes?: string | undefined;
+    position?: number | undefined;
+  }): Promise<ShelfItem> {
+    const shelf = await this.shelves.findById(input.shelfId);
+    if (!shelf) {
+      throw Object.assign(new Error("Shelf not found"), { code: "NOT_FOUND" });
+    }
+    if (shelf.ownerId !== input.ownerId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+
+    // Default position to append (max + 1)
+    let position = input.position;
+    if (position === undefined) {
+      const maxPos = await this.shelves.getMaxPosition(input.shelfId);
+      position = maxPos + 1;
+    }
+
+    return this.shelves.upsertShelfItem({
+      shelfId: input.shelfId,
+      bookId: input.bookId,
+      editionId: input.editionId,
+      notes: input.notes,
+      position,
+    });
+  }
+
+  async moveShelfItem(input: {
+    ownerId: EntityId;
+    shelfId: EntityId;
+    bookId: EntityId;
+    position: number;
+  }): Promise<ShelfItem> {
+    const shelf = await this.shelves.findById(input.shelfId);
+    if (!shelf) {
+      throw Object.assign(new Error("Shelf not found"), { code: "NOT_FOUND" });
+    }
+    if (shelf.ownerId !== input.ownerId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+
+    const existing = await this.shelves.findShelfItem({ shelfId: input.shelfId, bookId: input.bookId });
+    if (!existing) {
+      throw Object.assign(new Error("Shelf item not found"), { code: "NOT_FOUND" });
+    }
+
+    return this.shelves.moveShelfItem({
+      shelfId: input.shelfId,
+      bookId: input.bookId,
+      position: input.position,
+    });
+  }
+
+  async deleteShelfItem(input: {
+    ownerId: EntityId;
+    shelfId: EntityId;
+    bookId: EntityId;
+  }): Promise<void> {
+    const shelf = await this.shelves.findById(input.shelfId);
+    if (!shelf) {
+      throw Object.assign(new Error("Shelf not found"), { code: "NOT_FOUND" });
+    }
+    if (shelf.ownerId !== input.ownerId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+
+    await this.shelves.deleteShelfItem({
+      shelfId: input.shelfId,
+      bookId: input.bookId,
+    });
+  }
 }
 
 export const RESERVED_HANDLES = new Set([

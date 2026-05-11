@@ -59,7 +59,7 @@ function makeRepositories(opts?: {
       setHandle: vi.fn(),
     },
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-    shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
+    shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), findShelfItemById: vi.fn(), upsertShelfItem: vi.fn(), updateShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn() },
     reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
     recommendations: { getForUser: vi.fn() },

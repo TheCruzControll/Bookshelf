@@ -35,7 +35,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       ...overrides?.profiles,
     },
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
-    shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn().mockResolvedValue([]) },
+    shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn().mockResolvedValue([]), findShelfItem: vi.fn(), findShelfItemById: vi.fn(), upsertShelfItem: vi.fn(), updateShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn() },
     reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
     recommendations: { getForUser: vi.fn() },
@@ -265,6 +265,13 @@ describe("profile.createProfile", () => {
         addBook: vi.fn(),
         rankShelfItem: vi.fn(),
         createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
+      findShelfItem: vi.fn(),
+      findShelfItemById: vi.fn(),
+      upsertShelfItem: vi.fn(),
+      updateShelfItem: vi.fn(),
+      deleteShelfItem: vi.fn(),
+      getMaxPosition: vi.fn().mockResolvedValue(0),
+      moveShelfItem: vi.fn()
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -309,6 +316,13 @@ describe("profile.createProfile", () => {
         addBook: vi.fn(),
         rankShelfItem: vi.fn(),
         createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
+      findShelfItem: vi.fn(),
+      findShelfItemById: vi.fn(),
+      upsertShelfItem: vi.fn(),
+      updateShelfItem: vi.fn(),
+      deleteShelfItem: vi.fn(),
+      getMaxPosition: vi.fn().mockResolvedValue(0),
+      moveShelfItem: vi.fn()
       },
     });
     const app = buildApp(makeIdentity(), repos);
