@@ -7,8 +7,13 @@ import {
   FollowDeleteOutputSchema,
   FollowListInputSchema,
   FollowListOutputSchema,
+  MutualCountInputSchema,
+  MutualCountOutputSchema,
 } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
+
+const MUTUAL_COUNT_CACHE_KEY = (userId: string) => `mutual-count:${userId}`;
+const MUTUAL_COUNT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const followRouter = router({
   create: publicProcedure
@@ -29,6 +34,13 @@ export const followRouter = router({
           followerId: ctx.identity.userId,
           followeeId: input.followeeId,
         });
+
+        // Invalidate mutual count cache for both users
+        await Promise.all([
+          ctx.cache?.del(MUTUAL_COUNT_CACHE_KEY(ctx.identity.userId)),
+          ctx.cache?.del(MUTUAL_COUNT_CACHE_KEY(input.followeeId)),
+        ]);
+
         return { follow };
       } catch (err) {
         if (err instanceof Error) {
@@ -61,6 +73,13 @@ export const followRouter = router({
         followerId: ctx.identity.userId,
         followeeId: input.followeeId,
       });
+
+      // Invalidate mutual count cache for both users
+      await Promise.all([
+        ctx.cache?.del(MUTUAL_COUNT_CACHE_KEY(ctx.identity.userId)),
+        ctx.cache?.del(MUTUAL_COUNT_CACHE_KEY(input.followeeId)),
+      ]);
+
       return { success: true };
     }),
 
@@ -106,5 +125,33 @@ export const followRouter = router({
         : null;
 
       return { follows: page, nextCursor };
+    }),
+
+  mutualCount: publicProcedure
+    .input(MutualCountInputSchema)
+    .output(MutualCountOutputSchema)
+    .query(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+
+      const cacheKey = MUTUAL_COUNT_CACHE_KEY(input.userId);
+
+      // Try cache first
+      const cached = await ctx.cache?.get<number>(cacheKey);
+      if (cached !== null && cached !== undefined) {
+        return { userId: input.userId, count: cached };
+      }
+
+      const services = new AppServices(ctx.repositories, {
+        getCurrentIdentity: async () => ctx.identity ?? null,
+      });
+
+      const count = await services.follows.getMutualCount(input.userId);
+
+      // Cache the result
+      await ctx.cache?.set(cacheKey, count, MUTUAL_COUNT_TTL_MS);
+
+      return { userId: input.userId, count };
     }),
 });
