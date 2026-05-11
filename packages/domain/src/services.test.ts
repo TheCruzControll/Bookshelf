@@ -603,6 +603,147 @@ describe("RankingService", () => {
       expect.objectContaining({ scoreAtPublish: 7.5 })
     );
   });
+
+  it("getScoreUnlockStatus returns unlocked=false when < 10 rankings", async () => {
+    const rankings = Array.from({ length: 9 }, (_, i) =>
+      ({
+        id: `r-${i}`,
+        profileId: "owner1",
+        bookId: `book-${i}`,
+        position: i + 1,
+        score: 10 - i,
+        bucket: 3,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Ranking)
+    );
+    const rankingsRepo = makeRankingsRepo({ listByOwner: vi.fn().mockResolvedValue(rankings) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const status = await service.getScoreUnlockStatus("owner1");
+
+    expect(status.unlocked).toBe(false);
+    expect(status.finishedCount).toBe(9);
+  });
+
+  it("getScoreUnlockStatus returns unlocked=true when exactly 10 rankings", async () => {
+    const rankings = Array.from({ length: 10 }, (_, i) =>
+      ({
+        id: `r-${i}`,
+        profileId: "owner1",
+        bookId: `book-${i}`,
+        position: i + 1,
+        score: 10 - i,
+        bucket: 3,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Ranking)
+    );
+    const rankingsRepo = makeRankingsRepo({ listByOwner: vi.fn().mockResolvedValue(rankings) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const status = await service.getScoreUnlockStatus("owner1");
+
+    expect(status.unlocked).toBe(true);
+    expect(status.finishedCount).toBe(10);
+  });
+
+  it("getScoreUnlockStatus returns unlocked=true when > 10 rankings", async () => {
+    const rankings = Array.from({ length: 15 }, (_, i) =>
+      ({
+        id: `r-${i}`,
+        profileId: "owner1",
+        bookId: `book-${i}`,
+        position: i + 1,
+        score: 10 - i,
+        bucket: 3,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Ranking)
+    );
+    const rankingsRepo = makeRankingsRepo({ listByOwner: vi.fn().mockResolvedValue(rankings) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const status = await service.getScoreUnlockStatus("owner1");
+
+    expect(status.unlocked).toBe(true);
+    expect(status.finishedCount).toBe(15);
+  });
+
+  it("getScoreUnlockStatus returns unlocked=false and finishedCount=0 when no rankings", async () => {
+    const rankingsRepo = makeRankingsRepo({ listByOwner: vi.fn().mockResolvedValue([]) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const status = await service.getScoreUnlockStatus("owner1");
+
+    expect(status.unlocked).toBe(false);
+    expect(status.finishedCount).toBe(0);
+  });
+
+  it("listRankingsWithGate returns rankings with null scores when < 10 rankings", async () => {
+    const rankings = Array.from({ length: 5 }, (_, i) =>
+      ({
+        id: `r-${i}`,
+        profileId: "owner1",
+        bookId: `book-${i}`,
+        position: i + 1,
+        score: 10 - i * 2,
+        bucket: 3,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Ranking)
+    );
+    const rankingsRepo = makeRankingsRepo({ listByOwner: vi.fn().mockResolvedValue(rankings) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const result = await service.listRankingsWithGate("owner1");
+
+    expect(result).toHaveLength(5);
+    for (const r of result) {
+      expect(r.score).toBeNull();
+    }
+    // Non-score fields preserved
+    expect(result[0]!.bookId).toBe("book-0");
+    expect(result[0]!.position).toBe(1);
+  });
+
+  it("listRankingsWithGate returns rankings with scores when >= 10 rankings", async () => {
+    const rankings = Array.from({ length: 10 }, (_, i) =>
+      ({
+        id: `r-${i}`,
+        profileId: "owner1",
+        bookId: `book-${i}`,
+        position: i + 1,
+        score: 10 - i,
+        bucket: 3,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Ranking)
+    );
+    const rankingsRepo = makeRankingsRepo({ listByOwner: vi.fn().mockResolvedValue(rankings) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const result = await service.listRankingsWithGate("owner1");
+
+    expect(result).toHaveLength(10);
+    for (let i = 0; i < 10; i++) {
+      expect(result[i]!.score).toBe(10 - i);
+    }
+  });
+
+  it("listRankingsWithGate returns empty array when no rankings", async () => {
+    const rankingsRepo = makeRankingsRepo({ listByOwner: vi.fn().mockResolvedValue([]) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const result = await service.listRankingsWithGate("owner1");
+
+    expect(result).toHaveLength(0);
+  });
 });
 
 describe("ReviewService", () => {

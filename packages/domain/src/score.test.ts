@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { scoreFromRank } from "./score";
+import { scoreFromRank, isScoreUnlocked, SCORE_UNLOCK_THRESHOLD, redactScore } from "./score";
+import type { Ranking } from "./types";
 
 describe("scoreFromRank", () => {
   it("returns 10 when there is exactly one ranked book", () => {
@@ -151,5 +152,132 @@ describe("scoreFromRank property tests", () => {
         }
       )
     );
+  });
+});
+
+describe("SCORE_UNLOCK_THRESHOLD", () => {
+  it("is 10", () => {
+    expect(SCORE_UNLOCK_THRESHOLD).toBe(10);
+  });
+});
+
+describe("isScoreUnlocked", () => {
+  it("returns false when finishedCount is 0", () => {
+    expect(isScoreUnlocked(0)).toBe(false);
+  });
+
+  it("returns false when finishedCount is 1", () => {
+    expect(isScoreUnlocked(1)).toBe(false);
+  });
+
+  it("returns false when finishedCount is 9 (one below threshold)", () => {
+    expect(isScoreUnlocked(9)).toBe(false);
+  });
+
+  it("returns true when finishedCount is exactly 10 (at threshold)", () => {
+    expect(isScoreUnlocked(10)).toBe(true);
+  });
+
+  it("returns true when finishedCount is 11 (above threshold)", () => {
+    expect(isScoreUnlocked(11)).toBe(true);
+  });
+
+  it("returns true when finishedCount is 100 (well above threshold)", () => {
+    expect(isScoreUnlocked(100)).toBe(true);
+  });
+
+  it("returns false for negative counts", () => {
+    expect(isScoreUnlocked(-1)).toBe(false);
+  });
+});
+
+describe("isScoreUnlocked property tests", () => {
+  it("is false for all counts below SCORE_UNLOCK_THRESHOLD", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: SCORE_UNLOCK_THRESHOLD - 1 }),
+        (count) => {
+          return isScoreUnlocked(count) === false;
+        }
+      )
+    );
+  });
+
+  it("is true for all counts at or above SCORE_UNLOCK_THRESHOLD", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: SCORE_UNLOCK_THRESHOLD, max: 10000 }),
+        (count) => {
+          return isScoreUnlocked(count) === true;
+        }
+      )
+    );
+  });
+});
+
+describe("redactScore", () => {
+  const now = new Date();
+
+  function makeRanking(overrides?: Partial<Ranking>): Ranking {
+    return {
+      id: "00000000-0000-0000-0000-000000000001",
+      profileId: "00000000-0000-0000-0000-000000000002",
+      bookId: "00000000-0000-0000-0000-000000000003",
+      position: 1,
+      score: 8.5,
+      bucket: 4,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    };
+  }
+
+  it("returns ranking with original score when unlocked is true", () => {
+    const ranking = makeRanking({ score: 7.25 });
+    const result = redactScore(ranking, true);
+    expect(result.score).toBe(7.25);
+  });
+
+  it("returns ranking with null score when unlocked is false", () => {
+    const ranking = makeRanking({ score: 7.25 });
+    const result = redactScore(ranking, false);
+    expect(result.score).toBeNull();
+  });
+
+  it("preserves all non-score fields when redacting", () => {
+    const ranking = makeRanking({ position: 3, bucket: 2 });
+    const result = redactScore(ranking, false);
+    expect(result.id).toBe(ranking.id);
+    expect(result.profileId).toBe(ranking.profileId);
+    expect(result.bookId).toBe(ranking.bookId);
+    expect(result.position).toBe(3);
+    expect(result.bucket).toBe(2);
+    expect(result.version).toBe(ranking.version);
+    expect(result.score).toBeNull();
+  });
+
+  it("preserves all non-score fields when not redacting", () => {
+    const ranking = makeRanking({ position: 5, bucket: 1 });
+    const result = redactScore(ranking, true);
+    expect(result.id).toBe(ranking.id);
+    expect(result.profileId).toBe(ranking.profileId);
+    expect(result.bookId).toBe(ranking.bookId);
+    expect(result.position).toBe(5);
+    expect(result.bucket).toBe(1);
+    expect(result.score).toBe(ranking.score);
+  });
+
+  it("returns the original ranking object reference when unlocked", () => {
+    const ranking = makeRanking();
+    const result = redactScore(ranking, true);
+    expect(result).toBe(ranking);
+  });
+
+  it("returns a new object when redacting (does not mutate original)", () => {
+    const ranking = makeRanking({ score: 9.0 });
+    const result = redactScore(ranking, false);
+    expect(result).not.toBe(ranking);
+    expect(ranking.score).toBe(9.0);
   });
 });

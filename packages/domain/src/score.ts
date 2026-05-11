@@ -10,6 +10,8 @@
  * When there is only one ranked book, it receives a score of 10.00.
  */
 
+import type { Ranking } from "./types";
+
 /**
  * Derive a 0-10 score from a 1-based rank position within a total count of ranked books.
  *
@@ -32,4 +34,43 @@ export function scoreFromRank(position: number, total: number): number {
   // Clamp to [0, 10] to handle edge cases, then round to 2 decimal places
   const clamped = Math.max(0, Math.min(10, raw));
   return Math.round(clamped * 100) / 100;
+}
+
+/**
+ * Score-unlock threshold.
+ *
+ * Users must rank at least this many books before their scores become visible
+ * on all read surfaces (profile ranked list, feed events, etc.).
+ */
+export const SCORE_UNLOCK_THRESHOLD = 10;
+
+/**
+ * Determine whether a user's scores are unlocked based on their finished
+ * (ranked) book count.
+ *
+ * @param finishedCount - number of books the user has ranked
+ * @returns true when scores should be visible
+ */
+export function isScoreUnlocked(finishedCount: number): boolean {
+  return finishedCount >= SCORE_UNLOCK_THRESHOLD;
+}
+
+/**
+ * A ranking with its score potentially redacted.
+ * When scores are locked, the `score` field is null.
+ */
+export type GatedRanking = Omit<Ranking, "score"> & { score: number | null };
+
+/**
+ * Redact the score from a ranking if scores are not unlocked.
+ *
+ * @param ranking - the ranking to potentially redact
+ * @param unlocked - whether the user's scores are unlocked
+ * @returns a copy with score nulled when locked
+ */
+export function redactScore(ranking: Ranking, unlocked: boolean): GatedRanking {
+  if (unlocked) {
+    return ranking;
+  }
+  return { ...ranking, score: null };
 }
