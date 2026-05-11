@@ -1,5 +1,7 @@
 export * from "./activity-publisher";
 export * from "./affiliate";
+export * from "./algorithmic-list";
+export * from "./algorithmic-refresh";
 export * from "./candidate";
 export * from "./candidate-query";
 export * from "./heuristic-scorer";
