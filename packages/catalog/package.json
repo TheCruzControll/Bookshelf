@@ -12,6 +12,7 @@
     "build": "tsc --emitDeclarationOnly"
   },
   "dependencies": {
+    "@hone/cache": "workspace:*",
     "@hone/domain": "workspace:*"
   },
   "devDependencies": {
