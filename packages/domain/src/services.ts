@@ -1,6 +1,7 @@
 import { createHash, randomBytes, subtle } from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import type {
+  AccountDeletionRepository,
   ActivityRepository,
   AppRepositories,
   AppleJwksProvider,
@@ -31,7 +32,7 @@ import type {
   ShelfRepository,
   SmsProvider
 } from "./ports";
-import type { ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
+import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
@@ -1597,7 +1598,52 @@ export class PhoneVerifyService {
   }
 }
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+export class AccountDeletionService {
+  constructor(
+    private readonly accountDeletions: AccountDeletionRepository,
+    private readonly sessions: SessionRepository,
+  ) {}
+
+  async requestDelete(profileId: EntityId): Promise<AccountDeletion> {
+    const existing = await this.accountDeletions.findByProfileId(profileId);
+    if (existing) {
+      return existing;
+    }
+
+    const now = new Date();
+    const deletion = await this.accountDeletions.create({
+      profileId,
+      requestedAt: now,
+      hardDeleteAfter: new Date(now.getTime() + THIRTY_DAYS_MS),
+    });
+
+    await this.sessions.revokeAllForProfile(profileId);
+
+    return deletion;
+  }
+
+  async cancelDelete(profileId: EntityId): Promise<boolean> {
+    const existing = await this.accountDeletions.findByProfileId(profileId);
+    if (!existing) {
+      return false;
+    }
+    if (existing.hardDeleteAfter < new Date()) {
+      return false;
+    }
+    await this.accountDeletions.delete(profileId);
+    return true;
+  }
+
+  async isSoftDeleted(profileId: EntityId): Promise<boolean> {
+    const deletion = await this.accountDeletions.findByProfileId(profileId);
+    return deletion !== null;
+  }
+}
+
 export class AppServices {
+  readonly accountDeletion: AccountDeletionService;
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
@@ -1618,6 +1664,10 @@ export class AppServices {
     readonly repositories: AppRepositories,
     readonly auth: AuthProvider
   ) {
+    this.accountDeletion = new AccountDeletionService(
+      repositories.accountDeletions,
+      repositories.sessions,
+    );
     this.shelves = new ShelfService(
       repositories.shelves,
       repositories.activity,
