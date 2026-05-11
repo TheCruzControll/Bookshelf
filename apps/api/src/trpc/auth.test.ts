@@ -1093,3 +1093,242 @@ describe("auth.confirmPhoneVerify", () => {
     confirmSpy.mockRestore();
   });
 });
+
+describe("auth.session.create", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.session.create", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ profileId: UUID1 }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 200 with sessionToken and expiresAt on success", async () => {
+    const repos = makeRepositories();
+    repos.sessions.create = vi.fn().mockResolvedValue({
+      tokenHash: "some-hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.create", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ profileId: UUID1 }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { sessionToken: string; expiresAt: string } } };
+    expect(body.result?.data?.sessionToken).toBeDefined();
+    expect(body.result?.data?.sessionToken.length).toBe(64);
+    expect(body.result?.data?.expiresAt).toBeDefined();
+  });
+
+  it("returns 400 when profileId is not a valid UUID", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.create", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ profileId: "not-a-uuid" }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("auth.session.rotate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.session.rotate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentToken: "some-token" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 200 with new sessionToken on success", async () => {
+    const { createHash } = await import("node:crypto");
+    const currentToken = "a".repeat(64);
+    const currentHash = createHash("sha256").update(currentToken, "utf8").digest("hex");
+
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash: currentHash,
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    repos.sessions.revokeByTokenHash = vi.fn();
+    repos.sessions.create = vi.fn().mockResolvedValue({
+      tokenHash: "new-hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.rotate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentToken }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { sessionToken: string; expiresAt: string } } };
+    expect(body.result?.data?.sessionToken).toBeDefined();
+    expect(body.result?.data?.sessionToken).not.toBe(currentToken);
+    expect(body.result?.data?.expiresAt).toBeDefined();
+  });
+
+  it("returns 404 when session not found", async () => {
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue(null);
+
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.rotate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentToken: "nonexistent-token" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 401 when session is already revoked", async () => {
+    const { createHash } = await import("node:crypto");
+    const token = "b".repeat(64);
+    const hash = createHash("sha256").update(token, "utf8").digest("hex");
+
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash: hash,
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+      revokedAt: new Date(),
+    });
+
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.rotate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentToken: token }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when session is expired", async () => {
+    const { createHash } = await import("node:crypto");
+    const token = "c".repeat(64);
+    const hash = createHash("sha256").update(token, "utf8").digest("hex");
+
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash: hash,
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.rotate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentToken: token }),
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("auth.session.revoke", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.session.revoke", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "some-token" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 200 with revoked=true on success", async () => {
+    const { createHash } = await import("node:crypto");
+    const rawToken = "d".repeat(64);
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash,
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    repos.sessions.revokeByTokenHash = vi.fn();
+
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.revoke", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: rawToken }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { revoked: boolean } } };
+    expect(body.result?.data?.revoked).toBe(true);
+  });
+
+  it("returns 404 when session not found", async () => {
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue(null);
+
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/auth.session.revoke", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "nonexistent-token" }),
+    });
+    expect(res.status).toBe(404);
+  });
+});

@@ -565,10 +565,81 @@ export class ReviewService {
   }
 }
 
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export class SessionService {
+  constructor(private readonly sessions: SessionRepository) {}
+
+  /**
+   * Create a new session for a profile.
+   * Generates an opaque random token, stores its sha256 hash, and returns the raw token.
+   */
+  async create(profileId: EntityId): Promise<{ sessionToken: string; expiresAt: Date }> {
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    await this.sessions.create({ tokenHash, profileId, expiresAt });
+
+    return { sessionToken: rawToken, expiresAt };
+  }
+
+  /**
+   * Rotate a session: revoke the old token and issue a new one for the same profile.
+   * The caller must supply the current raw token (not the hash).
+   */
+  async rotate(currentToken: string): Promise<{ sessionToken: string; expiresAt: Date }> {
+    const currentHash = createHash("sha256").update(currentToken, "utf8").digest("hex");
+    const existing = await this.sessions.findByTokenHash(currentHash);
+
+    if (!existing) {
+      throw Object.assign(new Error("Session not found"), { code: "SESSION_NOT_FOUND" });
+    }
+    if (existing.revokedAt) {
+      throw Object.assign(new Error("Session already revoked"), { code: "SESSION_REVOKED" });
+    }
+    if (existing.expiresAt < new Date()) {
+      throw Object.assign(new Error("Session expired"), { code: "SESSION_EXPIRED" });
+    }
+
+    // Revoke the old session
+    await this.sessions.revokeByTokenHash(currentHash);
+
+    // Create a fresh session for the same profile
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    await this.sessions.create({ tokenHash, profileId: existing.profileId, expiresAt });
+
+    return { sessionToken: rawToken, expiresAt };
+  }
+
+  /**
+   * Revoke a single session by its raw token.
+   */
+  async revoke(token: string): Promise<void> {
+    const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+    const existing = await this.sessions.findByTokenHash(tokenHash);
+
+    if (!existing) {
+      throw Object.assign(new Error("Session not found"), { code: "SESSION_NOT_FOUND" });
+    }
+
+    await this.sessions.revokeByTokenHash(tokenHash);
+  }
+
+  /**
+   * Revoke all sessions for a profile (e.g. on password reset or account lockout).
+   */
+  async revokeAll(profileId: EntityId): Promise<void> {
+    await this.sessions.revokeAllForProfile(profileId);
+  }
+}
+
 const APPLE_ISSUER = "https://appleid.apple.com";
 const GOOGLE_ISSUER_ACCOUNTS = "https://accounts.google.com";
 const GOOGLE_ISSUER_ALT = "accounts.google.com";
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function base64UrlDecode(s: string): Uint8Array {
   const rem = s.length % 4;
@@ -1324,6 +1395,7 @@ export class AppServices {
   readonly imports: ImportService;
   readonly contacts: ContactsService;
   readonly phoneVerify: PhoneVerifyService;
+  readonly sessions: SessionService;
 
   constructor(
     readonly repositories: AppRepositories,
@@ -1359,6 +1431,7 @@ export class AppServices {
     );
     this.notifications = new NotificationService(repositories.inAppNotifications);
     this.imports = new ImportService(repositories.imports);
+    this.sessions = new SessionService(repositories.sessions);
     this.contacts = new ContactsService(
       repositories.contacts,
       repositories.emailIndex,
