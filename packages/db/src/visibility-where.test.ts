@@ -92,7 +92,7 @@ describe("buildVisibilityWhere", () => {
         ownerCol,
         visibilityCol,
       });
-      const { sql, params } = toQuery(clause);
+      const { params } = toQuery(clause);
       expect(params).toContain(OWNER_ID);
       expect(params).toContain("private");
     });
