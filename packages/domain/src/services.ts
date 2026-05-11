@@ -1275,6 +1275,18 @@ export class ContactsService {
       this.emailIndex.deleteExpired(),
     ]);
   }
+
+  /**
+   * Remove all contact/email index rows whose hash matches the given target hashes.
+   * Called on account deletion so no one can match against the deleted user's phone/email.
+   */
+  async clearTargetHashes(targetHashes: string[]): Promise<void> {
+    if (targetHashes.length === 0) return;
+    await Promise.all([
+      this.contacts.deleteByTargetHash(targetHashes),
+      this.emailIndex.deleteByTargetHash(targetHashes),
+    ]);
+  }
 }
 
 export class NotificationService {
