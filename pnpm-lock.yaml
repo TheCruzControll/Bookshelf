@@ -175,6 +175,19 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@24.12.3)(lightningcss@1.27.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.8.4)
 
+  packages/catalog:
+    dependencies:
+      '@hone/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@24.12.3)(lightningcss@1.27.0)(terser@5.47.1)
+
   packages/config-env:
     dependencies:
       zod:
