@@ -45,6 +45,14 @@ export const UpdateReviewOutputSchema = z.object({
   review: ReviewSchema,
 });
 
+export const DeleteReviewInputSchema = z.object({
+  id: EntityIdSchema,
+});
+
+export const DeleteReviewOutputSchema = z.object({
+  success: z.literal(true),
+});
+
 export const StartBucketInputSchema = z.object({
   bookId: EntityIdSchema,
   bucket: z.number().int().min(1).max(5),
@@ -82,6 +90,8 @@ export type CreateReviewInput = z.infer<typeof CreateReviewInputSchema>;
 export type CreateReviewOutput = z.infer<typeof CreateReviewOutputSchema>;
 export type UpdateReviewInput = z.infer<typeof UpdateReviewInputSchema>;
 export type UpdateReviewOutput = z.infer<typeof UpdateReviewOutputSchema>;
+export type DeleteReviewInput = z.infer<typeof DeleteReviewInputSchema>;
+export type DeleteReviewOutput = z.infer<typeof DeleteReviewOutputSchema>;
 export type StartBucketInput = z.infer<typeof StartBucketInputSchema>;
 export type StartBucketOutput = z.infer<typeof StartBucketOutputSchema>;
 export type CompareInput = z.infer<typeof CompareInputSchema>;

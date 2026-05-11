@@ -5,6 +5,8 @@ import {
   CreateReviewOutputSchema,
   UpdateReviewInputSchema,
   UpdateReviewOutputSchema,
+  DeleteReviewInputSchema,
+  DeleteReviewOutputSchema,
 } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
 
@@ -69,6 +71,39 @@ export const reviewRouter = router({
               message: "Version conflict",
               cause: errWithCode.currentReview,
             });
+          }
+        }
+        throw err;
+      }
+    }),
+
+  delete: publicProcedure
+    .input(DeleteReviewInputSchema)
+    .output(DeleteReviewOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const services = new AppServices(ctx.repositories, {
+        getCurrentIdentity: async () => ctx.identity,
+      });
+      try {
+        await services.reviews.deleteReview({
+          id: input.id,
+          authorId: ctx.identity.userId,
+        });
+        return { success: true as const };
+      } catch (err) {
+        if (err instanceof Error) {
+          const errWithCode = err as Error & { code?: string };
+          if (errWithCode.code === "NOT_FOUND") {
+            throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+          }
+          if (errWithCode.code === "FORBIDDEN") {
+            throw new TRPCError({ code: "FORBIDDEN", message: err.message });
           }
         }
         throw err;
