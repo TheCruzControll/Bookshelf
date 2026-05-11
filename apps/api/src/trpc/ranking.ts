@@ -1,11 +1,14 @@
 import { TRPCError } from "@trpc/server";
 import {
   AppServices,
+  RankingService,
   ReviewService,
   CompareInputSchema,
   CompareOutputSchema,
   StartBucketInputSchema,
   StartBucketOutputSchema,
+  RerankInputSchema,
+  RerankOutputSchema,
   selectCandidate,
 } from "@hone/domain";
 import type { EntityId } from "@hone/domain";
@@ -20,6 +23,7 @@ interface ComparisonState {
   rankedIds: EntityId[];
   lo: number;
   hi: number;
+  isRerank?: boolean;
 }
 
 export const rankingRouter = router({
@@ -99,7 +103,23 @@ export const rankingRouter = router({
       }
 
       if (state.lo >= state.hi) {
+        const isRerank = state.isRerank === true;
         await ctx.cache?.del(cacheKey);
+
+        // When this is a rerank, finalize: update ranking row and publish
+        // a new book_ranked activity event.  Old events retain frozen scores.
+        if (isRerank) {
+          const allRankings = await ctx.repositories.rankings.listByOwner(ctx.identity.userId);
+          const total = allRankings.filter((r) => r.bookId !== state.bookId).length + 1;
+          const rankingService = new RankingService(ctx.repositories.rankings, ctx.repositories.activity);
+          await rankingService.finishRerank({
+            ownerId: ctx.identity.userId,
+            bookId: state.bookId,
+            position: state.lo,
+            total,
+          });
+        }
+
         let reviewId: string | undefined;
         if (input.reviewBody) {
           const reviewService = new ReviewService(ctx.repositories.reviews, ctx.repositories.activity);
@@ -140,5 +160,66 @@ export const rankingRouter = router({
         candidateBookId: candidateBookId as EntityId,
         newBookId: state.bookId,
       };
+    }),
+
+  rerank: publicProcedure
+    .input(RerankInputSchema)
+    .output(RerankOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const rankingService = new RankingService(ctx.repositories.rankings, ctx.repositories.activity);
+
+      try {
+        const ranking = await rankingService.rerank({
+          ownerId: ctx.identity.userId,
+          bookId: input.bookId,
+          version: input.version,
+          bucket: input.bucket,
+        });
+
+        // Pre-seed the comparison state with isRerank=true so the compare
+        // flow knows to publish a book_ranked event on completion.
+        const allRankings = await ctx.repositories.rankings.listByOwner(ctx.identity.userId);
+        const sorted = allRankings
+          .filter((r) => r.bookId !== input.bookId)
+          .sort((a, b) => a.position - b.position);
+
+        const state: ComparisonState = {
+          ownerId: ctx.identity.userId,
+          bookId: input.bookId,
+          bucket: input.bucket,
+          rankedIds: sorted.map((r) => r.bookId),
+          lo: 0,
+          hi: sorted.length,
+          isRerank: true,
+        };
+
+        const cacheKey = `compare:${ranking.id}`;
+        await ctx.cache?.set(cacheKey, state, COMPARE_STATE_TTL_MS);
+
+        return {
+          rankingId: ranking.id,
+          bookId: ranking.bookId,
+          bucket: ranking.bucket,
+        };
+      } catch (err: unknown) {
+        const error = err as Error & { code?: string; currentVersion?: number };
+        if (error.code === "NOT_FOUND") {
+          throw new TRPCError({ code: "NOT_FOUND", message: error.message });
+        }
+        if (error.code === "VERSION_CONFLICT") {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Version conflict: expected ${input.version}, current is ${error.currentVersion}`,
+          });
+        }
+        throw err;
+      }
     }),
 });

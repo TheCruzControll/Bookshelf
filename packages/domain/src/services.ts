@@ -504,6 +504,76 @@ export class RankingService {
   }
 
   /**
+   * Start a rerank flow: verify the book is already ranked, check version
+   * for optimistic locking, then restart the ranking session with a new bucket.
+   *
+   * The old ranking row is preserved until the compare flow completes and
+   * finishBook is called with the new position.
+   */
+  async rerank(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    version: number;
+    bucket: number;
+  }): Promise<Ranking> {
+    const existing = await this.rankings.findByOwnerAndBook({
+      ownerId: input.ownerId,
+      bookId: input.bookId,
+    });
+
+    if (!existing) {
+      throw Object.assign(new Error("Ranking not found"), { code: "NOT_FOUND" });
+    }
+
+    if (existing.version !== input.version) {
+      throw Object.assign(new Error("Version conflict"), {
+        code: "VERSION_CONFLICT",
+        currentVersion: existing.version,
+      });
+    }
+
+    return this.rankings.startBucket({
+      ownerId: input.ownerId,
+      bookId: input.bookId,
+      bucket: input.bucket,
+    });
+  }
+
+  /**
+   * Finish a rerank flow: update ranking with new position, compute new score,
+   * and publish a new activity event. The old feed event retains its frozen score.
+   */
+  async finishRerank(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    position: number;
+    total: number;
+  }): Promise<{ ranking: Ranking; event: ActivityEvent }> {
+    const score = scoreFromRank(input.position, input.total);
+
+    const ranking = await this.rankings.upsert({
+      ownerId: input.ownerId,
+      bookId: input.bookId,
+      rank: input.position,
+      score,
+    });
+
+    // Publish a NEW book_ranked event; old events retain their frozen scores.
+    const event = await publishActivityEvent(this.activity, this.rankings, {
+      actorId: input.ownerId,
+      verb: "book_ranked",
+      bookId: input.bookId,
+      visibility: "followers",
+      scoreSnapshot: {
+        score,
+        locked: input.total < 10,
+      },
+    });
+
+    return { ranking, event: event! };
+  }
+
+  /**
    * Check whether a user has unlocked scores (>= 10 ranked books).
    */
   async getScoreUnlockStatus(ownerId: EntityId): Promise<{ unlocked: boolean; finishedCount: number }> {

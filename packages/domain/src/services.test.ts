@@ -1102,6 +1102,153 @@ describe("RankingService", () => {
 
     expect(result).toHaveLength(0);
   });
+
+  it("rerank throws NOT_FOUND when ranking does not exist", async () => {
+    const rankingsRepo = makeRankingsRepo({ findByOwnerAndBook: vi.fn().mockResolvedValue(null) });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    await expect(
+      service.rerank({ ownerId: "owner1", bookId: "book1", version: 1, bucket: 3 })
+    ).rejects.toThrow("Ranking not found");
+  });
+
+  it("rerank throws VERSION_CONFLICT when version does not match", async () => {
+    const now = new Date();
+    const existing: Ranking = {
+      id: "r1",
+      profileId: "owner1",
+      bookId: "book1",
+      position: 3,
+      score: 7,
+      bucket: 4,
+      version: 2,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const rankingsRepo = makeRankingsRepo({
+      findByOwnerAndBook: vi.fn().mockResolvedValue(existing),
+    });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    await expect(
+      service.rerank({ ownerId: "owner1", bookId: "book1", version: 1, bucket: 3 })
+    ).rejects.toThrow("Version conflict");
+  });
+
+  it("rerank calls startBucket when version matches", async () => {
+    const now = new Date();
+    const existing: Ranking = {
+      id: "r1",
+      profileId: "owner1",
+      bookId: "book1",
+      position: 3,
+      score: 7,
+      bucket: 4,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const updated: Ranking = { ...existing, bucket: 2 };
+    const rankingsRepo = makeRankingsRepo({
+      findByOwnerAndBook: vi.fn().mockResolvedValue(existing),
+      startBucket: vi.fn().mockResolvedValue(updated),
+    });
+    const service = new RankingService(rankingsRepo, makeActivity());
+
+    const result = await service.rerank({ ownerId: "owner1", bookId: "book1", version: 1, bucket: 2 });
+
+    expect(rankingsRepo.startBucket).toHaveBeenCalledWith({
+      ownerId: "owner1",
+      bookId: "book1",
+      bucket: 2,
+    });
+    expect(result.bucket).toBe(2);
+  });
+
+  it("finishRerank upserts ranking and publishes book_ranked activity event", async () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "r1",
+      profileId: "owner1",
+      bookId: "book1",
+      position: 3,
+      score: 7.78,
+      bucket: 4,
+      version: 2,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const event = {
+      id: "evt-1",
+      actorId: "owner1",
+      verb: "book_ranked" as const,
+      bookId: "book1",
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: 7.78,
+      scoreLockedAtPublish: false,
+    };
+    const rankingsRepo = makeRankingsRepo({ upsert: vi.fn().mockResolvedValue(ranking) });
+    const activity = makeActivity({ append: vi.fn().mockResolvedValue(event) });
+    const service = new RankingService(rankingsRepo, activity);
+
+    const result = await service.finishRerank({
+      ownerId: "owner1",
+      bookId: "book1",
+      position: 3,
+      total: 10,
+    });
+
+    expect(rankingsRepo.upsert).toHaveBeenCalledWith({
+      ownerId: "owner1",
+      bookId: "book1",
+      rank: 3,
+      score: expect.any(Number),
+    });
+    expect(activity.append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "book_ranked",
+        bookId: "book1",
+        scoreAtPublish: expect.any(Number),
+      })
+    );
+    expect(result.ranking).toEqual(ranking);
+    expect(result.event).toEqual(event);
+  });
+
+  it("finishRerank sets scoreLockedAtPublish=true when total < 10", async () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "r1",
+      profileId: "owner1",
+      bookId: "book1",
+      position: 1,
+      score: 10,
+      bucket: 5,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const event = {
+      id: "evt-1",
+      actorId: "owner1",
+      verb: "book_ranked" as const,
+      bookId: "book1",
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: 10,
+      scoreLockedAtPublish: true,
+    };
+    const rankingsRepo = makeRankingsRepo({ upsert: vi.fn().mockResolvedValue(ranking) });
+    const activity = makeActivity({ append: vi.fn().mockResolvedValue(event) });
+    const service = new RankingService(rankingsRepo, activity);
+
+    await service.finishRerank({ ownerId: "owner1", bookId: "book1", position: 1, total: 5 });
+
+    expect(activity.append).toHaveBeenCalledWith(
+      expect.objectContaining({ scoreLockedAtPublish: true })
+    );
+  });
 });
 
 describe("ReviewService", () => {

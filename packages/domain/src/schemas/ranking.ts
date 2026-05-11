@@ -94,5 +94,19 @@ export type DeleteReviewInput = z.infer<typeof DeleteReviewInputSchema>;
 export type DeleteReviewOutput = z.infer<typeof DeleteReviewOutputSchema>;
 export type StartBucketInput = z.infer<typeof StartBucketInputSchema>;
 export type StartBucketOutput = z.infer<typeof StartBucketOutputSchema>;
+export const RerankInputSchema = z.object({
+  bookId: EntityIdSchema,
+  version: z.number().int().positive(),
+  bucket: z.number().int().min(1).max(5),
+});
+
+export const RerankOutputSchema = z.object({
+  rankingId: EntityIdSchema,
+  bookId: EntityIdSchema,
+  bucket: z.number().int().min(1).max(5),
+});
+
 export type CompareInput = z.infer<typeof CompareInputSchema>;
 export type CompareOutput = z.infer<typeof CompareOutputSchema>;
+export type RerankInput = z.infer<typeof RerankInputSchema>;
+export type RerankOutput = z.infer<typeof RerankOutputSchema>;
