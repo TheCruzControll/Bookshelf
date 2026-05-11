@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey, NotificationService } from "./services";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SessionService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey, NotificationService } from "./services";
 import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, EmailProvider, FollowRepository, ListRepository, MagicLinkRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository, InAppNotificationRepository } from "./ports";
 import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, InAppNotification } from "./types";
 
@@ -2597,5 +2597,175 @@ describe("AppServices includes notifications", () => {
 
     const services = new AppServices(repositories, auth);
     expect(services.notifications).toBeInstanceOf(NotificationService);
+  });
+});
+
+
+describe("SessionService", () => {
+  function makeSessionRepo() {
+    return {
+      create: vi.fn().mockImplementation(async (input: { tokenHash: string; profileId: string; expiresAt: Date }) => ({
+        tokenHash: input.tokenHash,
+        profileId: input.profileId,
+        expiresAt: input.expiresAt,
+      })),
+      findByTokenHash: vi.fn(),
+      revokeByTokenHash: vi.fn(),
+      revokeAllForProfile: vi.fn(),
+    } as SessionRepository;
+  }
+
+  describe("create", () => {
+    it("generates an opaque token, stores sha256 hash, returns raw token", async () => {
+      const sessionRepo = makeSessionRepo();
+      const service = new SessionService(sessionRepo);
+      const profileId = "00000000-0000-0000-0000-000000000001";
+
+      const result = await service.create(profileId);
+
+      expect(result.sessionToken).toBeDefined();
+      expect(result.sessionToken.length).toBe(64); // 32 bytes hex
+      expect(result.expiresAt).toBeInstanceOf(Date);
+      expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
+
+      // Verify the repo received a sha256 hash, not the raw token
+      expect(sessionRepo.create).toHaveBeenCalledOnce();
+      const call = (sessionRepo.create as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { tokenHash: string; profileId: string; expiresAt: Date };
+      expect(call.tokenHash).not.toBe(result.sessionToken);
+      expect(call.tokenHash.length).toBe(64); // sha256 hex
+      expect(call.profileId).toBe(profileId);
+    });
+
+    it("stored hash matches sha256 of the returned raw token", async () => {
+      const { createHash } = await import("node:crypto");
+      const sessionRepo = makeSessionRepo();
+      const service = new SessionService(sessionRepo);
+
+      const result = await service.create("00000000-0000-0000-0000-000000000001");
+
+      const expectedHash = createHash("sha256").update(result.sessionToken, "utf8").digest("hex");
+      const call = (sessionRepo.create as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { tokenHash: string };
+      expect(call.tokenHash).toBe(expectedHash);
+    });
+  });
+
+  describe("rotate", () => {
+    it("revokes old session and creates a new one for the same profile", async () => {
+      const { createHash } = await import("node:crypto");
+      const sessionRepo = makeSessionRepo();
+      const currentToken = "a".repeat(64);
+      const currentHash = createHash("sha256").update(currentToken, "utf8").digest("hex");
+
+      (sessionRepo.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+        tokenHash: currentHash,
+        profileId: "00000000-0000-0000-0000-000000000001",
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      const service = new SessionService(sessionRepo);
+      const result = await service.rotate(currentToken);
+
+      // Old session revoked
+      expect(sessionRepo.revokeByTokenHash).toHaveBeenCalledWith(currentHash);
+
+      // New session created
+      expect(sessionRepo.create).toHaveBeenCalledOnce();
+      const call = (sessionRepo.create as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { tokenHash: string; profileId: string };
+      expect(call.profileId).toBe("00000000-0000-0000-0000-000000000001");
+
+      // New token is different from old
+      expect(result.sessionToken).not.toBe(currentToken);
+      expect(result.sessionToken.length).toBe(64);
+      expect(result.expiresAt).toBeInstanceOf(Date);
+    });
+
+    it("throws SESSION_NOT_FOUND when current token does not exist", async () => {
+      const sessionRepo = makeSessionRepo();
+      (sessionRepo.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      const service = new SessionService(sessionRepo);
+
+      await expect(service.rotate("nonexistent-token")).rejects.toThrow("Session not found");
+      await expect(service.rotate("nonexistent-token")).rejects.toMatchObject({ code: "SESSION_NOT_FOUND" });
+    });
+
+    it("throws SESSION_REVOKED when session is already revoked", async () => {
+      const { createHash } = await import("node:crypto");
+      const sessionRepo = makeSessionRepo();
+      const token = "b".repeat(64);
+      const hash = createHash("sha256").update(token, "utf8").digest("hex");
+
+      (sessionRepo.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+        tokenHash: hash,
+        profileId: "00000000-0000-0000-0000-000000000001",
+        expiresAt: new Date(Date.now() + 86400000),
+        revokedAt: new Date(),
+      });
+
+      const service = new SessionService(sessionRepo);
+
+      await expect(service.rotate(token)).rejects.toThrow("Session already revoked");
+      await expect(service.rotate(token)).rejects.toMatchObject({ code: "SESSION_REVOKED" });
+    });
+
+    it("throws SESSION_EXPIRED when session has expired", async () => {
+      const { createHash } = await import("node:crypto");
+      const sessionRepo = makeSessionRepo();
+      const token = "c".repeat(64);
+      const hash = createHash("sha256").update(token, "utf8").digest("hex");
+
+      (sessionRepo.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+        tokenHash: hash,
+        profileId: "00000000-0000-0000-0000-000000000001",
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      const service = new SessionService(sessionRepo);
+
+      await expect(service.rotate(token)).rejects.toThrow("Session expired");
+      await expect(service.rotate(token)).rejects.toMatchObject({ code: "SESSION_EXPIRED" });
+    });
+  });
+
+  describe("revoke", () => {
+    it("revokes an existing session by raw token", async () => {
+      const { createHash } = await import("node:crypto");
+      const sessionRepo = makeSessionRepo();
+      const rawToken = "d".repeat(64);
+      const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+
+      (sessionRepo.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+        tokenHash,
+        profileId: "00000000-0000-0000-0000-000000000001",
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      const service = new SessionService(sessionRepo);
+      await service.revoke(rawToken);
+
+      expect(sessionRepo.revokeByTokenHash).toHaveBeenCalledWith(tokenHash);
+    });
+
+    it("throws SESSION_NOT_FOUND when token does not exist", async () => {
+      const sessionRepo = makeSessionRepo();
+      (sessionRepo.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      const service = new SessionService(sessionRepo);
+
+      await expect(service.revoke("nonexistent")).rejects.toThrow("Session not found");
+      await expect(service.revoke("nonexistent")).rejects.toMatchObject({ code: "SESSION_NOT_FOUND" });
+    });
+  });
+
+  describe("revokeAll", () => {
+    it("delegates to revokeAllForProfile", async () => {
+      const sessionRepo = makeSessionRepo();
+      const service = new SessionService(sessionRepo);
+      const profileId = "00000000-0000-0000-0000-000000000001";
+
+      await service.revokeAll(profileId);
+
+      expect(sessionRepo.revokeAllForProfile).toHaveBeenCalledWith(profileId);
+    });
   });
 });

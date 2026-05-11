@@ -12,8 +12,14 @@ import {
   StartPhoneVerifyOutputSchema,
   ConfirmPhoneVerifyInputSchema,
   ConfirmPhoneVerifyOutputSchema,
+  SessionCreateInputSchema,
+  SessionCreateOutputSchema,
+  SessionRotateInputSchema,
+  SessionRotateOutputSchema,
+  SessionRevokeInputSchema,
+  SessionRevokeOutputSchema,
 } from "@hone/domain";
-import { AuthService, MagicLinkService, PhoneVerifyService } from "@hone/domain";
+import { AuthService, MagicLinkService, PhoneVerifyService, SessionService } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
 
 export const authRouter = router({
@@ -228,4 +234,74 @@ export const authRouter = router({
         throw err;
       }
     }),
+
+  session: router({
+    create: publicProcedure
+      .input(SessionCreateInputSchema)
+      .output(SessionCreateOutputSchema)
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.repositories) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+        }
+
+        const sessionService = new SessionService(ctx.repositories.sessions);
+
+        const result = await sessionService.create(input.profileId);
+        return result;
+      }),
+
+    rotate: publicProcedure
+      .input(SessionRotateInputSchema)
+      .output(SessionRotateOutputSchema)
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.repositories) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+        }
+
+        const sessionService = new SessionService(ctx.repositories.sessions);
+
+        try {
+          const result = await sessionService.rotate(input.currentToken);
+          return result;
+        } catch (err) {
+          if (err instanceof Error) {
+            const code = (err as Error & { code?: string }).code;
+            if (code === "SESSION_NOT_FOUND") {
+              throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+            }
+            if (code === "SESSION_REVOKED") {
+              throw new TRPCError({ code: "UNAUTHORIZED", message: err.message });
+            }
+            if (code === "SESSION_EXPIRED") {
+              throw new TRPCError({ code: "UNAUTHORIZED", message: err.message });
+            }
+          }
+          throw err;
+        }
+      }),
+
+    revoke: publicProcedure
+      .input(SessionRevokeInputSchema)
+      .output(SessionRevokeOutputSchema)
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.repositories) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+        }
+
+        const sessionService = new SessionService(ctx.repositories.sessions);
+
+        try {
+          await sessionService.revoke(input.token);
+          return { revoked: true };
+        } catch (err) {
+          if (err instanceof Error) {
+            const code = (err as Error & { code?: string }).code;
+            if (code === "SESSION_NOT_FOUND") {
+              throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+            }
+          }
+          throw err;
+        }
+      }),
+  }),
 });

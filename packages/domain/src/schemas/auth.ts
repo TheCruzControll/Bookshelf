@@ -86,3 +86,36 @@ export type StartPhoneVerifyInput = z.infer<typeof StartPhoneVerifyInputSchema>;
 export type StartPhoneVerifyOutput = z.infer<typeof StartPhoneVerifyOutputSchema>;
 export type ConfirmPhoneVerifyInput = z.infer<typeof ConfirmPhoneVerifyInputSchema>;
 export type ConfirmPhoneVerifyOutput = z.infer<typeof ConfirmPhoneVerifyOutputSchema>;
+
+export const SessionCreateInputSchema = z.object({
+  profileId: EntityIdSchema,
+});
+
+export const SessionCreateOutputSchema = z.object({
+  sessionToken: z.string(),
+  expiresAt: z.date(),
+});
+
+export const SessionRotateInputSchema = z.object({
+  currentToken: z.string().min(1),
+});
+
+export const SessionRotateOutputSchema = z.object({
+  sessionToken: z.string(),
+  expiresAt: z.date(),
+});
+
+export const SessionRevokeInputSchema = z.object({
+  token: z.string().min(1),
+});
+
+export const SessionRevokeOutputSchema = z.object({
+  revoked: z.boolean(),
+});
+
+export type SessionCreateInput = z.infer<typeof SessionCreateInputSchema>;
+export type SessionCreateOutput = z.infer<typeof SessionCreateOutputSchema>;
+export type SessionRotateInput = z.infer<typeof SessionRotateInputSchema>;
+export type SessionRotateOutput = z.infer<typeof SessionRotateOutputSchema>;
+export type SessionRevokeInput = z.infer<typeof SessionRevokeInputSchema>;
+export type SessionRevokeOutput = z.infer<typeof SessionRevokeOutputSchema>;
