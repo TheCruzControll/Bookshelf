@@ -164,5 +164,27 @@ export type UpsertShelfItemInput = z.infer<typeof UpsertShelfItemInputSchema>;
 export type UpsertShelfItemOutput = z.infer<typeof UpsertShelfItemOutputSchema>;
 export type MoveShelfItemInput = z.infer<typeof MoveShelfItemInputSchema>;
 export type MoveShelfItemOutput = z.infer<typeof MoveShelfItemOutputSchema>;
+export const PublishShelfInputSchema = z.object({
+  id: EntityIdSchema,
+  version: z.number().int().positive(),
+});
+
+export const PublishShelfOutputSchema = z.object({
+  shelf: ShelfSchema,
+});
+
+export const UnpublishShelfInputSchema = z.object({
+  id: EntityIdSchema,
+  version: z.number().int().positive(),
+});
+
+export const UnpublishShelfOutputSchema = z.object({
+  shelf: ShelfSchema,
+});
+
 export type DeleteShelfItemInput = z.infer<typeof DeleteShelfItemInputSchema>;
 export type DeleteShelfItemOutput = z.infer<typeof DeleteShelfItemOutputSchema>;
+export type PublishShelfInput = z.infer<typeof PublishShelfInputSchema>;
+export type PublishShelfOutput = z.infer<typeof PublishShelfOutputSchema>;
+export type UnpublishShelfInput = z.infer<typeof UnpublishShelfInputSchema>;
+export type UnpublishShelfOutput = z.infer<typeof UnpublishShelfOutputSchema>;
