@@ -86,25 +86,25 @@ export class SaltRotationService {
   }
 
   /**
-   * Re-hash all existing phone and email hashes from the old salt to the new salt.
+   * Mark all existing phone and email hashes under the old salt for expiration.
    *
-   * Since we only store hashes (not raw values), we cannot reverse-hash and re-hash
-   * the uploaded contact hashes. Instead, the rotation marks old hashes for expiration
-   * and clients must re-upload contacts with the new salt version. The expiration
-   * window (90 days) gives clients time to re-upload.
-   *
-   * For user phone hashes stored in phone_numbers (the user's own verified phone),
-   * we can re-hash because we have the E.164 hash available — but that re-hashing
-   * is handled at the phone-numbers layer, not here.
+   * Since we only store HMAC digests (not raw values), we cannot reverse-hash
+   * and re-compute them with the new key material. Instead, we set a 90-day
+   * expiration on every hash tied to the old salt version, giving clients time
+   * to re-upload contacts hashed with the new salt.
    */
   private async rehashAll(
-    _oldSalt: Salt | null,
+    oldSalt: Salt | null,
     _newSalt: Salt,
   ): Promise<void> {
-    // Existing hashes retain their current expiration dates (90-day retention).
-    // Clients re-upload with the new salt version on next contacts sync.
-    // No server-side re-hash is needed for uploaded contact hashes since
-    // we don't store raw values — only HMAC digests.
+    if (!oldSalt) return;
+
+    const expiresAt = new Date(Date.now() + HASH_RETENTION_MS);
+
+    await Promise.all([
+      this.contacts.expireBySaltVersion(oldSalt.version, expiresAt),
+      this.emailIndex.expireBySaltVersion(oldSalt.version, expiresAt),
+    ]);
   }
 
   /**

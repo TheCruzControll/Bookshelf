@@ -52,10 +52,9 @@ describe("createSaltKeyProvider", () => {
     expect(provider).not.toBeInstanceOf(LocalSaltKeyProvider);
   });
 
-  it("returns KmsSaltKeyProvider when both KMS_REGION and KMS_KEY_ID are set", () => {
+  it("returns KmsSaltKeyProvider when KMS_REGION is provided", () => {
     const provider = createSaltKeyProvider({
       KMS_REGION: "us-west-2",
-      KMS_KEY_ID: "arn:aws:kms:us-west-2:123456789:key/abc-123",
     });
     expect(provider).not.toBeInstanceOf(LocalSaltKeyProvider);
   });
