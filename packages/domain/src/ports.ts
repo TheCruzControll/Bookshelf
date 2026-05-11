@@ -5,6 +5,7 @@ import type {
   BookSearchResult,
   ContentType,
   ContactsHash,
+  EmailIndex,
   Edition,
   EntityId,
   Follow,
@@ -261,6 +262,20 @@ export interface ContactsRepository {
   listByUser(userId: EntityId): Promise<ContactsHash[]>;
 }
 
+export interface EmailIndexRepository {
+  upsertHashes(input: {
+    userId: EntityId;
+    hashes: Array<{ hash: string; saltVersion: number; expiresAt: Date }>;
+  }): Promise<void>;
+  findMatches(input: {
+    hashes: string[];
+    excludeUserId: EntityId;
+  }): Promise<EntityId[]>;
+  deleteForUser(userId: EntityId): Promise<void>;
+  deleteExpired(): Promise<void>;
+  listByUser(userId: EntityId): Promise<EmailIndex[]>;
+}
+
 export interface ListRepository {
   create(input: {
     id: EntityId;
@@ -333,6 +348,7 @@ export interface AppRepositories {
   notifications: NotificationRepository;
   imports: ImportRepository;
   contacts: ContactsRepository;
+  emailIndex: EmailIndexRepository;
   lists: ListRepository;
   authIdentities: AuthIdentityRepository;
   sessions: SessionRepository;

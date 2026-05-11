@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, FollowService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey } from "./services";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey } from "./services";
 import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, FollowRepository, ListRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository } from "./ports";
 import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem } from "./types";
 
@@ -264,6 +264,7 @@ describe("AppServices", () => {
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
       imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
       contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+      emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
       lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
       authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
@@ -278,6 +279,7 @@ describe("AppServices", () => {
     expect(services.shelves).toBeInstanceOf(ShelfService);
     expect(services.handles).toBeInstanceOf(HandleService);
     expect(services.profiles).toBeInstanceOf(ProfileService);
+    expect(services.contacts).toBeInstanceOf(ContactsService);
     expect(services.repositories).toBe(repositories);
     expect(services.auth).toBe(auth);
   });
