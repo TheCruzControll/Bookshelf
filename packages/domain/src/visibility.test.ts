@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { applyVisibilityFilter, resolveEffectiveVisibility } from "./visibility";
+import { applyVisibilityFilter, resolveEffectiveVisibility, filterFeedByVisibility } from "./visibility";
 import type { ViewerCtx, ViewerRelationship } from "./visibility";
-import type { Visibility } from "./types";
+import type { FeedItem, Visibility } from "./types";
+import { POSTURE_C_DEFAULTS } from "./services";
 
 const VISIBILITIES: Visibility[] = ["public", "followers", "mutuals", "private"];
 const RELATIONSHIPS: ViewerRelationship[] = ["self", "mutual", "follower", "none"];
@@ -251,6 +252,235 @@ describe("resolveEffectiveVisibility", () => {
         fc.constantFrom(...VISIBILITIES),
         (a, b) => {
           return resolveEffectiveVisibility(a, b) === resolveEffectiveVisibility(b, a);
+        }
+      )
+    );
+  });
+});
+
+describe("filterFeedByVisibility", () => {
+  const NOW = new Date("2025-06-01T12:00:00Z");
+
+  function makeFeedItemForVis(actorId: string, visibility: Visibility): FeedItem {
+    return {
+      event: {
+        id: `event-${actorId}-${visibility}`,
+        actorId,
+        verb: "book_added",
+        visibility,
+        occurredAt: NOW,
+        groupKey: `${actorId}:book_added:12345`,
+      },
+      actor: {
+        id: actorId,
+        handle: "actor",
+        displayName: "Actor",
+        verified: false,
+        defaultVisibility: POSTURE_C_DEFAULTS,
+        version: 1,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    };
+  }
+
+  it("shows followers-visibility items when viewer follows actor", () => {
+    const viewerId = "viewer-1";
+    const actorId = "actor-1";
+    const items = [makeFeedItemForVis(actorId, "followers")];
+    const relationshipMap = new Map([["actor-1", "follower" as ViewerRelationship]]);
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(1);
+  });
+
+  it("shows mutuals-visibility items when viewer is mutual with actor", () => {
+    const viewerId = "viewer-1";
+    const actorId = "actor-1";
+    const items = [makeFeedItemForVis(actorId, "mutuals")];
+    const relationshipMap = new Map([["actor-1", "mutual" as ViewerRelationship]]);
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(1);
+  });
+
+  it("hides mutuals-visibility items when viewer only follows actor", () => {
+    const viewerId = "viewer-1";
+    const actorId = "actor-1";
+    const items = [makeFeedItemForVis(actorId, "mutuals")];
+    const relationshipMap = new Map([["actor-1", "follower" as ViewerRelationship]]);
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(0);
+  });
+
+  it("hides private-visibility items from non-self viewers", () => {
+    const viewerId = "viewer-1";
+    const actorId = "actor-1";
+    const items = [makeFeedItemForVis(actorId, "private")];
+    const relationshipMap = new Map([["actor-1", "mutual" as ViewerRelationship]]);
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(0);
+  });
+
+  it("shows all items when viewer is the actor (self)", () => {
+    const viewerId = "actor-1";
+    const items = [
+      makeFeedItemForVis(viewerId, "private"),
+      makeFeedItemForVis(viewerId, "mutuals"),
+      makeFeedItemForVis(viewerId, "followers"),
+      makeFeedItemForVis(viewerId, "public"),
+    ];
+    const relationshipMap = new Map<string, ViewerRelationship>();
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(4);
+  });
+
+  it("shows public items regardless of relationship", () => {
+    const viewerId = "viewer-1";
+    const actorId = "actor-1";
+    const items = [makeFeedItemForVis(actorId, "public")];
+    const relationshipMap = new Map([["actor-1", "none" as ViewerRelationship]]);
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(1);
+  });
+
+  it("handles mixed actors with different relationships", () => {
+    const viewerId = "viewer-1";
+    const items = [
+      makeFeedItemForVis("mutual-actor", "mutuals"),
+      makeFeedItemForVis("follower-actor", "mutuals"),
+      makeFeedItemForVis("follower-actor", "followers"),
+    ];
+    const relationshipMap = new Map<string, ViewerRelationship>([
+      ["mutual-actor", "mutual"],
+      ["follower-actor", "follower"],
+    ]);
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(2);
+    expect(result[0]!.event.actorId).toBe("mutual-actor");
+    expect(result[1]!.event.actorId).toBe("follower-actor");
+    expect(result[1]!.event.visibility).toBe("followers");
+  });
+
+  it("treats unknown actors (not in map) as 'none' relationship", () => {
+    const viewerId = "viewer-1";
+    const items = [makeFeedItemForVis("unknown-actor", "followers")];
+    const relationshipMap = new Map<string, ViewerRelationship>();
+    const result = filterFeedByVisibility(viewerId, items, relationshipMap);
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("filterFeedByVisibility property tests", () => {
+  const NOW = new Date("2025-06-01T12:00:00Z");
+  const visibilityArb = fc.constantFrom<Visibility>("public", "followers", "mutuals", "private");
+  const relationshipArb = fc.constantFrom<ViewerRelationship>("self", "mutual", "follower", "none");
+
+  function makeFeedItemForProp(actorId: string, visibility: Visibility): FeedItem {
+    return {
+      event: {
+        id: `event-${actorId}-${visibility}`,
+        actorId,
+        verb: "book_added",
+        visibility,
+        occurredAt: NOW,
+        groupKey: `${actorId}:book_added:12345`,
+      },
+      actor: {
+        id: actorId,
+        handle: "actor",
+        displayName: "Actor",
+        verified: false,
+        defaultVisibility: POSTURE_C_DEFAULTS,
+        version: 1,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    };
+  }
+
+  it("self always sees own items at any visibility", () => {
+    fc.assert(
+      fc.property(visibilityArb, (visibility) => {
+        const viewerId = "actor-1";
+        const items = [makeFeedItemForProp(viewerId, visibility)];
+        const result = filterFeedByVisibility(viewerId, items, new Map());
+        return result.length === 1;
+      })
+    );
+  });
+
+  it("public items are always visible", () => {
+    fc.assert(
+      fc.property(relationshipArb, fc.uuid(), (relationship, actorId) => {
+        const viewerId = "viewer-1";
+        const items = [makeFeedItemForProp(actorId, "public")];
+        const map = new Map([[actorId, relationship]]);
+        const result = filterFeedByVisibility(viewerId, items, map);
+        return result.length === 1;
+      })
+    );
+  });
+
+  it("private items are never visible to non-self viewers", () => {
+    fc.assert(
+      fc.property(
+        relationshipArb.filter((r) => r !== "self"),
+        fc.uuid(),
+        (relationship, actorId) => {
+          const viewerId = "viewer-1";
+          fc.pre(viewerId !== actorId);
+          const items = [makeFeedItemForProp(actorId, "private")];
+          const map = new Map([[actorId, relationship]]);
+          const result = filterFeedByVisibility(viewerId, items, map);
+          return result.length === 0;
+        }
+      )
+    );
+  });
+
+  it("mutuals items require mutual relationship", () => {
+    fc.assert(
+      fc.property(relationshipArb, fc.uuid(), (relationship, actorId) => {
+        const viewerId = "viewer-1";
+        fc.pre(viewerId !== actorId);
+        const items = [makeFeedItemForProp(actorId, "mutuals")];
+        const map = new Map([[actorId, relationship]]);
+        const result = filterFeedByVisibility(viewerId, items, map);
+        if (relationship === "mutual" || relationship === "self") {
+          return result.length === 1;
+        }
+        return result.length === 0;
+      })
+    );
+  });
+
+  it("followers items require follower or mutual relationship", () => {
+    fc.assert(
+      fc.property(relationshipArb, fc.uuid(), (relationship, actorId) => {
+        const viewerId = "viewer-1";
+        fc.pre(viewerId !== actorId);
+        const items = [makeFeedItemForProp(actorId, "followers")];
+        const map = new Map([[actorId, relationship]]);
+        const result = filterFeedByVisibility(viewerId, items, map);
+        if (relationship === "follower" || relationship === "mutual" || relationship === "self") {
+          return result.length === 1;
+        }
+        return result.length === 0;
+      })
+    );
+  });
+
+  it("filter result is always a subset of input", () => {
+    fc.assert(
+      fc.property(
+        fc.array(visibilityArb, { minLength: 0, maxLength: 10 }),
+        relationshipArb,
+        fc.uuid(),
+        (visibilities, relationship, actorId) => {
+          const viewerId = "viewer-1";
+          const items = visibilities.map((v) => makeFeedItemForProp(actorId, v));
+          const map = new Map([[actorId, relationship]]);
+          const result = filterFeedByVisibility(viewerId, items, map);
+          return result.length <= items.length;
         }
       )
     );

@@ -592,7 +592,7 @@ describe("ranking.compare", () => {
         delete: vi.fn(),
         startBucket: vi.fn(),
       },
-      activity: { append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: UUID1, verb: "book_ranked", bookId: NEW_BOOK_ID, visibility: "followers", occurredAt: NOW, scoreAtPublish: 10, scoreLockedAtPublish: true }), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
+      activity: { append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: UUID1, verb: "book_ranked", bookId: NEW_BOOK_ID, visibility: "followers", occurredAt: NOW, scoreAtPublish: 10, scoreLockedAtPublish: true }), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() },
     });
     const cache = makeCache(store);
     const app = buildApp(makeIdentity(), repos, cache);

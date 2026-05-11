@@ -36,6 +36,8 @@ import type { ReuploadStrategy } from "./schemas/imports";
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
 import { publishActivityEvent } from "./activity-publisher";
+import { filterFeedByVisibility } from "./visibility";
+import type { ViewerRelationship } from "./visibility";
 
 export interface SystemShelfDef {
   name: string;
@@ -1270,7 +1272,22 @@ export class SocialService {
 
   async getFriendFeed(input: { viewerId: EntityId; cursor?: string; limit: number }): Promise<FeedItem[]> {
     const items = await this.activity.getFriendFeed(input);
-    return this.blockService.removeBlockedFeedItems(input.viewerId, items);
+    const blockFiltered = await this.blockService.removeBlockedFeedItems(input.viewerId, items);
+
+    const actorIds = [...new Set(blockFiltered.map((item) => item.event.actorId))];
+    const relationshipMap = new Map<EntityId, ViewerRelationship>();
+    await Promise.all(
+      actorIds.map(async (actorId) => {
+        if (actorId === input.viewerId) {
+          relationshipMap.set(actorId, "self");
+        } else {
+          const mutual = await this.follows.isMutual({ userA: input.viewerId, userB: actorId });
+          relationshipMap.set(actorId, mutual ? "mutual" : "follower");
+        }
+      })
+    );
+
+    return filterFeedByVisibility(input.viewerId, blockFiltered, relationshipMap);
   }
 
   /**
@@ -1300,7 +1317,22 @@ export class SocialService {
 
     const items = await this.activity.getFriendFeedGrouped(feedInput);
 
-    const filtered = await this.blockService.removeBlockedFeedItems(input.viewerId, items);
+    const blockFiltered = await this.blockService.removeBlockedFeedItems(input.viewerId, items);
+
+    const actorIds = [...new Set(blockFiltered.map((item) => item.event.actorId))];
+    const relationshipMap = new Map<EntityId, ViewerRelationship>();
+    await Promise.all(
+      actorIds.map(async (actorId) => {
+        if (actorId === input.viewerId) {
+          relationshipMap.set(actorId, "self");
+        } else {
+          const mutual = await this.follows.isMutual({ userA: input.viewerId, userB: actorId });
+          relationshipMap.set(actorId, mutual ? "mutual" : "follower");
+        }
+      })
+    );
+
+    const filtered = filterFeedByVisibility(input.viewerId, blockFiltered, relationshipMap);
     const groups = groupFeedItems(filtered);
 
     // Trim to requested group limit
