@@ -1730,6 +1730,88 @@ describe("BlockService", () => {
   });
 });
 
+
+  it("createBlock creates a block and calls unfollow in both directions", async () => {
+    const block = makeBlock("blocker", "blocked");
+    const blockRepo = makeBlockRepo([], []);
+    blockRepo.findBlock = vi.fn().mockResolvedValue(null);
+    blockRepo.block = vi.fn().mockResolvedValue(block);
+    const followRepo: FollowRepository = {
+      follow: vi.fn(),
+      unfollow: vi.fn().mockResolvedValue(undefined),
+      findFollow: vi.fn(),
+      listFollowers: vi.fn().mockResolvedValue([]),
+      listFollowing: vi.fn().mockResolvedValue([]),
+      isMutual: vi.fn(),
+      countMutuals: vi.fn().mockResolvedValue(0),
+    };
+    const service = new BlockService(blockRepo, followRepo);
+    const result = await service.createBlock({ blockerId: "blocker", blockedId: "blocked" });
+    expect(result).toEqual(block);
+    expect(followRepo.unfollow).toHaveBeenCalledWith({ followerId: "blocker", followeeId: "blocked" });
+    expect(followRepo.unfollow).toHaveBeenCalledWith({ followerId: "blocked", followeeId: "blocker" });
+    expect(blockRepo.block).toHaveBeenCalled();
+  });
+
+  it("createBlock is idempotent - returns existing block without unfollowing", async () => {
+    const existingBlock = makeBlock("blocker", "blocked");
+    const blockRepo = makeBlockRepo([], []);
+    blockRepo.findBlock = vi.fn().mockResolvedValue(existingBlock);
+    blockRepo.block = vi.fn();
+    const followRepo: FollowRepository = {
+      follow: vi.fn(),
+      unfollow: vi.fn(),
+      findFollow: vi.fn(),
+      listFollowers: vi.fn().mockResolvedValue([]),
+      listFollowing: vi.fn().mockResolvedValue([]),
+      isMutual: vi.fn(),
+      countMutuals: vi.fn().mockResolvedValue(0),
+    };
+    const service = new BlockService(blockRepo, followRepo);
+    const result = await service.createBlock({ blockerId: "blocker", blockedId: "blocked" });
+    expect(result).toEqual(existingBlock);
+    expect(blockRepo.block).not.toHaveBeenCalled();
+    expect(followRepo.unfollow).not.toHaveBeenCalled();
+  });
+
+  it("createBlock throws BAD_REQUEST when blocking yourself", async () => {
+    const blockRepo = makeBlockRepo([], []);
+    const service = new BlockService(blockRepo);
+    await expect(
+      service.createBlock({ blockerId: "user1", blockedId: "user1" })
+    ).rejects.toThrow("Cannot block yourself");
+  });
+
+  it("deleteBlock removes existing block without restoring follows", async () => {
+    const existingBlock = makeBlock("blocker", "blocked");
+    const blockRepo = makeBlockRepo([], []);
+    blockRepo.findBlock = vi.fn().mockResolvedValue(existingBlock);
+    blockRepo.unblock = vi.fn().mockResolvedValue(undefined);
+    const followRepo: FollowRepository = {
+      follow: vi.fn(),
+      unfollow: vi.fn(),
+      findFollow: vi.fn(),
+      listFollowers: vi.fn().mockResolvedValue([]),
+      listFollowing: vi.fn().mockResolvedValue([]),
+      isMutual: vi.fn(),
+      countMutuals: vi.fn().mockResolvedValue(0),
+    };
+    const service = new BlockService(blockRepo, followRepo);
+    await service.deleteBlock({ blockerId: "blocker", blockedId: "blocked" });
+    expect(blockRepo.unblock).toHaveBeenCalledWith({ blockerId: "blocker", blockedId: "blocked" });
+    // No auto-restore of follows
+    expect(followRepo.follow).not.toHaveBeenCalled();
+  });
+
+  it("deleteBlock is idempotent - succeeds when not blocked", async () => {
+    const blockRepo = makeBlockRepo([], []);
+    blockRepo.findBlock = vi.fn().mockResolvedValue(null);
+    blockRepo.unblock = vi.fn();
+    const service = new BlockService(blockRepo);
+    await service.deleteBlock({ blockerId: "blocker", blockedId: "blocked" });
+    expect(blockRepo.unblock).not.toHaveBeenCalled();
+  });
+
 describe("SocialService", () => {
   function makeFollowRepo(followers: Follow[] = [], following: Follow[] = []): FollowRepository {
     return {

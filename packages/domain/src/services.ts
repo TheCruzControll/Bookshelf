@@ -30,7 +30,7 @@ import type {
   ShelfRepository,
   SmsProvider
 } from "./ports";
-import type { ActivityEvent, ActivityVerb, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
@@ -877,7 +877,42 @@ export class MagicLinkService {
 }
 
 export class BlockService implements BlockFilter {
-  constructor(private readonly blocks: BlockRepository) {}
+  constructor(
+    private readonly blocks: BlockRepository,
+    private readonly follows?: FollowRepository,
+  ) {}
+
+  async createBlock(input: { blockerId: EntityId; blockedId: EntityId }): Promise<Block> {
+    if (input.blockerId === input.blockedId) {
+      throw Object.assign(new Error('Cannot block yourself'), { code: 'BAD_REQUEST' });
+    }
+
+    // Idempotent: if already blocked, return existing
+    const existing = await this.blocks.findBlock(input);
+    if (existing) {
+      return existing;
+    }
+
+    // Cascade unfollow: sever follows in both directions
+    if (this.follows) {
+      await Promise.all([
+        this.follows.unfollow({ followerId: input.blockerId, followeeId: input.blockedId }),
+        this.follows.unfollow({ followerId: input.blockedId, followeeId: input.blockerId }),
+      ]);
+    }
+
+    return this.blocks.block(input);
+  }
+
+  async deleteBlock(input: { blockerId: EntityId; blockedId: EntityId }): Promise<void> {
+    // Idempotent: if not blocked, succeed silently
+    const existing = await this.blocks.findBlock(input);
+    if (!existing) {
+      return;
+    }
+    // No auto-restore of follows on unblock
+    await this.blocks.unblock(input);
+  }
 
   private async blockedIds(viewerId: EntityId): Promise<Set<EntityId>> {
     const [outgoing, incoming] = await Promise.all([
@@ -1308,7 +1343,7 @@ export class AppServices {
       repositories.reviews,
       repositories.activity
     );
-    this.blocks = new BlockService(repositories.blocks);
+    this.blocks = new BlockService(repositories.blocks, repositories.follows);
     this.follows = new FollowService(
       repositories.follows,
       repositories.blocks
