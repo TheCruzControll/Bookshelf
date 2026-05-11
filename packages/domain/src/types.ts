@@ -70,6 +70,7 @@ export interface Profile {
   displayName: string;
   bio?: string | undefined;
   avatarUrl?: string | undefined;
+  verified: boolean;
   defaultVisibility: Record<ContentType, Visibility>;
   version: number;
   createdAt: Date;

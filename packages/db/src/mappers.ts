@@ -97,6 +97,7 @@ export function toProfile(row: ProfileRow): Profile {
     displayName: row.displayName,
     bio: row.bio ?? undefined,
     avatarUrl: row.avatarUrl ?? undefined,
+    verified: row.verified,
     defaultVisibility: row.defaultVisibility as Record<ContentType, Visibility>,
     version: row.version,
     createdAt: row.createdAt,

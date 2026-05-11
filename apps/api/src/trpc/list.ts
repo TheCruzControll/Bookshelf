@@ -27,6 +27,7 @@ export const listRouter = router({
           id: input.id,
           ownerId: ctx.identity.userId,
           version: input.version,
+          authorType: input.authorType,
         });
         return { shelf };
       } catch (err) {

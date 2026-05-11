@@ -24,6 +24,7 @@ function makeProfile(overrides?: Partial<Profile>): Profile {
     id: "00000000-0000-0000-0000-000000000001",
     handle: "testuser",
     displayName: "Test User",
+    verified: false,
     defaultVisibility: POSTURE_C_DEFAULTS,
     version: 1,
     createdAt: now,
@@ -501,6 +502,62 @@ describe("ShelfService CRUD", () => {
     const result = await service.unpublishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 });
     expect(shelvesRepo.update).not.toHaveBeenCalled();
     expect(result).toEqual(shelf);
+  });
+
+  it("publishShelf throws FORBIDDEN when authorType is internal_editorial and profile is not verified", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false, kind: "list" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const profilesRepo: ProfileRepository = {
+      findById: vi.fn().mockResolvedValue(makeProfile({ verified: false })),
+      findByHandle: vi.fn(),
+      create: vi.fn(),
+      isHandleTaken: vi.fn(),
+      setHandle: vi.fn(),
+    };
+    const service = new ShelfService(shelvesRepo, makeActivity(), profilesRepo);
+    await expect(service.publishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1, authorType: "internal_editorial" }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("publishShelf succeeds when authorType is internal_editorial and profile is verified", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false, kind: "list" });
+    const published = makeShelf({ ...shelf, publishedAt: new Date(), authorType: "internal_editorial" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf), update: vi.fn().mockResolvedValue(published) });
+    const profilesRepo: ProfileRepository = {
+      findById: vi.fn().mockResolvedValue(makeProfile({ verified: true })),
+      findByHandle: vi.fn(),
+      create: vi.fn(),
+      isHandleTaken: vi.fn(),
+      setHandle: vi.fn(),
+    };
+    const service = new ShelfService(shelvesRepo, makeActivity(), profilesRepo);
+    const result = await service.publishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1, authorType: "internal_editorial" });
+    expect(shelvesRepo.update).toHaveBeenCalledWith(expect.objectContaining({ authorType: "internal_editorial" }));
+    expect(result.authorType).toBe("internal_editorial");
+  });
+
+  it("publishShelf allows user authorType without verified check", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false, kind: "list" });
+    const published = makeShelf({ ...shelf, publishedAt: new Date() });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf), update: vi.fn().mockResolvedValue(published) });
+    const service = new ShelfService(shelvesRepo, makeActivity());
+    const result = await service.publishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1, authorType: "user" });
+    expect(result.publishedAt).toBeTruthy();
+  });
+
+  it("publishShelf enforces verified check when existing shelf has internal_editorial authorType", async () => {
+    const shelf = makeShelf({ ownerId: "00000000-0000-0000-0000-000000000001", isSystem: false, kind: "list", authorType: "internal_editorial" });
+    const shelvesRepo = makeShelfRepo({ findById: vi.fn().mockResolvedValue(shelf) });
+    const profilesRepo: ProfileRepository = {
+      findById: vi.fn().mockResolvedValue(makeProfile({ verified: false })),
+      findByHandle: vi.fn(),
+      create: vi.fn(),
+      isHandleTaken: vi.fn(),
+      setHandle: vi.fn(),
+    };
+    const service = new ShelfService(shelvesRepo, makeActivity(), profilesRepo);
+    await expect(service.publishShelf({ id: shelf.id, ownerId: shelf.ownerId, version: 1 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 
@@ -2582,8 +2639,8 @@ describe("AppServices includes notifications", () => {
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
       imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
-      contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
-      emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+      contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn(), expireBySaltVersion: vi.fn() },
+      emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn(), expireBySaltVersion: vi.fn() },
       lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
       authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
@@ -2592,6 +2649,7 @@ describe("AppServices includes notifications", () => {
       inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
       phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
       phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
+      salts: { create: vi.fn(), findActive: vi.fn(), findByVersion: vi.fn(), retire: vi.fn(), getLatestVersion: vi.fn(), listAll: vi.fn() },
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null),

@@ -492,6 +492,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
       id: event.actorId,
       handle: "unknown",
       displayName: "Unknown reader",
+      verified: false,
       defaultVisibility: POSTURE_C_DEFAULTS,
       version: 1,
       createdAt: event.occurredAt,

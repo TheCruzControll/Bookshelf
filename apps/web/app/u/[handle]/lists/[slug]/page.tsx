@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { Profile, List, ListItem, Book } from "@hone/domain";
+import type { Profile, Shelf, ListItem, Book } from "@hone/domain";
 import { isPubliclyVisible } from "../../../visibility";
 import { buildListMeta } from "../../../og-meta";
 
@@ -14,7 +14,7 @@ async function fetchProfile(_handle: string): Promise<Profile | null> {
   return null;
 }
 
-async function fetchList(_listId: string): Promise<List | null> {
+async function fetchList(_listId: string): Promise<Shelf | null> {
   return null;
 }
 
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle, slug } = await params;
   const profile = await fetchProfile(handle);
   const list = profile ? await fetchList(slug) : null;
-  return buildListMeta(handle, list);
+  return buildListMeta(handle, list ? { title: list.name, description: list.description } : null);
 }
 
 export default async function ListPage({ params }: Props) {
@@ -44,13 +44,20 @@ export default async function ListPage({ params }: Props) {
 
   const items = await fetchListItems(list.id);
 
+  const isEditorial = list.authorType === "internal_editorial";
+
   return (
     <main className="shell">
       <section>
         <p>
           <a href={`/u/${handle}`}>@{handle}</a>
+          {isEditorial ? (
+            <span className="badge badge--verified" aria-label="Verified editorial list">
+              Verified
+            </span>
+          ) : null}
         </p>
-        <h1>{list.title}</h1>
+        <h1>{list.name}</h1>
         {list.description ? <p>{list.description}</p> : null}
       </section>
 

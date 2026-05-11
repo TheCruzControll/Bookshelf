@@ -37,6 +37,7 @@ export function makeProfile(overrides: Partial<Profile> = {}): Profile {
     displayName: `Test User ${id}`,
     bio: undefined,
     avatarUrl: undefined,
+    verified: false,
     defaultVisibility: POSTURE_C_DEFAULTS,
     version: 1,
     createdAt: now(),

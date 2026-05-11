@@ -37,6 +37,7 @@ export const ProfileSchema = z.object({
   displayName: z.string().min(1).max(100),
   bio: z.string().max(500).optional(),
   avatarUrl: z.string().url().optional(),
+  verified: z.boolean(),
   defaultVisibility: DefaultVisibilitySchema,
   createdAt: z.date(),
   updatedAt: z.date(),

@@ -90,7 +90,7 @@ describe("profiles schemas", () => {
       id: UUID,
       handle: "maya",
       displayName: "Maya",
-      defaultVisibility: {
+      verified: false,      defaultVisibility: {
         identity: "public",
         follower_list: "public",
         review: "public",
