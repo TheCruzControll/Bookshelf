@@ -50,12 +50,15 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
     imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
     contacts: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
+      emailIndex: { upsertHashes: vi.fn(), findMatches: vi.fn(), deleteForUser: vi.fn(), deleteExpired: vi.fn(), listByUser: vi.fn() },
     lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
     authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
     sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
     handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
     magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
     inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+    phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
+    phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
     ...overrides,
   };
 }
@@ -716,5 +719,376 @@ describe("auth.consumeMagicLink", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { result?: { data?: { sessionToken: string; isNewUser: boolean } } };
     expect(body.result?.data?.isNewUser).toBe(false);
+  });
+});
+
+function buildAppWithSms(
+  repositories: AppRepositories,
+  smsProvider: { sendVerificationCode: ReturnType<typeof vi.fn> }
+) {
+  const testRouter = router({ auth: authRouter });
+  const app = new Hono();
+  const auth = { getCurrentIdentity: async () => null };
+  const mockJwksProvider: AppleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+  const mockGoogleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+  app.use(
+    "/trpc/*",
+    trpcServer({
+      router: testRouter,
+      createContext: createTrpcContext({
+        repositories,
+        auth,
+        jwksProvider: mockJwksProvider,
+        appleAudience: "com.hone.app",
+        googleJwksProvider: mockGoogleJwksProvider,
+        googleAudience: "test-google-client-id.apps.googleusercontent.com",
+        smsProvider,
+      }),
+    })
+  );
+  return app;
+}
+
+describe("auth.startPhoneVerify", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.startPhoneVerify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phoneNumber: "+12025551234" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 500 when SMS provider not configured", async () => {
+    const repos = makeRepositories();
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    const auth = { getCurrentIdentity: async () => null };
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({ repositories: repos, auth }),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.startPhoneVerify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phoneNumber: "+12025551234" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 200 with expiresAt on success (mocked service)", async () => {
+    const repos = makeRepositories();
+    const smsProvider = { sendVerificationCode: vi.fn().mockResolvedValue(undefined) };
+    const app = buildAppWithSms(repos, smsProvider);
+
+    const { PhoneVerifyService } = await import("@hone/domain");
+    const startSpy = vi.spyOn(PhoneVerifyService.prototype, "startVerification").mockResolvedValue({
+      expiresAt: new Date(Date.now() + 600000),
+    });
+
+    const res = await app.request("/trpc/auth.startPhoneVerify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phoneNumber: "+12025551234" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { expiresAt: string } } };
+    expect(body.result?.data?.expiresAt).toBeDefined();
+
+    startSpy.mockRestore();
+  });
+
+  it("returns 400 when phone number is invalid (mocked service)", async () => {
+    const repos = makeRepositories();
+    const smsProvider = { sendVerificationCode: vi.fn() };
+    const app = buildAppWithSms(repos, smsProvider);
+
+    const { PhoneVerifyService } = await import("@hone/domain");
+    const startSpy = vi.spyOn(PhoneVerifyService.prototype, "startVerification").mockRejectedValue(
+      Object.assign(new Error("Invalid phone number"), { code: "INVALID_PHONE" })
+    );
+
+    const res = await app.request("/trpc/auth.startPhoneVerify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phoneNumber: "not-a-phone" }),
+    });
+    expect(res.status).toBe(400);
+
+    startSpy.mockRestore();
+  });
+
+  it("returns 429 when rate limited (SMS pumping protection)", async () => {
+    const repos = makeRepositories();
+    const smsProvider = { sendVerificationCode: vi.fn() };
+    const app = buildAppWithSms(repos, smsProvider);
+
+    const { PhoneVerifyService } = await import("@hone/domain");
+    const startSpy = vi.spyOn(PhoneVerifyService.prototype, "startVerification").mockRejectedValue(
+      Object.assign(new Error("Too many verification attempts. Try again later."), { code: "RATE_LIMITED" })
+    );
+
+    const res = await app.request("/trpc/auth.startPhoneVerify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phoneNumber: "+12025551234" }),
+    });
+    expect(res.status).toBe(429);
+
+    startSpy.mockRestore();
+  });
+});
+
+describe("auth.confirmPhoneVerify", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.confirmPhoneVerify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phoneNumber: "+12025551234", code: "123456" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 401 when no viewer (not authenticated)", async () => {
+    const repos = makeRepositories();
+    const smsProvider = { sendVerificationCode: vi.fn() };
+    const app = buildAppWithSms(repos, smsProvider);
+
+    const res = await app.request("/trpc/auth.confirmPhoneVerify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phoneNumber: "+12025551234", code: "123456" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 200 with verified=true on success (mocked service)", async () => {
+    const repos = makeRepositories();
+    // Set up session so viewer is populated
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash: "test-hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    repos.profiles.findById = vi.fn().mockResolvedValue({
+      id: UUID1,
+      handle: "testuser",
+      displayName: "Test User",
+      defaultVisibility: {},
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const smsProvider = { sendVerificationCode: vi.fn() };
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    const auth = { getCurrentIdentity: async () => null };
+    const mockJwksProvider: AppleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+    const mockGoogleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({
+          repositories: repos,
+          auth,
+          jwksProvider: mockJwksProvider,
+          appleAudience: "com.hone.app",
+          googleJwksProvider: mockGoogleJwksProvider,
+          googleAudience: "test-google-client-id.apps.googleusercontent.com",
+          smsProvider,
+        }),
+      })
+    );
+
+    const { PhoneVerifyService } = await import("@hone/domain");
+    const confirmSpy = vi.spyOn(PhoneVerifyService.prototype, "confirmVerification").mockResolvedValue({
+      verified: true,
+    });
+
+    // Create a fake session token hash
+    const { createHash } = await import("node:crypto");
+    const rawToken = "test-session-token";
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash,
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const res = await app.request("/trpc/auth.confirmPhoneVerify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${rawToken}`,
+      },
+      body: JSON.stringify({ phoneNumber: "+12025551234", code: "123456" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { verified: boolean } } };
+    expect(body.result?.data?.verified).toBe(true);
+
+    confirmSpy.mockRestore();
+  });
+
+  it("returns 400 when phone is invalid (mocked service)", async () => {
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash: "test-hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    repos.profiles.findById = vi.fn().mockResolvedValue({
+      id: UUID1,
+      handle: "testuser",
+      displayName: "Test User",
+      defaultVisibility: {},
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const smsProvider = { sendVerificationCode: vi.fn() };
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    const auth = { getCurrentIdentity: async () => null };
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({
+          repositories: repos,
+          auth,
+          jwksProvider: { fetchKeys: vi.fn().mockResolvedValue([]) },
+          appleAudience: "com.hone.app",
+          googleJwksProvider: { fetchKeys: vi.fn().mockResolvedValue([]) },
+          googleAudience: "test-google-client-id.apps.googleusercontent.com",
+          smsProvider,
+        }),
+      })
+    );
+
+    const { PhoneVerifyService } = await import("@hone/domain");
+    const confirmSpy = vi.spyOn(PhoneVerifyService.prototype, "confirmVerification").mockRejectedValue(
+      Object.assign(new Error("Invalid phone number"), { code: "INVALID_PHONE" })
+    );
+
+    const { createHash } = await import("node:crypto");
+    const rawToken = "test-session-token";
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash,
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const res = await app.request("/trpc/auth.confirmPhoneVerify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${rawToken}`,
+      },
+      body: JSON.stringify({ phoneNumber: "invalid", code: "123456" }),
+    });
+    expect(res.status).toBe(400);
+
+    confirmSpy.mockRestore();
+  });
+
+  it("returns 429 after 3 wrong attempts (mocked service)", async () => {
+    const repos = makeRepositories();
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash: "test-hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    repos.profiles.findById = vi.fn().mockResolvedValue({
+      id: UUID1,
+      handle: "testuser",
+      displayName: "Test User",
+      defaultVisibility: {},
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const smsProvider = { sendVerificationCode: vi.fn() };
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    const auth = { getCurrentIdentity: async () => null };
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({
+          repositories: repos,
+          auth,
+          jwksProvider: { fetchKeys: vi.fn().mockResolvedValue([]) },
+          appleAudience: "com.hone.app",
+          googleJwksProvider: { fetchKeys: vi.fn().mockResolvedValue([]) },
+          googleAudience: "test-google-client-id.apps.googleusercontent.com",
+          smsProvider,
+        }),
+      })
+    );
+
+    const { PhoneVerifyService } = await import("@hone/domain");
+    const confirmSpy = vi.spyOn(PhoneVerifyService.prototype, "confirmVerification").mockRejectedValue(
+      Object.assign(new Error("Too many failed attempts. Request a new code."), { code: "RATE_LIMITED" })
+    );
+
+    const { createHash } = await import("node:crypto");
+    const rawToken = "test-session-token";
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    repos.sessions.findByTokenHash = vi.fn().mockResolvedValue({
+      tokenHash,
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    const res = await app.request("/trpc/auth.confirmPhoneVerify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${rawToken}`,
+      },
+      body: JSON.stringify({ phoneNumber: "+12025551234", code: "000000" }),
+    });
+    expect(res.status).toBe(429);
+
+    confirmSpy.mockRestore();
   });
 });

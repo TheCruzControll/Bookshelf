@@ -64,3 +64,25 @@ export type RequestMagicLinkInput = z.infer<typeof RequestMagicLinkInputSchema>;
 export type RequestMagicLinkOutput = z.infer<typeof RequestMagicLinkOutputSchema>;
 export type ConsumeMagicLinkInput = z.infer<typeof ConsumeMagicLinkInputSchema>;
 export type ConsumeMagicLinkOutput = z.infer<typeof ConsumeMagicLinkOutputSchema>;
+
+export const StartPhoneVerifyInputSchema = z.object({
+  phoneNumber: z.string().min(1),
+});
+
+export const StartPhoneVerifyOutputSchema = z.object({
+  expiresAt: z.date(),
+});
+
+export const ConfirmPhoneVerifyInputSchema = z.object({
+  phoneNumber: z.string().min(1),
+  code: z.string().length(6),
+});
+
+export const ConfirmPhoneVerifyOutputSchema = z.object({
+  verified: z.boolean(),
+});
+
+export type StartPhoneVerifyInput = z.infer<typeof StartPhoneVerifyInputSchema>;
+export type StartPhoneVerifyOutput = z.infer<typeof StartPhoneVerifyOutputSchema>;
+export type ConfirmPhoneVerifyInput = z.infer<typeof ConfirmPhoneVerifyInputSchema>;
+export type ConfirmPhoneVerifyOutput = z.infer<typeof ConfirmPhoneVerifyOutputSchema>;
