@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, FollowService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify } from "./services";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, FollowService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey } from "./services";
 import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, FollowRepository, ListRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository } from "./ports";
 import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem } from "./types";
 
@@ -1584,5 +1584,71 @@ describe("FollowService", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]!.followeeId).toBe(UUID2);
+  });
+});
+
+describe("computeGroupKey", () => {
+  const actorId = "00000000-0000-0000-0000-000000000001";
+
+  it("returns a deterministic key for same actor, verb, and 30-min bucket", () => {
+    const t1 = new Date("2024-06-01T10:00:00Z");
+    const t2 = new Date("2024-06-01T10:15:00Z"); // same 30-min window
+
+    const key1 = computeGroupKey(actorId, "book_added", t1);
+    const key2 = computeGroupKey(actorId, "book_added", t2);
+
+    expect(key1).toBe(key2);
+  });
+
+  it("produces different keys for events in different 30-min windows", () => {
+    const t1 = new Date("2024-06-01T10:00:00Z");
+    const t2 = new Date("2024-06-01T10:31:00Z"); // next 30-min window
+
+    const key1 = computeGroupKey(actorId, "book_added", t1);
+    const key2 = computeGroupKey(actorId, "book_added", t2);
+
+    expect(key1).not.toBe(key2);
+  });
+
+  it("produces different keys for different verbs within the same window", () => {
+    const t = new Date("2024-06-01T10:05:00Z");
+
+    const key1 = computeGroupKey(actorId, "book_added", t);
+    const key2 = computeGroupKey(actorId, "book_reviewed", t);
+
+    expect(key1).not.toBe(key2);
+  });
+
+  it("produces different keys for different actors within the same window", () => {
+    const t = new Date("2024-06-01T10:05:00Z");
+    const actor2 = "00000000-0000-0000-0000-000000000002";
+
+    const key1 = computeGroupKey(actorId, "book_added", t);
+    const key2 = computeGroupKey(actor2, "book_added", t);
+
+    expect(key1).not.toBe(key2);
+  });
+
+  it("key format includes actor, verb, and bucket", () => {
+    const t = new Date("2024-06-01T10:00:00Z");
+    const key = computeGroupKey(actorId, "book_added", t);
+
+    expect(key).toContain(actorId);
+    expect(key).toContain("book_added");
+    // Should be actor:verb:bucket format
+    const parts = key.split(":");
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toBe(actorId);
+    expect(parts[1]).toBe("book_added");
+    expect(Number(parts[2])).not.toBeNaN();
+  });
+
+  it("boundary: event at exact 30-min mark belongs to the next bucket", () => {
+    // 30 minutes in ms = 1_800_000
+    // An event at exactly t=1_800_000ms should be in bucket 1
+    const t = new Date(30 * 60 * 1000); // exactly 30 min from epoch
+    const key = computeGroupKey(actorId, "book_added", t);
+    const parts = key.split(":");
+    expect(parts[2]).toBe("1");
   });
 });
