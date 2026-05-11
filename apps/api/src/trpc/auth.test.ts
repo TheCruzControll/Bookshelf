@@ -49,6 +49,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
     sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
     handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
+    magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
     ...overrides,
   };
 }
@@ -64,6 +65,22 @@ function buildApp(identity: AuthIdentity | null, repositories: AppRepositories, 
     trpcServer({
       router: testRouter,
       createContext: createTrpcContext({ repositories, auth, jwksProvider: mockJwksProvider, appleAudience: "com.hone.app", googleJwksProvider: mockGoogleJwksProvider, googleAudience: "test-google-client-id.apps.googleusercontent.com" }),
+    })
+  );
+  return app;
+}
+
+function buildAppWithEmail(identity: AuthIdentity | null, repositories: AppRepositories, emailProvider: { sendMagicLink: ReturnType<typeof vi.fn> }) {
+  const testRouter = router({ auth: authRouter });
+  const app = new Hono();
+  const auth = { getCurrentIdentity: async () => identity };
+  const mockJwksProvider: AppleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+  const mockGoogleJwksProvider: GoogleJwksProvider = { fetchKeys: vi.fn().mockResolvedValue([]) };
+  app.use(
+    "/trpc/*",
+    trpcServer({
+      router: testRouter,
+      createContext: createTrpcContext({ repositories, auth, jwksProvider: mockJwksProvider, appleAudience: "com.hone.app", googleJwksProvider: mockGoogleJwksProvider, googleAudience: "test-google-client-id.apps.googleusercontent.com", emailProvider }),
     })
   );
   return app;
@@ -469,5 +486,229 @@ describe("auth.googleSignIn", () => {
     expect(body.result?.data?.isNewUser).toBe(false);
 
     googleSignInSpy.mockRestore();
+  });
+});
+
+describe("auth.requestMagicLink", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.requestMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "user@example.com" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 500 when email provider not configured", async () => {
+    const repos = makeRepositories();
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    const auth = { getCurrentIdentity: async () => null };
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({ repositories: repos, auth }),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.requestMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "user@example.com" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 400 when email is invalid", async () => {
+    const repos = makeRepositories();
+    const emailProvider = { sendMagicLink: vi.fn() };
+    const app = buildAppWithEmail(null, repos, emailProvider);
+
+    const res = await app.request("/trpc/auth.requestMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "not-an-email" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 200 with expiresAt on success", async () => {
+    const repos = makeRepositories();
+    repos.magicLinks.create = vi.fn().mockResolvedValue({
+      email: "user@example.com",
+      tokenHash: "abc",
+      expiresAt: new Date(Date.now() + 600000),
+    });
+    repos.magicLinks.deleteExpiredForEmail = vi.fn();
+    const emailProvider = { sendMagicLink: vi.fn().mockResolvedValue(undefined) };
+    const app = buildAppWithEmail(null, repos, emailProvider);
+
+    const res = await app.request("/trpc/auth.requestMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "user@example.com" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { expiresAt: string } } };
+    expect(body.result?.data?.expiresAt).toBeDefined();
+  });
+});
+
+describe("auth.consumeMagicLink", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 500 when repositories not configured", async () => {
+    const testRouter = router({ auth: authRouter });
+    const app = new Hono();
+    app.use(
+      "/trpc/*",
+      trpcServer({
+        router: testRouter,
+        createContext: createTrpcContext({}),
+      })
+    );
+
+    const res = await app.request("/trpc/auth.consumeMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "some-token" }),
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 401 when token is invalid", async () => {
+    const repos = makeRepositories();
+    repos.magicLinks.findByTokenHash = vi.fn().mockResolvedValue(null);
+    const emailProvider = { sendMagicLink: vi.fn() };
+    const app = buildAppWithEmail(null, repos, emailProvider);
+
+    const res = await app.request("/trpc/auth.consumeMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "invalid-token" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when token is expired", async () => {
+    const repos = makeRepositories();
+    repos.magicLinks.findByTokenHash = vi.fn().mockResolvedValue({
+      email: "user@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() - 1000),
+      consumedAt: undefined,
+    });
+    const emailProvider = { sendMagicLink: vi.fn() };
+    const app = buildAppWithEmail(null, repos, emailProvider);
+
+    const res = await app.request("/trpc/auth.consumeMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "expired-token" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when token already consumed", async () => {
+    const repos = makeRepositories();
+    repos.magicLinks.findByTokenHash = vi.fn().mockResolvedValue({
+      email: "user@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() + 600000),
+      consumedAt: new Date(),
+    });
+    const emailProvider = { sendMagicLink: vi.fn() };
+    const app = buildAppWithEmail(null, repos, emailProvider);
+
+    const res = await app.request("/trpc/auth.consumeMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "used-token" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 200 with sessionToken and isNewUser=true for new user", async () => {
+    const repos = makeRepositories();
+    repos.magicLinks.findByTokenHash = vi.fn().mockResolvedValue({
+      email: "newuser@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() + 600000),
+      consumedAt: undefined,
+    });
+    repos.magicLinks.markConsumed = vi.fn();
+    repos.authIdentities.findByProvider = vi.fn().mockResolvedValue(null);
+    repos.authIdentities.create = vi.fn().mockResolvedValue({
+      provider: "email",
+      providerUserId: "newuser@example.com",
+      profileId: "00000000-0000-0000-0000-000000000099",
+    });
+    repos.sessions.create = vi.fn().mockResolvedValue({
+      tokenHash: "session-hash",
+      profileId: "00000000-0000-0000-0000-000000000099",
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    const emailProvider = { sendMagicLink: vi.fn() };
+    const app = buildAppWithEmail(null, repos, emailProvider);
+
+    const res = await app.request("/trpc/auth.consumeMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "valid-token" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { sessionToken: string; isNewUser: boolean; expiresAt: string } } };
+    expect(body.result?.data?.sessionToken).toBeDefined();
+    expect(body.result?.data?.isNewUser).toBe(true);
+    expect(body.result?.data?.expiresAt).toBeDefined();
+  });
+
+  it("returns 200 with isNewUser=false for existing user", async () => {
+    const repos = makeRepositories();
+    repos.magicLinks.findByTokenHash = vi.fn().mockResolvedValue({
+      email: "existing@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() + 600000),
+      consumedAt: undefined,
+    });
+    repos.magicLinks.markConsumed = vi.fn();
+    repos.authIdentities.findByProvider = vi.fn().mockResolvedValue({
+      provider: "email",
+      providerUserId: "existing@example.com",
+      profileId: UUID1,
+    });
+    repos.sessions.create = vi.fn().mockResolvedValue({
+      tokenHash: "session-hash",
+      profileId: UUID1,
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+    const emailProvider = { sendMagicLink: vi.fn() };
+    const app = buildAppWithEmail(null, repos, emailProvider);
+
+    const res = await app.request("/trpc/auth.consumeMagicLink", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "valid-token" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result?: { data?: { sessionToken: string; isNewUser: boolean } } };
+    expect(body.result?.data?.isNewUser).toBe(false);
   });
 });

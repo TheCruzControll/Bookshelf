@@ -572,3 +572,20 @@ export const handleHistory = pgTable(
     expiresAtIdx: index("handle_history_expires_at_idx").on(table.expiresAt)
   })
 );
+
+export const magicLinkTokens = pgTable(
+  "magic_link_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    email: text("email").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (table) => ({
+    emailIdx: index("magic_link_tokens_email_idx").on(table.email),
+    expiresAtIdx: index("magic_link_tokens_expires_at_idx").on(table.expiresAt)
+  })
+);

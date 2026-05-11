@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey } from "./services";
-import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, FollowRepository, ListRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository } from "./ports";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey } from "./services";
+import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, EmailProvider, FollowRepository, ListRepository, MagicLinkRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository } from "./ports";
 import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem } from "./types";
 
 function makeShelfItem(overrides?: Partial<ShelfItem>): ShelfItem {
@@ -269,6 +269,7 @@ describe("AppServices", () => {
       authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
       handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
+      magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null)
@@ -1880,5 +1881,202 @@ describe("computeGroupKey", () => {
     const key = computeGroupKey(actorId, "book_added", t);
     const parts = key.split(":");
     expect(parts[2]).toBe("1");
+  });
+});
+
+describe("MagicLinkService", () => {
+  function makeMagicLinkRepository(): MagicLinkRepository {
+    return {
+      create: vi.fn().mockResolvedValue({
+        email: "user@example.com",
+        tokenHash: "hashed-token",
+        expiresAt: new Date(Date.now() + 600000),
+      }),
+      findByTokenHash: vi.fn(),
+      markConsumed: vi.fn(),
+      deleteExpiredForEmail: vi.fn(),
+    };
+  }
+
+  function makeAuthIdentityRepo(): AuthIdentityRepository {
+    return {
+      create: vi.fn().mockImplementation(async (input) => ({
+        provider: input.provider,
+        providerUserId: input.providerUserId,
+        profileId: input.profileId,
+      })),
+      findByProvider: vi.fn().mockResolvedValue(null),
+      listByProfile: vi.fn().mockResolvedValue([]),
+    };
+  }
+
+  function makeSessionRepo(): SessionRepository {
+    return {
+      create: vi.fn().mockImplementation(async (input) => ({
+        tokenHash: input.tokenHash,
+        profileId: input.profileId,
+        expiresAt: input.expiresAt,
+      })),
+      findByTokenHash: vi.fn(),
+      revokeByTokenHash: vi.fn(),
+      revokeAllForProfile: vi.fn(),
+    };
+  }
+
+  function makeEmailProvider(): EmailProvider {
+    return {
+      sendMagicLink: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  it("requestMagicLink normalizes email, cleans expired tokens, creates token, and sends email", async () => {
+    const magicLinks = makeMagicLinkRepository();
+    const authIdentities = makeAuthIdentityRepo();
+    const sessions = makeSessionRepo();
+    const emailProvider = makeEmailProvider();
+
+    const service = new MagicLinkService(magicLinks, authIdentities, sessions, emailProvider);
+    const result = await service.requestMagicLink("  User@Example.COM  ");
+
+    expect(magicLinks.deleteExpiredForEmail).toHaveBeenCalledWith("user@example.com");
+    expect(magicLinks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "user@example.com",
+      })
+    );
+    expect(emailProvider.sendMagicLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "user@example.com",
+        expiresInMinutes: 10,
+      })
+    );
+    expect(result.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("requestMagicLink stores hashed token, not raw token", async () => {
+    const magicLinks = makeMagicLinkRepository();
+    const authIdentities = makeAuthIdentityRepo();
+    const sessions = makeSessionRepo();
+    const emailProvider = makeEmailProvider();
+
+    const service = new MagicLinkService(magicLinks, authIdentities, sessions, emailProvider);
+    await service.requestMagicLink("user@example.com");
+
+    const createCall = (magicLinks.create as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    // tokenHash should be a hex string (64 chars for SHA-256)
+    expect(createCall.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    // The raw token sent to email should be different from the stored hash
+    const emailCall = (emailProvider.sendMagicLink as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(emailCall.token).not.toBe(createCall.tokenHash);
+  });
+
+  it("consumeMagicLink throws INVALID_TOKEN when token not found", async () => {
+    const magicLinks = makeMagicLinkRepository();
+    (magicLinks.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    const authIdentities = makeAuthIdentityRepo();
+    const sessions = makeSessionRepo();
+    const emailProvider = makeEmailProvider();
+
+    const service = new MagicLinkService(magicLinks, authIdentities, sessions, emailProvider);
+
+    await expect(service.consumeMagicLink("invalid-token")).rejects.toMatchObject({
+      code: "INVALID_TOKEN",
+    });
+  });
+
+  it("consumeMagicLink throws TOKEN_CONSUMED when token already used", async () => {
+    const magicLinks = makeMagicLinkRepository();
+    (magicLinks.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+      email: "user@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() + 600000),
+      consumedAt: new Date(),
+    });
+    const authIdentities = makeAuthIdentityRepo();
+    const sessions = makeSessionRepo();
+    const emailProvider = makeEmailProvider();
+
+    const service = new MagicLinkService(magicLinks, authIdentities, sessions, emailProvider);
+
+    await expect(service.consumeMagicLink("some-token")).rejects.toMatchObject({
+      code: "TOKEN_CONSUMED",
+    });
+  });
+
+  it("consumeMagicLink throws TOKEN_EXPIRED when token expired", async () => {
+    const magicLinks = makeMagicLinkRepository();
+    (magicLinks.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+      email: "user@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() - 1000),
+      consumedAt: undefined,
+    });
+    const authIdentities = makeAuthIdentityRepo();
+    const sessions = makeSessionRepo();
+    const emailProvider = makeEmailProvider();
+
+    const service = new MagicLinkService(magicLinks, authIdentities, sessions, emailProvider);
+
+    await expect(service.consumeMagicLink("some-token")).rejects.toMatchObject({
+      code: "TOKEN_EXPIRED",
+    });
+  });
+
+  it("consumeMagicLink marks token consumed, creates new identity, and returns session for new user", async () => {
+    const magicLinks = makeMagicLinkRepository();
+    (magicLinks.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+      email: "newuser@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() + 600000),
+      consumedAt: undefined,
+    });
+    const authIdentities = makeAuthIdentityRepo();
+    (authIdentities.findByProvider as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    const sessions = makeSessionRepo();
+    const emailProvider = makeEmailProvider();
+
+    const service = new MagicLinkService(magicLinks, authIdentities, sessions, emailProvider);
+    const result = await service.consumeMagicLink("raw-token");
+
+    expect(magicLinks.markConsumed).toHaveBeenCalled();
+    expect(authIdentities.findByProvider).toHaveBeenCalledWith({
+      provider: "email",
+      providerUserId: "newuser@example.com",
+    });
+    expect(authIdentities.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "email",
+        providerUserId: "newuser@example.com",
+      })
+    );
+    expect(sessions.create).toHaveBeenCalled();
+    expect(result.sessionToken).toBeDefined();
+    expect(result.expiresAt).toBeInstanceOf(Date);
+    expect(result.isNewUser).toBe(true);
+  });
+
+  it("consumeMagicLink returns existing user session when identity exists", async () => {
+    const magicLinks = makeMagicLinkRepository();
+    (magicLinks.findByTokenHash as ReturnType<typeof vi.fn>).mockResolvedValue({
+      email: "existing@example.com",
+      tokenHash: "hashed",
+      expiresAt: new Date(Date.now() + 600000),
+      consumedAt: undefined,
+    });
+    const authIdentities = makeAuthIdentityRepo();
+    (authIdentities.findByProvider as ReturnType<typeof vi.fn>).mockResolvedValue({
+      provider: "email",
+      providerUserId: "existing@example.com",
+      profileId: "00000000-0000-0000-0000-000000000001",
+    });
+    const sessions = makeSessionRepo();
+    const emailProvider = makeEmailProvider();
+
+    const service = new MagicLinkService(magicLinks, authIdentities, sessions, emailProvider);
+    const result = await service.consumeMagicLink("raw-token");
+
+    expect(authIdentities.create).not.toHaveBeenCalled();
+    expect(result.isNewUser).toBe(false);
+    expect(result.sessionToken).toBeDefined();
   });
 });

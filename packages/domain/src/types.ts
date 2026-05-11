@@ -320,6 +320,13 @@ export interface HandleHistory {
   expiresAt: Date;
 }
 
+export interface MagicLinkToken {
+  email: string;
+  tokenHash: string;
+  expiresAt: Date;
+  consumedAt?: Date | undefined;
+}
+
 export type CatalogSource = "open_library" | "google_books";
 
 export interface BookSearchResult {

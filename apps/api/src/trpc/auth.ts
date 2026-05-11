@@ -1,6 +1,15 @@
 import { TRPCError } from "@trpc/server";
-import { AppleSignInInputSchema, AppleSignInOutputSchema, GoogleSignInInputSchema, GoogleSignInOutputSchema } from "@hone/domain";
-import { AuthService } from "@hone/domain";
+import {
+  AppleSignInInputSchema,
+  AppleSignInOutputSchema,
+  GoogleSignInInputSchema,
+  GoogleSignInOutputSchema,
+  RequestMagicLinkInputSchema,
+  RequestMagicLinkOutputSchema,
+  ConsumeMagicLinkInputSchema,
+  ConsumeMagicLinkOutputSchema,
+} from "@hone/domain";
+import { AuthService, MagicLinkService } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
 
 export const authRouter = router({
@@ -73,6 +82,63 @@ export const authRouter = router({
           }
           if (code === "INVALID_TOKEN") {
             throw new TRPCError({ code: "UNAUTHORIZED", message: err.message });
+          }
+        }
+        throw err;
+      }
+    }),
+
+  requestMagicLink: publicProcedure
+    .input(RequestMagicLinkInputSchema)
+    .output(RequestMagicLinkOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.emailProvider) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Email provider not configured" });
+      }
+
+      const magicLinkService = new MagicLinkService(
+        ctx.repositories.magicLinks,
+        ctx.repositories.authIdentities,
+        ctx.repositories.sessions,
+        ctx.emailProvider
+      );
+
+      const result = await magicLinkService.requestMagicLink(input.email);
+      return result;
+    }),
+
+  consumeMagicLink: publicProcedure
+    .input(ConsumeMagicLinkInputSchema)
+    .output(ConsumeMagicLinkOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.emailProvider) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Email provider not configured" });
+      }
+
+      const magicLinkService = new MagicLinkService(
+        ctx.repositories.magicLinks,
+        ctx.repositories.authIdentities,
+        ctx.repositories.sessions,
+        ctx.emailProvider
+      );
+
+      try {
+        const result = await magicLinkService.consumeMagicLink(input.token);
+        return result;
+      } catch (err) {
+        if (err instanceof Error) {
+          const code = (err as Error & { code?: string }).code;
+          if (code === "INVALID_TOKEN" || code === "TOKEN_CONSUMED") {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: err.message });
+          }
+          if (code === "TOKEN_EXPIRED") {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Magic link expired" });
           }
         }
         throw err;
