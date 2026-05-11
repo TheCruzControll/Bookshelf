@@ -37,6 +37,7 @@ function makeRepositories(): AppRepositories {
     activity: {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
       getFriendFeed: vi.fn(),
+      getFriendFeedGrouped: vi.fn(),
       deleteByReviewId: vi.fn()
     },
     recommendations: { getForUser: vi.fn() },

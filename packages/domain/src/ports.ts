@@ -194,6 +194,19 @@ export interface ActivityRepository {
     cursor?: string;
     limit: number;
   }): Promise<FeedItem[]>;
+  /**
+   * Fetch feed items for the viewer with group-boundary alignment.
+   * Returns complete groups — never splits a group across pages.
+   * The cursor encodes (groupKey, occurredAt) of the last group seen.
+   */
+  getFriendFeedGrouped(input: {
+    viewerId: EntityId;
+    /** Decoded cursor: events older than this occurredAt AND with a different groupKey */
+    beforeOccurredAt?: Date;
+    beforeGroupKey?: string;
+    /** Target number of groups to return (may return more items) */
+    groupLimit: number;
+  }): Promise<FeedItem[]>;
   deleteByReviewId(reviewId: EntityId): Promise<void>;
 }
 

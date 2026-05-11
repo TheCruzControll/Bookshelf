@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as fc from "fast-check";
 import { subtle } from "node:crypto";
-import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SessionService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey, NotificationService } from "./services";
+import { ShelfService, HandleService, AppServices, ProfileService, RankingService, AuthService, MagicLinkService, ReviewService, BlockService, SocialService, FollowService, ContactsService, SessionService, SYSTEM_SHELVES, POSTURE_C_DEFAULTS, slugify, computeGroupKey, NotificationService, encodeFeedCursor, decodeFeedCursor, groupFeedItems } from "./services";
 import type { ActivityRepository, AppRepositories, AuthProvider, BlockRepository, ContactsRepository, EmailProvider, FollowRepository, ListRepository, MagicLinkRepository, ProfileRepository, RankingRepository, AuthIdentityRepository, RecommendationRepository, SessionRepository, AppleJwksProvider, AppleJwk, GoogleJwksProvider, GoogleJwk, ReviewRepository, ShelfRepository, InAppNotificationRepository } from "./ports";
 import type { Block, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, InAppNotification } from "./types";
 
@@ -72,6 +72,7 @@ describe("ShelfService", () => {
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
       getFriendFeed: vi.fn(),
+      getFriendFeedGrouped: vi.fn(),
       deleteByReviewId: vi.fn()
     };
 
@@ -115,6 +116,7 @@ describe("ShelfService", () => {
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-2", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
       getFriendFeed: vi.fn(),
+      getFriendFeedGrouped: vi.fn(),
       deleteByReviewId: vi.fn()
     };
 
@@ -282,7 +284,7 @@ describe("AppServices", () => {
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn() },
       reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-      activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() },
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0) },
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
@@ -336,7 +338,7 @@ describe("ShelfService CRUD", () => {
     };
   }
   function makeActivity(): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() };
   }
 
   it("createShelf slugifies the name and delegates to shelves.create", async () => {
@@ -581,7 +583,7 @@ describe("ShelfService – ShelfItem CRUD", () => {
     };
   }
   function makeActivity(): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() };
   }
 
   it("upsertShelfItem defaults position to maxPosition + 1 when not provided", async () => {
@@ -767,7 +769,7 @@ describe("RankingService", () => {
   }
 
   function makeActivity(overrides?: Partial<ActivityRepository>): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn(), ...overrides };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn(), ...overrides };
   }
 
   it("startBucket delegates to rankings.startBucket", async () => {
@@ -1109,7 +1111,7 @@ describe("ReviewService", () => {
     return { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), ...overrides };
   }
   function makeActivity(): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() };
   }
 
   it("createReview creates the review and appends activity event", async () => {
@@ -1904,6 +1906,7 @@ describe("SocialService", () => {
     return {
       append: vi.fn(),
       getFriendFeed: vi.fn().mockResolvedValue(feedItems),
+      getFriendFeedGrouped: vi.fn().mockResolvedValue(feedItems),
       deleteByReviewId: vi.fn(),
     };
   }
@@ -2633,7 +2636,7 @@ describe("AppServices includes notifications", () => {
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn() },
       reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-      activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() },
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0) },
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
@@ -2828,5 +2831,132 @@ describe("SessionService", () => {
 
       expect(sessionRepo.revokeAllForProfile).toHaveBeenCalledWith(profileId);
     });
+  });
+});
+
+describe("encodeFeedCursor / decodeFeedCursor", () => {
+  it("roundtrips a cursor correctly", () => {
+    const groupKey = "actor1:book_added:12345";
+    const occurredAt = new Date("2025-06-01T12:00:00.000Z");
+
+    const cursor = encodeFeedCursor(groupKey, occurredAt);
+    const decoded = decodeFeedCursor(cursor);
+
+    expect(decoded).not.toBeNull();
+    expect(decoded!.groupKey).toBe(groupKey);
+    expect(decoded!.occurredAt.getTime()).toBe(occurredAt.getTime());
+  });
+
+  it("returns null for malformed cursor", () => {
+    expect(decodeFeedCursor("not-valid-base64!!!")).toBeNull();
+    expect(decodeFeedCursor("")).toBeNull();
+  });
+
+  it("returns null for cursor missing fields", () => {
+    const partial = Buffer.from(JSON.stringify({ groupKey: "abc" }), "utf8").toString("base64url");
+    expect(decodeFeedCursor(partial)).toBeNull();
+  });
+
+  it("returns null for cursor with invalid date", () => {
+    const invalid = Buffer.from(JSON.stringify({ groupKey: "abc", occurredAt: "not-a-date" }), "utf8").toString("base64url");
+    expect(decodeFeedCursor(invalid)).toBeNull();
+  });
+
+  it("encodes cursor as base64url (no padding, URL-safe chars)", () => {
+    const cursor = encodeFeedCursor("a:b:c", new Date("2025-01-01T00:00:00Z"));
+    // base64url uses - and _ instead of + and /
+    expect(cursor).not.toMatch(/[+/=]/);
+  });
+});
+
+describe("groupFeedItems", () => {
+  function makeFeedItem(overrides: { id?: string; actorId?: string; groupKey?: string | undefined; occurredAt?: Date }): FeedItem {
+    const now = new Date();
+    const event: FeedItem["event"] = {
+      id: overrides.id ?? "e1",
+      actorId: overrides.actorId ?? "a1",
+      verb: "book_added",
+      visibility: "followers",
+      occurredAt: overrides.occurredAt ?? now,
+    };
+    if ("groupKey" in overrides && overrides.groupKey !== undefined) {
+      event.groupKey = overrides.groupKey;
+    }
+    return {
+      event,
+      actor: {
+        id: overrides.actorId ?? "a1",
+        handle: "user",
+        displayName: "User",
+        verified: false,
+        defaultVisibility: POSTURE_C_DEFAULTS,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+    };
+  }
+
+  it("groups items with the same groupKey into one group", () => {
+    const t1 = new Date("2025-01-01T12:00:00Z");
+    const t2 = new Date("2025-01-01T12:10:00Z");
+
+    const items: FeedItem[] = [
+      makeFeedItem({ id: "e1", groupKey: "g1", occurredAt: t2 }),
+      makeFeedItem({ id: "e2", groupKey: "g1", occurredAt: t1 }),
+    ];
+
+    const groups = groupFeedItems(items);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.groupKey).toBe("g1");
+    expect(groups[0]!.items).toHaveLength(2);
+    // occurredAt should be the earliest event in the group
+    expect(groups[0]!.occurredAt.getTime()).toBe(t1.getTime());
+  });
+
+  it("keeps items with different groupKeys in separate groups", () => {
+    const items: FeedItem[] = [
+      makeFeedItem({ id: "e1", groupKey: "g1", occurredAt: new Date("2025-01-01T12:30:00Z") }),
+      makeFeedItem({ id: "e2", groupKey: "g2", occurredAt: new Date("2025-01-01T12:00:00Z") }),
+    ];
+
+    const groups = groupFeedItems(items);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]!.groupKey).toBe("g1");
+    expect(groups[1]!.groupKey).toBe("g2");
+  });
+
+  it("treats items without groupKey as individual groups (keyed by event id)", () => {
+    const items: FeedItem[] = [
+      makeFeedItem({ id: "e1", occurredAt: new Date("2025-01-01T12:30:00Z") }),
+      makeFeedItem({ id: "e2", occurredAt: new Date("2025-01-01T12:00:00Z") }),
+    ];
+
+    const groups = groupFeedItems(items);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]!.groupKey).toBe("e1");
+    expect(groups[1]!.groupKey).toBe("e2");
+  });
+
+  it("preserves insertion order of groups", () => {
+    const items: FeedItem[] = [
+      makeFeedItem({ id: "e1", groupKey: "g1", occurredAt: new Date("2025-01-01T12:30:00Z") }),
+      makeFeedItem({ id: "e2", groupKey: "g2", occurredAt: new Date("2025-01-01T12:20:00Z") }),
+      makeFeedItem({ id: "e3", groupKey: "g1", occurredAt: new Date("2025-01-01T12:10:00Z") }),
+      makeFeedItem({ id: "e4", groupKey: "g3", occurredAt: new Date("2025-01-01T12:00:00Z") }),
+    ];
+
+    const groups = groupFeedItems(items);
+    expect(groups).toHaveLength(3);
+    expect(groups[0]!.groupKey).toBe("g1");
+    expect(groups[0]!.items).toHaveLength(2);
+    expect(groups[1]!.groupKey).toBe("g2");
+    expect(groups[1]!.items).toHaveLength(1);
+    expect(groups[2]!.groupKey).toBe("g3");
+    expect(groups[2]!.items).toHaveLength(1);
+  });
+
+  it("returns empty array for empty input", () => {
+    expect(groupFeedItems([])).toEqual([]);
   });
 });

@@ -63,7 +63,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       update: vi.fn(),
       delete: vi.fn().mockResolvedValue(undefined),
     },
-    activity: { append: vi.fn().mockResolvedValue(undefined), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn().mockResolvedValue(undefined) },
+    activity: { append: vi.fn().mockResolvedValue(undefined), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn().mockResolvedValue(undefined) },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn() },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },

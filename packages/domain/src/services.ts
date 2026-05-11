@@ -76,6 +76,60 @@ export function computeGroupKey(actorId: EntityId, verb: ActivityVerb, occurredA
   return `${actorId}:${verb}:${bucket}`;
 }
 
+/**
+ * Encode a feed cursor from a group key and occurred_at timestamp.
+ * Format: base64url(JSON({ groupKey, occurredAt: ISO string }))
+ */
+export function encodeFeedCursor(groupKey: string, occurredAt: Date): string {
+  const payload = JSON.stringify({ groupKey, occurredAt: occurredAt.toISOString() });
+  return Buffer.from(payload, "utf8").toString("base64url");
+}
+
+/**
+ * Decode a feed cursor into its group key and occurred_at components.
+ * Returns null if the cursor is malformed.
+ */
+export function decodeFeedCursor(cursor: string): { groupKey: string; occurredAt: Date } | null {
+  try {
+    const json = Buffer.from(cursor, "base64url").toString("utf8");
+    const parsed = JSON.parse(json) as { groupKey?: string; occurredAt?: string };
+    if (!parsed.groupKey || !parsed.occurredAt) return null;
+    const date = new Date(parsed.occurredAt);
+    if (isNaN(date.getTime())) return null;
+    return { groupKey: parsed.groupKey, occurredAt: date };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Group flat feed items into groups by groupKey, preserving chronological order.
+ * Items without a groupKey are treated as their own single-item group.
+ * Returns groups ordered newest-first (by the latest occurredAt in each group).
+ */
+export function groupFeedItems(items: FeedItem[]): Array<{ groupKey: string; occurredAt: Date; items: FeedItem[] }> {
+  const groupMap = new Map<string, { groupKey: string; occurredAt: Date; items: FeedItem[] }>();
+  const order: string[] = [];
+
+  for (const item of items) {
+    const key = item.event.groupKey ?? item.event.id;
+    const existing = groupMap.get(key);
+    if (existing) {
+      existing.items.push(item);
+      // occurredAt of the group is the earliest event (group start)
+      if (item.event.occurredAt < existing.occurredAt) {
+        existing.occurredAt = item.event.occurredAt;
+      }
+    } else {
+      const group = { groupKey: key, occurredAt: item.event.occurredAt, items: [item] };
+      groupMap.set(key, group);
+      order.push(key);
+    }
+  }
+
+  return order.map((key) => groupMap.get(key)!);
+}
+
 export function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -1147,6 +1201,49 @@ export class SocialService {
   async getFriendFeed(input: { viewerId: EntityId; cursor?: string; limit: number }): Promise<FeedItem[]> {
     const items = await this.activity.getFriendFeed(input);
     return this.blockService.removeBlockedFeedItems(input.viewerId, items);
+  }
+
+  /**
+   * Fetch grouped feed with cursor pagination on group boundaries.
+   * Returns complete groups and a cursor pointing at the last group boundary.
+   */
+  async getFriendFeedGrouped(input: {
+    viewerId: EntityId;
+    cursor?: string;
+    groupLimit: number;
+  }): Promise<{ groups: Array<{ groupKey: string; occurredAt: Date; items: FeedItem[] }>; nextCursor: string | null }> {
+    const decoded = input.cursor ? decodeFeedCursor(input.cursor) : null;
+
+    const feedInput: {
+      viewerId: EntityId;
+      beforeOccurredAt?: Date;
+      beforeGroupKey?: string;
+      groupLimit: number;
+    } = {
+      viewerId: input.viewerId,
+      groupLimit: input.groupLimit,
+    };
+    if (decoded) {
+      feedInput.beforeOccurredAt = decoded.occurredAt;
+      feedInput.beforeGroupKey = decoded.groupKey;
+    }
+
+    const items = await this.activity.getFriendFeedGrouped(feedInput);
+
+    const filtered = await this.blockService.removeBlockedFeedItems(input.viewerId, items);
+    const groups = groupFeedItems(filtered);
+
+    // Trim to requested group limit
+    const page = groups.slice(0, input.groupLimit);
+
+    // Compute next cursor from the last group in the page
+    let nextCursor: string | null = null;
+    if (page.length === input.groupLimit && groups.length > input.groupLimit) {
+      const lastGroup = page[page.length - 1]!;
+      nextCursor = encodeFeedCursor(lastGroup.groupKey, lastGroup.occurredAt);
+    }
+
+    return { groups: page, nextCursor };
   }
 
   async getRecommendations(userId: EntityId, limit: number): Promise<Recommendation[]> {

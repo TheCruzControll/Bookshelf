@@ -502,6 +502,68 @@ export class DrizzleActivityRepository implements ActivityRepository {
     return feedItems;
   }
 
+  async getFriendFeedGrouped(input: Parameters<ActivityRepository["getFriendFeedGrouped"]>[0]) {
+    const followRows = await this.db
+      .select({ followeeId: follows.followeeId })
+      .from(follows)
+      .where(eq(follows.followerId, input.viewerId));
+
+    const friendIds = followRows.map((row) => row.followeeId);
+
+    if (friendIds.length === 0) {
+      return [];
+    }
+
+    // Build conditions for cursor-based pagination
+    const conditions = [
+      inArray(activityEvents.actorId, friendIds),
+      eq(activityEvents.visibility, "followers"),
+    ];
+
+    if (input.beforeOccurredAt) {
+      // Fetch events strictly before the cursor's occurredAt,
+      // OR events at the same occurredAt but with a different groupKey
+      // (to exclude the last group seen).
+      conditions.push(
+        or(
+          lt(activityEvents.occurredAt, input.beforeOccurredAt),
+          and(
+            eq(activityEvents.occurredAt, input.beforeOccurredAt),
+            input.beforeGroupKey
+              ? sql`${activityEvents.groupKey} != ${input.beforeGroupKey}`
+              : sql`true`
+          )!
+        )!
+      );
+    }
+
+    // Over-fetch to ensure we capture complete groups at the boundary.
+    // We fetch (groupLimit + 1) * 10 events, then group them.
+    const overFetchLimit = (input.groupLimit + 1) * 10;
+
+    const rows = await this.db
+      .select()
+      .from(activityEvents)
+      .where(and(...conditions))
+      .orderBy(desc(activityEvents.occurredAt))
+      .limit(overFetchLimit);
+
+    const friendEvents = rows.map(toActivityEvent);
+
+    const feedItems: FeedItem[] = friendEvents.map((event) => ({ event, actor: {
+      id: event.actorId,
+      handle: "unknown",
+      displayName: "Unknown reader",
+      verified: false,
+      defaultVisibility: POSTURE_C_DEFAULTS,
+      version: 1,
+      createdAt: event.occurredAt,
+      updatedAt: event.occurredAt
+    }}));
+
+    return feedItems;
+  }
+
   async deleteByReviewId(reviewId: EntityId) {
     await this.db
       .delete(activityEvents)
