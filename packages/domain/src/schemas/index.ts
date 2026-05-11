@@ -1,4 +1,5 @@
 export * from "./auth";
+export * from "./blocks";
 export * from "./contacts";
 export * from "./feed";
 export * from "./follows";
