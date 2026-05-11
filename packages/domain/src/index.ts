@@ -1,3 +1,4 @@
+export * from "./activity-publisher";
 export * from "./affiliate";
 export * from "./candidate";
 // contact-hash uses node:crypto — server-only, import from "@hone/domain/contact-hash"
