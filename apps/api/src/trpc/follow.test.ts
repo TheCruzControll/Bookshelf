@@ -49,8 +49,8 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn(),
     },
-    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn() },
-    activity: { append: vi.fn(), getFriendFeed: vi.fn() },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
     recommendations: { getForUser: vi.fn() },
     follows: {
       follow: vi.fn().mockResolvedValue(makeFollow()),

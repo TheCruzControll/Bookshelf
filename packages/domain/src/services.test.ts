@@ -65,7 +65,8 @@ describe("ShelfService", () => {
     };
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
-      getFriendFeed: vi.fn()
+      getFriendFeed: vi.fn(),
+      deleteByReviewId: vi.fn()
     };
 
     const service = new ShelfService(shelves, activity);
@@ -102,7 +103,8 @@ describe("ShelfService", () => {
     };
     const activity: ActivityRepository = {
       append: vi.fn().mockResolvedValue({ id: "evt-2", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
-      getFriendFeed: vi.fn()
+      getFriendFeed: vi.fn(),
+      deleteByReviewId: vi.fn()
     };
 
     const service = new ShelfService(shelves, activity);
@@ -253,8 +255,8 @@ describe("AppServices", () => {
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
-      reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn() },
-      activity: { append: vi.fn(), getFriendFeed: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
@@ -296,7 +298,7 @@ describe("ShelfService CRUD", () => {
     };
   }
   function makeActivity(): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn() };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() };
   }
 
   it("createShelf slugifies the name and delegates to shelves.create", async () => {
@@ -409,7 +411,7 @@ describe("RankingService", () => {
   }
 
   function makeActivity(overrides?: Partial<ActivityRepository>): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn(), ...overrides };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn(), ...overrides };
   }
 
   it("startBucket delegates to rankings.startBucket", async () => {
@@ -607,10 +609,10 @@ describe("RankingService", () => {
 
 describe("ReviewService", () => {
   function makeReviewRepo(overrides?: Partial<ReviewRepository>): ReviewRepository {
-    return { findById: vi.fn(), create: vi.fn(), update: vi.fn(), ...overrides };
+    return { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), ...overrides };
   }
   function makeActivity(): ActivityRepository {
-    return { append: vi.fn(), getFriendFeed: vi.fn() };
+    return { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() };
   }
 
   it("createReview creates the review and appends activity event", async () => {
@@ -671,6 +673,90 @@ describe("ReviewService", () => {
 
     expect(reviewRepo.create).toHaveBeenCalledWith(expect.objectContaining({ editionId }));
     expect(result.editionId).toBe(editionId);
+  });
+
+  it("deleteReview deletes the review and cascades activity event removal", async () => {
+    const now = new Date();
+    const review: Review = {
+      id: "00000000-0000-0000-0000-000000000001",
+      authorId: "00000000-0000-0000-0000-000000000002",
+      bookId: "00000000-0000-0000-0000-000000000003",
+      body: "Great book",
+      visibility: "public",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const reviewRepo = makeReviewRepo({
+      findById: vi.fn().mockResolvedValue(review),
+      delete: vi.fn().mockResolvedValue(undefined),
+    });
+    const activity = makeActivity();
+    (activity.deleteByReviewId as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    const service = new ReviewService(reviewRepo, activity);
+    await service.deleteReview({ id: review.id, authorId: review.authorId });
+
+    expect(activity.deleteByReviewId).toHaveBeenCalledWith(review.id);
+    expect(reviewRepo.delete).toHaveBeenCalledWith({ id: review.id, authorId: review.authorId });
+  });
+
+  it("deleteReview throws NOT_FOUND when review does not exist", async () => {
+    const reviewRepo = makeReviewRepo({ findById: vi.fn().mockResolvedValue(null) });
+    const activity = makeActivity();
+
+    const service = new ReviewService(reviewRepo, activity);
+    await expect(
+      service.deleteReview({ id: "00000000-0000-0000-0000-000000000001", authorId: "00000000-0000-0000-0000-000000000002" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("deleteReview throws FORBIDDEN when caller is not the author", async () => {
+    const now = new Date();
+    const review: Review = {
+      id: "00000000-0000-0000-0000-000000000001",
+      authorId: "00000000-0000-0000-0000-000000000002",
+      bookId: "00000000-0000-0000-0000-000000000003",
+      body: "Great book",
+      visibility: "public",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const reviewRepo = makeReviewRepo({ findById: vi.fn().mockResolvedValue(review) });
+    const activity = makeActivity();
+
+    const service = new ReviewService(reviewRepo, activity);
+    await expect(
+      service.deleteReview({ id: review.id, authorId: "00000000-0000-0000-0000-000000000099" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("deleteReview does not delete the review or activity events when authz fails", async () => {
+    const now = new Date();
+    const review: Review = {
+      id: "00000000-0000-0000-0000-000000000001",
+      authorId: "00000000-0000-0000-0000-000000000002",
+      bookId: "00000000-0000-0000-0000-000000000003",
+      body: "Great book",
+      visibility: "public",
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const reviewRepo = makeReviewRepo({
+      findById: vi.fn().mockResolvedValue(review),
+      delete: vi.fn(),
+    });
+    const activity = makeActivity();
+
+    const service = new ReviewService(reviewRepo, activity);
+    await expect(
+      service.deleteReview({ id: review.id, authorId: "00000000-0000-0000-0000-000000000099" })
+    ).rejects.toThrow();
+
+    expect(activity.deleteByReviewId).not.toHaveBeenCalled();
+    expect(reviewRepo.delete).not.toHaveBeenCalled();
   });
 });
 
@@ -1237,6 +1323,7 @@ describe("SocialService", () => {
     return {
       append: vi.fn(),
       getFriendFeed: vi.fn().mockResolvedValue(feedItems),
+      deleteByReviewId: vi.fn(),
     };
   }
 

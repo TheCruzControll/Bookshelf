@@ -56,8 +56,9 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       findById: vi.fn(),
       create: vi.fn().mockResolvedValue(makeReview()),
       update: vi.fn(),
+      delete: vi.fn().mockResolvedValue(undefined),
     },
-    activity: { append: vi.fn().mockResolvedValue(undefined), getFriendFeed: vi.fn() },
+    activity: { append: vi.fn().mockResolvedValue(undefined), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn().mockResolvedValue(undefined) },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
@@ -102,7 +103,7 @@ describe("review.create", () => {
   it("creates a review with public visibility by default", async () => {
     const review = makeReview({ visibility: "public" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -118,7 +119,7 @@ describe("review.create", () => {
   it("creates a review with followers visibility", async () => {
     const review = makeReview({ visibility: "followers" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -134,7 +135,7 @@ describe("review.create", () => {
   it("creates a review with mutuals visibility", async () => {
     const review = makeReview({ visibility: "mutuals" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -150,7 +151,7 @@ describe("review.create", () => {
   it("creates a review with private visibility", async () => {
     const review = makeReview({ visibility: "private" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -196,7 +197,7 @@ describe("review.create", () => {
   it("activity event visibility matches review visibility", async () => {
     const review = makeReview({ visibility: "mutuals" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
     await app.request("/trpc/review.create", {
@@ -245,7 +246,7 @@ describe("review.create", () => {
   it("returns the review id and body in the response", async () => {
     const review = makeReview({ id: UUID2, body: "A great book" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -273,6 +274,7 @@ describe("review.update", () => {
         findById: vi.fn().mockResolvedValue(existing),
         create: vi.fn(),
         update: vi.fn().mockResolvedValue(updated),
+        delete: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -295,6 +297,7 @@ describe("review.update", () => {
         findById: vi.fn().mockResolvedValue(existing),
         create: vi.fn(),
         update: vi.fn().mockResolvedValue(updated),
+        delete: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -315,6 +318,7 @@ describe("review.update", () => {
         findById: vi.fn().mockResolvedValue(existing),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -333,6 +337,7 @@ describe("review.update", () => {
         findById: vi.fn().mockResolvedValue(existing),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -352,6 +357,7 @@ describe("review.update", () => {
         findById: vi.fn().mockResolvedValue(null),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -370,6 +376,7 @@ describe("review.update", () => {
         findById: vi.fn().mockResolvedValue(existing),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -421,6 +428,7 @@ describe("review.update", () => {
         findById: vi.fn().mockResolvedValue(existing),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -430,5 +438,110 @@ describe("review.update", () => {
       body: JSON.stringify({ id: UUID2, version: 1, body: "Stale edit" }),
     });
     expect(repos.reviews.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("review.delete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("deletes a review successfully", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID1, version: 1 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2 }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.success).toBe(true);
+  });
+
+  it("calls deleteByReviewId on activity repository", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID1, version: 1 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    await app.request("/trpc/review.delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2 }),
+    });
+    expect(repos.activity.deleteByReviewId).toHaveBeenCalledWith(UUID2);
+  });
+
+  it("returns 404 when review does not exist", async () => {
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2 }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 403 when user is not the author", async () => {
+    const existing = makeReview({ id: UUID2, authorId: UUID2, version: 1 });
+    const repos = makeRepositories({
+      reviews: {
+        findById: vi.fn().mockResolvedValue(existing),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
+    const res = await app.request("/trpc/review.delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2 }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+    const res = await app.request("/trpc/review.delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: UUID2 }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects missing review id", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/review.delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
   });
 });

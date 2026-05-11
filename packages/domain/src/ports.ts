@@ -164,6 +164,7 @@ export interface ReviewRepository {
     body?: string | undefined;
     visibility?: Visibility | undefined;
   }): Promise<Review>;
+  delete(input: { id: EntityId; authorId: EntityId }): Promise<void>;
 }
 
 export interface ActivityRepository {
@@ -173,6 +174,7 @@ export interface ActivityRepository {
     cursor?: string;
     limit: number;
   }): Promise<FeedItem[]>;
+  deleteByReviewId(reviewId: EntityId): Promise<void>;
 }
 
 export interface RecommendationRepository {

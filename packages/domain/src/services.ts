@@ -380,6 +380,21 @@ export class ReviewService {
     }
     return this.reviews.update(input);
   }
+
+  async deleteReview(input: {
+    id: EntityId;
+    authorId: EntityId;
+  }): Promise<void> {
+    const existing = await this.reviews.findById(input.id);
+    if (!existing) {
+      throw Object.assign(new Error("Review not found"), { code: "NOT_FOUND" });
+    }
+    if (existing.authorId !== input.authorId) {
+      throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+    }
+    await this.activity.deleteByReviewId(existing.id);
+    await this.reviews.delete({ id: input.id, authorId: input.authorId });
+  }
 }
 
 const APPLE_ISSUER = "https://appleid.apple.com";

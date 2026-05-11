@@ -342,6 +342,14 @@ export class DrizzleReviewRepository implements ReviewRepository {
     }
     return toReview(row);
   }
+
+  async delete(input: { id: EntityId; authorId: EntityId }) {
+    await this.db
+      .delete(reviews)
+      .where(
+        and(eq(reviews.id, input.id), eq(reviews.authorId, input.authorId))
+      );
+  }
 }
 
 export class DrizzleActivityRepository implements ActivityRepository {
@@ -393,6 +401,12 @@ export class DrizzleActivityRepository implements ActivityRepository {
     }}));
 
     return feedItems;
+  }
+
+  async deleteByReviewId(reviewId: EntityId) {
+    await this.db
+      .delete(activityEvents)
+      .where(eq(activityEvents.reviewId, reviewId));
   }
 }
 

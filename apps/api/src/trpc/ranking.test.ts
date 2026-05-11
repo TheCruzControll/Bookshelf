@@ -48,8 +48,8 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     },
     books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
     shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
-    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn() },
-    activity: { append: vi.fn(), getFriendFeed: vi.fn() },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
@@ -459,8 +459,9 @@ describe("ranking.compare", () => {
         findById: vi.fn(),
         create: vi.fn().mockResolvedValue(mockReview),
         update: vi.fn(),
+        delete: vi.fn(),
       },
-      activity: { append: vi.fn(), getFriendFeed: vi.fn() },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
     });
     const cache = makeCache(store);
     const app = buildApp(makeIdentity(), repos, cache);
@@ -537,8 +538,9 @@ describe("ranking.compare", () => {
         findById: vi.fn(),
         create: vi.fn().mockResolvedValue(mockReview),
         update: vi.fn(),
+        delete: vi.fn(),
       },
-      activity: { append: vi.fn(), getFriendFeed: vi.fn() },
+      activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
     });
     const cache = makeCache(store);
     const app = buildApp(makeIdentity(), repos, cache);

@@ -28,10 +28,11 @@ function makeRepositories(): AppRepositories {
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn().mockResolvedValue([])
     },
-    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn() },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     activity: {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
-      getFriendFeed: vi.fn()
+      getFriendFeed: vi.fn(),
+      deleteByReviewId: vi.fn()
     },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
