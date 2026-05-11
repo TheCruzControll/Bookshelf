@@ -31,6 +31,7 @@ import type {
   ShelfItem,
   PhoneVerification,
   PhoneNumber,
+  Salt,
   Visibility
 } from "./types";
 
@@ -401,6 +402,33 @@ export interface PhoneNumberRepository {
   upsert(input: { profileId: EntityId; e164Hash: string }): Promise<PhoneNumber>;
   findByProfileId(profileId: EntityId): Promise<PhoneNumber | null>;
   findByHash(e164Hash: string): Promise<PhoneNumber | null>;
+/**
+ * Port for generating new HMAC key material.
+ * Implemented by AWS KMS adapter in production and a local random stub in dev.
+ */
+export interface SaltKeyProvider {
+  /** Generate a new HMAC key — returns the raw key material as a hex string */
+  generateKey(): Promise<string>;
+}
+
+export interface SaltRepository {
+  /** Insert a new salt version */
+  create(input: {
+    version: number;
+    keyMaterial: string;
+    activeFrom: Date;
+    activeTo?: Date | undefined;
+  }): Promise<Salt>;
+  /** Find the currently active salt (activeFrom <= now, activeTo is null or > now) */
+  findActive(): Promise<Salt | null>;
+  /** Find a salt by its version number */
+  findByVersion(version: number): Promise<Salt | null>;
+  /** Retire a salt by setting its activeTo timestamp */
+  retire(input: { version: number; activeTo: Date }): Promise<Salt>;
+  /** Get the latest salt version number */
+  getLatestVersion(): Promise<number>;
+  /** List all salts ordered by version desc */
+  listAll(): Promise<Salt[]>;
 }
 
 export interface AppRepositories {
@@ -425,6 +453,8 @@ export interface AppRepositories {
   inAppNotifications: InAppNotificationRepository;
   phoneVerifications: PhoneVerificationRepository;
   phoneNumbers: PhoneNumberRepository;
+
+  salts: SaltRepository;
 }
 
 export interface BlockFilter {

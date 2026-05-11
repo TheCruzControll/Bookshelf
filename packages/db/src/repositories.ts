@@ -29,7 +29,7 @@
  * surface that returns content attributed to another user: shelves, reviews,
  * activity feed, rankings, lists, and search results.
  */
-import { and, asc, desc, eq, gt, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type {
   ActivityRepository,
   AppRepositories,
@@ -56,6 +56,8 @@ import type {
   ReviewRepository,
   PhoneNumberRepository,
   PhoneVerificationRepository,
+  Salt,
+  SaltRepository,
   SessionRepository,
   ShelfRepository
 } from "@hone/domain";
@@ -80,6 +82,7 @@ import {
   rankings,
   recommendationScores,
   reviews,
+  salts,
   sessions,
   phoneNumbers,
   phoneVerifications,
@@ -106,6 +109,7 @@ import {
   toProfile,
   toRanking,
   toReview,
+  toSalt,
   toSession,
   toShelf,
   toShelfItem
@@ -1479,6 +1483,73 @@ export class DrizzlePhoneNumberRepository implements PhoneNumberRepository {
   }
 }
 
+class DrizzleSaltRepository implements SaltRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async create(input: {
+    version: number;
+    keyMaterial: string;
+    activeFrom: Date;
+    activeTo?: Date | undefined;
+  }): Promise<Salt> {
+    const [row] = await this.db
+      .insert(salts)
+      .values({
+        version: input.version,
+        keyMaterial: input.keyMaterial,
+        activeFrom: input.activeFrom,
+        activeTo: input.activeTo ?? null,
+      })
+      .returning();
+    if (!row) throw new Error("Failed to create salt");
+    return toSalt(row);
+  }
+
+  async findActive(): Promise<Salt | null> {
+    const now = new Date();
+    const row = await this.db.query.salts.findFirst({
+      where: and(
+        lt(salts.activeFrom, now),
+        or(isNull(salts.activeTo), gt(salts.activeTo, now))
+      ),
+      orderBy: [desc(salts.version)],
+    });
+    return row ? toSalt(row) : null;
+  }
+
+  async findByVersion(version: number): Promise<Salt | null> {
+    const row = await this.db.query.salts.findFirst({
+      where: eq(salts.version, version),
+    });
+    return row ? toSalt(row) : null;
+  }
+
+  async retire(input: { version: number; activeTo: Date }): Promise<Salt> {
+    const [row] = await this.db
+      .update(salts)
+      .set({ activeTo: input.activeTo })
+      .where(eq(salts.version, input.version))
+      .returning();
+    if (!row) throw new Error("Salt not found");
+    return toSalt(row);
+  }
+
+  async getLatestVersion(): Promise<number> {
+    const row = await this.db.query.salts.findFirst({
+      orderBy: [desc(salts.version)],
+    });
+    return row ? row.version : 0;
+  }
+
+  async listAll(): Promise<Salt[]> {
+    const rows = await this.db
+      .select()
+      .from(salts)
+      .orderBy(desc(salts.version));
+    return rows.map(toSalt);
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -1502,5 +1573,6 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     inAppNotifications: new DrizzleInAppNotificationRepository(db),
     phoneVerifications: new DrizzlePhoneVerificationRepository(db),
     phoneNumbers: new DrizzlePhoneNumberRepository(db),
+    salts: new DrizzleSaltRepository(db),
   };
 }

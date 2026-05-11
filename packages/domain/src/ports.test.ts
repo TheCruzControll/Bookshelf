@@ -10,6 +10,7 @@ import type {
   ListRepository,
   NotificationRepository,
   RankingRepository,
+  SaltRepository,
   SessionRepository,
   ShelfRepository,
 } from "./ports";
@@ -26,6 +27,7 @@ type _AppRepositoriesHasContacts = Assert<HasKey<AppRepositories, "contacts">>;
 type _AppRepositoriesHasLists = Assert<HasKey<AppRepositories, "lists">>;
 type _AppRepositoriesHasSessions = Assert<HasKey<AppRepositories, "sessions">>;
 type _AppRepositoriesHasAuthIdentities = Assert<HasKey<AppRepositories, "authIdentities">>;
+type _AppRepositoriesHasSalts = Assert<HasKey<AppRepositories, "salts">>;
 
 type _FollowRepositoryHasFollow = Assert<HasKey<FollowRepository, "follow">>;
 type _FollowRepositoryHasUnfollow = Assert<HasKey<FollowRepository, "unfollow">>;
@@ -92,6 +94,13 @@ type _ShelfRepositoryHasUpsertShelfItem = Assert<HasKey<ShelfRepository, "upsert
 type _ShelfRepositoryHasDeleteShelfItem = Assert<HasKey<ShelfRepository, "deleteShelfItem">>;
 type _ShelfRepositoryHasGetMaxPosition = Assert<HasKey<ShelfRepository, "getMaxPosition">>;
 type _ShelfRepositoryHasMoveShelfItem = Assert<HasKey<ShelfRepository, "moveShelfItem">>;
+
+type _SaltRepositoryHasCreate = Assert<HasKey<SaltRepository, "create">>;
+type _SaltRepositoryHasFindActive = Assert<HasKey<SaltRepository, "findActive">>;
+type _SaltRepositoryHasFindByVersion = Assert<HasKey<SaltRepository, "findByVersion">>;
+type _SaltRepositoryHasRetire = Assert<HasKey<SaltRepository, "retire">>;
+type _SaltRepositoryHasGetLatestVersion = Assert<HasKey<SaltRepository, "getLatestVersion">>;
+type _SaltRepositoryHasListAll = Assert<HasKey<SaltRepository, "listAll">>;
 
 type _CatalogProviderHasSearch = Assert<HasKey<CatalogProvider, "search">>;
 type _CatalogProviderHasLookupByIsbn = Assert<HasKey<CatalogProvider, "lookupByIsbn">>;
@@ -163,6 +172,13 @@ export type {
   _ShelfRepositoryHasGetMaxPosition,
   _ShelfRepositoryHasMoveShelfItem,
   _CatalogProviderHasSearch,
+  _AppRepositoriesHasSalts,
+  _SaltRepositoryHasCreate,
+  _SaltRepositoryHasFindActive,
+  _SaltRepositoryHasFindByVersion,
+  _SaltRepositoryHasRetire,
+  _SaltRepositoryHasGetLatestVersion,
+  _SaltRepositoryHasListAll,
   _CatalogProviderHasLookupByIsbn,
 };
 
@@ -178,8 +194,9 @@ describe("ports structural smoke tests", () => {
       "lists",
       "sessions",
       "authIdentities",
+      "salts",
     ];
-    expect(keys).toHaveLength(9);
+    expect(keys).toHaveLength(10);
   });
 
   it("AppRepositories keys include all original repositories", () => {

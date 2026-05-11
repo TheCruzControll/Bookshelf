@@ -10,7 +10,9 @@
     ".": "./src/index.ts",
     "./affiliate": "./src/affiliate.ts",
     "./contact-hash": "./src/contact-hash.ts",
-    "./goodreads": "./src/goodreads.ts"
+    "./goodreads": "./src/goodreads.ts",
+    "./salt-rotation": "./src/salt-rotation.ts",
+    "./salt-provider": "./src/salt-provider.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
