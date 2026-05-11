@@ -266,7 +266,6 @@ describe("AppServices", () => {
       authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
       handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
-      magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() }
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null)
