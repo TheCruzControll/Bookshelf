@@ -22,8 +22,10 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "./ports";
-import type { ContentType, EntityId, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ContentType, EntityId, ActivityEvent, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
+import { scoreFromRank } from "./score";
+
 
 export interface SystemShelfDef {
   name: string;
@@ -287,7 +289,10 @@ export class ProfileService {
 }
 
 export class RankingService {
-  constructor(private readonly rankings: RankingRepository) {}
+  constructor(
+    private readonly rankings: RankingRepository,
+    private readonly activity: ActivityRepository
+  ) {}
 
   async startBucket(input: {
     ownerId: EntityId;
@@ -295,6 +300,37 @@ export class RankingService {
     bucket: number;
   }): Promise<Ranking> {
     return this.rankings.startBucket(input);
+  }
+
+  /**
+   * Finish ranking flow: insert or update ranking, compute score from position,
+   * and write a frozen-at-publish activity event.
+   */
+  async finishBook(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    position: number;
+    total: number;
+  }): Promise<{ ranking: Ranking; event: ActivityEvent }> {
+    const score = scoreFromRank(input.position, input.total);
+
+    const ranking = await this.rankings.upsert({
+      ownerId: input.ownerId,
+      bookId: input.bookId,
+      rank: input.position,
+      score,
+    });
+
+    const event = await this.activity.append({
+      actorId: input.ownerId,
+      verb: "book_finished",
+      bookId: input.bookId,
+      visibility: "followers",
+      scoreAtPublish: score,
+      scoreLockedAtPublish: input.total < 10,
+    });
+
+    return { ranking, event };
   }
 }
 
@@ -808,7 +844,7 @@ export class AppServices {
       repositories.profiles,
       repositories.shelves
     );
-    this.rankings = new RankingService(repositories.rankings);
+    this.rankings = new RankingService(repositories.rankings, repositories.activity);
     this.reviews = new ReviewService(
       repositories.reviews,
       repositories.activity

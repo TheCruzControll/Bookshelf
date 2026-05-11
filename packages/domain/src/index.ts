@@ -6,6 +6,7 @@ export * from "./isbn";
 export * from "./lww";
 export * from "./ports";
 export * from "./schemas";
+export * from "./score";
 export * from "./services";
 export * from "./types";
 export * from "./visibility";
