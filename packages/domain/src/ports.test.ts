@@ -86,6 +86,11 @@ type _AuthIdentityRepositoryHasFindByProvider = Assert<HasKey<AuthIdentityReposi
 type _AuthIdentityRepositoryHasListByProfile = Assert<HasKey<AuthIdentityRepository, "listByProfile">>;
 
 type _ShelfRepositoryHasCreateSystemShelves = Assert<HasKey<ShelfRepository, "createSystemShelves">>;
+type _ShelfRepositoryHasFindShelfItem = Assert<HasKey<ShelfRepository, "findShelfItem">>;
+type _ShelfRepositoryHasUpsertShelfItem = Assert<HasKey<ShelfRepository, "upsertShelfItem">>;
+type _ShelfRepositoryHasDeleteShelfItem = Assert<HasKey<ShelfRepository, "deleteShelfItem">>;
+type _ShelfRepositoryHasGetMaxPosition = Assert<HasKey<ShelfRepository, "getMaxPosition">>;
+type _ShelfRepositoryHasMoveShelfItem = Assert<HasKey<ShelfRepository, "moveShelfItem">>;
 
 type _CatalogProviderHasSearch = Assert<HasKey<CatalogProvider, "search">>;
 type _CatalogProviderHasLookupByIsbn = Assert<HasKey<CatalogProvider, "lookupByIsbn">>;
@@ -150,6 +155,11 @@ export type {
   _AuthIdentityRepositoryHasFindByProvider,
   _AuthIdentityRepositoryHasListByProfile,
   _ShelfRepositoryHasCreateSystemShelves,
+  _ShelfRepositoryHasFindShelfItem,
+  _ShelfRepositoryHasUpsertShelfItem,
+  _ShelfRepositoryHasDeleteShelfItem,
+  _ShelfRepositoryHasGetMaxPosition,
+  _ShelfRepositoryHasMoveShelfItem,
   _CatalogProviderHasSearch,
   _CatalogProviderHasLookupByIsbn,
 };

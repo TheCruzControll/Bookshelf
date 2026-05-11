@@ -62,6 +62,8 @@ export const ShelfItemSchema = z.object({
   editionId: EntityIdSchema.optional(),
   status: ReadingStatusSchema,
   rank: z.number().int().positive().optional(),
+  notes: z.string().optional(),
+  position: z.number().int().nonnegative().optional(),
   addedAt: z.date(),
   updatedAt: z.date(),
 });
@@ -110,6 +112,37 @@ export const ListShelvesOutputSchema = z.object({
   shelves: z.array(ShelfSchema),
 });
 
+export const UpsertShelfItemInputSchema = z.object({
+  shelfId: EntityIdSchema,
+  bookId: EntityIdSchema,
+  editionId: EntityIdSchema.optional(),
+  notes: z.string().max(10000).optional(),
+  position: z.number().int().nonnegative().optional(),
+});
+
+export const UpsertShelfItemOutputSchema = z.object({
+  shelfItem: ShelfItemSchema,
+});
+
+export const MoveShelfItemInputSchema = z.object({
+  shelfId: EntityIdSchema,
+  bookId: EntityIdSchema,
+  position: z.number().int().nonnegative(),
+});
+
+export const MoveShelfItemOutputSchema = z.object({
+  shelfItem: ShelfItemSchema,
+});
+
+export const DeleteShelfItemInputSchema = z.object({
+  shelfId: EntityIdSchema,
+  bookId: EntityIdSchema,
+});
+
+export const DeleteShelfItemOutputSchema = z.object({
+  success: z.boolean(),
+});
+
 export type ReadingStatusInput = z.infer<typeof ReadingStatusSchema>;
 export type AuthorInput = z.infer<typeof AuthorSchema>;
 export type BookInput = z.infer<typeof BookSchema>;
@@ -127,3 +160,9 @@ export type CreateShelfOutput = z.infer<typeof CreateShelfOutputSchema>;
 export type UpdateShelfOutput = z.infer<typeof UpdateShelfOutputSchema>;
 export type DeleteShelfOutput = z.infer<typeof DeleteShelfOutputSchema>;
 export type ListShelvesOutput = z.infer<typeof ListShelvesOutputSchema>;
+export type UpsertShelfItemInput = z.infer<typeof UpsertShelfItemInputSchema>;
+export type UpsertShelfItemOutput = z.infer<typeof UpsertShelfItemOutputSchema>;
+export type MoveShelfItemInput = z.infer<typeof MoveShelfItemInputSchema>;
+export type MoveShelfItemOutput = z.infer<typeof MoveShelfItemOutputSchema>;
+export type DeleteShelfItemInput = z.infer<typeof DeleteShelfItemInputSchema>;
+export type DeleteShelfItemOutput = z.infer<typeof DeleteShelfItemOutputSchema>;

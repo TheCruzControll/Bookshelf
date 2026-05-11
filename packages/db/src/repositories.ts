@@ -307,6 +307,81 @@ export class DrizzleShelfRepository implements ShelfRepository {
 
     return all.map(toShelf);
   }
+
+  async findShelfItem(input: { shelfId: EntityId; bookId: EntityId }) {
+    const row = await this.db.query.shelfItems.findFirst({
+      where: and(
+        eq(shelfItems.shelfId, input.shelfId),
+        eq(shelfItems.bookId, input.bookId)
+      ),
+    });
+    return row ? toShelfItem(row) : null;
+  }
+
+  async upsertShelfItem(input: {
+    shelfId: EntityId;
+    bookId: EntityId;
+    editionId?: EntityId | undefined;
+    notes?: string | undefined;
+    position?: number | undefined;
+  }) {
+    const [row] = await this.db
+      .insert(shelfItems)
+      .values({
+        shelfId: input.shelfId,
+        bookId: input.bookId,
+        editionId: input.editionId ?? null,
+        notes: input.notes ?? null,
+        position: input.position ?? null,
+        status: "want_to_read",
+      })
+      .onConflictDoUpdate({
+        target: [shelfItems.shelfId, shelfItems.bookId],
+        set: {
+          ...(input.editionId !== undefined ? { editionId: input.editionId } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes ?? null } : {}),
+          ...(input.position !== undefined ? { position: input.position } : {}),
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    if (!row) throw new Error("Failed to upsert shelf item");
+    return toShelfItem(row);
+  }
+
+  async deleteShelfItem(input: { shelfId: EntityId; bookId: EntityId }) {
+    await this.db
+      .delete(shelfItems)
+      .where(
+        and(
+          eq(shelfItems.shelfId, input.shelfId),
+          eq(shelfItems.bookId, input.bookId)
+        )
+      );
+  }
+
+  async getMaxPosition(shelfId: EntityId): Promise<number> {
+    const result = await this.db
+      .select({ maxPos: sql<number>`coalesce(max(${shelfItems.position}), -1)` })
+      .from(shelfItems)
+      .where(eq(shelfItems.shelfId, shelfId));
+    return result[0]?.maxPos ?? -1;
+  }
+
+  async moveShelfItem(input: { shelfId: EntityId; bookId: EntityId; position: number }) {
+    const [row] = await this.db
+      .update(shelfItems)
+      .set({ position: input.position, updatedAt: new Date() })
+      .where(
+        and(
+          eq(shelfItems.shelfId, input.shelfId),
+          eq(shelfItems.bookId, input.bookId)
+        )
+      )
+      .returning();
+    if (!row) throw new Error("Shelf item not found");
+    return toShelfItem(row);
+  }
 }
 
 export class DrizzleReviewRepository implements ReviewRepository {

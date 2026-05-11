@@ -7,6 +7,7 @@ import { profileRouter } from "./profile";
 import { rankingRouter } from "./ranking";
 import { reviewRouter } from "./review";
 import { shelfRouter } from "./shelf";
+import { shelfItemRouter } from "./shelf-item";
 
 export { router, publicProcedure };
 
@@ -20,6 +21,7 @@ export const appRouter = router({
   ranking: rankingRouter,
   review: reviewRouter,
   shelf: shelfRouter,
+  shelfItem: shelfItemRouter,
 });
 
 export type AppRouter = typeof appRouter;
