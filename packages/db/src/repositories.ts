@@ -318,13 +318,6 @@ export class DrizzleShelfRepository implements ShelfRepository {
     return row ? toShelfItem(row) : null;
   }
 
-  async findShelfItemById(id: EntityId) {
-    const row = await this.db.query.shelfItems.findFirst({
-      where: eq(shelfItems.id, id),
-    });
-    return row ? toShelfItem(row) : null;
-  }
-
   async upsertShelfItem(input: {
     shelfId: EntityId;
     bookId: EntityId;
@@ -353,24 +346,6 @@ export class DrizzleShelfRepository implements ShelfRepository {
       })
       .returning();
     if (!row) throw new Error("Failed to upsert shelf item");
-    return toShelfItem(row);
-  }
-
-  async updateShelfItem(input: {
-    id: EntityId;
-    notes?: string | undefined;
-    position?: number | undefined;
-  }) {
-    const updateData: Record<string, unknown> = { updatedAt: new Date() };
-    if (input.notes !== undefined) updateData.notes = input.notes;
-    if (input.position !== undefined) updateData.position = input.position;
-
-    const [row] = await this.db
-      .update(shelfItems)
-      .set(updateData)
-      .where(eq(shelfItems.id, input.id))
-      .returning();
-    if (!row) throw new Error("Shelf item not found");
     return toShelfItem(row);
   }
 

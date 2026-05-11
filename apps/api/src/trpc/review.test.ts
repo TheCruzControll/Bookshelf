@@ -52,9 +52,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn(),
       findShelfItem: vi.fn(),
-      findShelfItemById: vi.fn(),
       upsertShelfItem: vi.fn(),
-      updateShelfItem: vi.fn(),
       deleteShelfItem: vi.fn(),
       getMaxPosition: vi.fn().mockResolvedValue(0),
       moveShelfItem: vi.fn()

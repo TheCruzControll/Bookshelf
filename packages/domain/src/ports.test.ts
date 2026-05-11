@@ -87,9 +87,7 @@ type _AuthIdentityRepositoryHasListByProfile = Assert<HasKey<AuthIdentityReposit
 
 type _ShelfRepositoryHasCreateSystemShelves = Assert<HasKey<ShelfRepository, "createSystemShelves">>;
 type _ShelfRepositoryHasFindShelfItem = Assert<HasKey<ShelfRepository, "findShelfItem">>;
-type _ShelfRepositoryHasFindShelfItemById = Assert<HasKey<ShelfRepository, "findShelfItemById">>;
 type _ShelfRepositoryHasUpsertShelfItem = Assert<HasKey<ShelfRepository, "upsertShelfItem">>;
-type _ShelfRepositoryHasUpdateShelfItem = Assert<HasKey<ShelfRepository, "updateShelfItem">>;
 type _ShelfRepositoryHasDeleteShelfItem = Assert<HasKey<ShelfRepository, "deleteShelfItem">>;
 type _ShelfRepositoryHasGetMaxPosition = Assert<HasKey<ShelfRepository, "getMaxPosition">>;
 type _ShelfRepositoryHasMoveShelfItem = Assert<HasKey<ShelfRepository, "moveShelfItem">>;
@@ -158,9 +156,7 @@ export type {
   _AuthIdentityRepositoryHasListByProfile,
   _ShelfRepositoryHasCreateSystemShelves,
   _ShelfRepositoryHasFindShelfItem,
-  _ShelfRepositoryHasFindShelfItemById,
   _ShelfRepositoryHasUpsertShelfItem,
-  _ShelfRepositoryHasUpdateShelfItem,
   _ShelfRepositoryHasDeleteShelfItem,
   _ShelfRepositoryHasGetMaxPosition,
   _ShelfRepositoryHasMoveShelfItem,
