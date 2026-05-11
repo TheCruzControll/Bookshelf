@@ -27,6 +27,7 @@ import type {
   SessionRepository,
   PhoneNumberRepository,
   PhoneVerificationRepository,
+  SaltRepository,
   ShelfRepository,
   SmsProvider
 } from "./ports";
@@ -1234,8 +1235,25 @@ export class ContactsService {
     private readonly contacts: ContactsRepository,
     private readonly emailIndex: EmailIndexRepository,
     private readonly blocks: BlockRepository,
+    private readonly salts?: SaltRepository,
   ) {
     this.blockService = new BlockService(blocks);
+  }
+
+  async validateSaltVersion(saltVersion: number): Promise<void> {
+    if (!this.salts) {
+      throw Object.assign(new Error("Salt repository not configured"), { code: "INTERNAL_ERROR" });
+    }
+    const active = await this.salts.findActive();
+    if (!active) {
+      throw Object.assign(new Error("No active salt configured"), { code: "INTERNAL_ERROR" });
+    }
+    if (active.version !== saltVersion) {
+      throw Object.assign(
+        new Error(`Stale salt version: expected ${active.version}, got ${saltVersion}`),
+        { code: "STALE_SALT", expectedVersion: active.version },
+      );
+    }
   }
 
   async uploadPhoneHashes(input: {
