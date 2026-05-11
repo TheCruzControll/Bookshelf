@@ -1,5 +1,7 @@
 export * from "./activity-publisher";
 export * from "./affiliate";
+export * from "./algorithmic-list";
+export * from "./algorithmic-refresh";
 export * from "./candidate";
 export * from "./heuristic-scorer";
 // contact-hash uses node:crypto — server-only, import from "@hone/domain/contact-hash"
