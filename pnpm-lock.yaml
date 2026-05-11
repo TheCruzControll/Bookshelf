@@ -101,7 +101,7 @@ importers:
         version: 53.0.27(@babel/core@7.29.0)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6)))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
       expo-router:
         specifier: ^5.0.0
-        version: 5.1.11(67c07a8c26848448ee48054647b9edbe)
+        version: 5.1.11(f97d78226e440ecce26352c20c2b30b7)
       react:
         specifier: ^19.0.0
         version: 19.2.6
@@ -215,6 +215,9 @@ importers:
 
   packages/domain:
     dependencies:
+      libphonenumber-js:
+        specifier: ^1.13.0
+        version: 1.13.0
       zod:
         specifier: ^3.25.0
         version: 3.25.76
@@ -4025,6 +4028,9 @@ packages:
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
+
+  libphonenumber-js@1.13.0:
+    resolution: {integrity: sha512-N12qmdu0BM1wVNkMKYOoJR4fTOZDblrKNsOqGbKoUZrYsYLX2zx1O5X+vhK0WJPBU/+/kh9tCr8x0a7t1puGWg==}
 
   lighthouse-logger@1.4.2:
     resolution: {integrity: sha512-gPWxznF6TKmUHrOQjlVo2UbaL2EJ71mb2CCeRs/2qBpi4L/g4LUVc9+3lKQ6DTUZwJswfM7ainGrLO1+fOqa2g==}
@@ -9140,7 +9146,7 @@ snapshots:
     dependencies:
       invariant: 2.2.4
 
-  expo-router@5.1.11(67c07a8c26848448ee48054647b9edbe):
+  expo-router@5.1.11(f97d78226e440ecce26352c20c2b30b7):
     dependencies:
       '@expo/metro-runtime': 5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))
       '@expo/schema-utils': 0.1.8
@@ -9151,7 +9157,7 @@ snapshots:
       '@react-navigation/native-stack': 7.14.14(@react-navigation/native@7.2.4(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6))(react-native-safe-area-context@5.4.0(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6))(react-native-screens@4.11.1(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
       client-only: 0.0.1
       expo: 53.0.27(@babel/core@7.29.0)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6)))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
-      expo-constants: 55.0.16(expo@53.0.27(@babel/core@7.29.0)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6)))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))
+      expo-constants: 17.1.8(expo@53.0.27(@babel/core@7.29.0)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6)))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))
       expo-linking: 55.0.15(expo@53.0.27(@babel/core@7.29.0)(@expo/metro-runtime@5.0.5(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6)))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6))(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
       invariant: 2.2.4
       react-fast-compare: 3.2.2
@@ -9609,6 +9615,8 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
       type-check: 0.4.0
+
+  libphonenumber-js@1.13.0: {}
 
   lighthouse-logger@1.4.2:
     dependencies:

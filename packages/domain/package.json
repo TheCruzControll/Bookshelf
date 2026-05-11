@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./affiliate": "./src/affiliate.ts",
+    "./contact-hash": "./src/contact-hash.ts",
     "./goodreads": "./src/goodreads.ts"
   },
   "scripts": {
@@ -22,6 +23,7 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
+    "libphonenumber-js": "^1.13.0",
     "zod": "^3.25.0"
   }
 }
