@@ -9,12 +9,14 @@ import type {
   BlockFilter,
   BlockRepository,
   ContactsRepository,
+  EmailProvider,
   FollowRepository,
   GoogleJwksProvider,
   GoogleTokenClaims,
   HandleHistoryRepository,
   ImportRepository,
   ListRepository,
+  MagicLinkRepository,
   ProfileRepository,
   RankingRepository,
   RecommendationRepository,
@@ -22,8 +24,10 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "./ports";
-import type { ContentType, EntityId, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ContentType, EntityId, ActivityEvent, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
+import { scoreFromRank } from "./score";
+
 
 export interface SystemShelfDef {
   name: string;
@@ -287,7 +291,10 @@ export class ProfileService {
 }
 
 export class RankingService {
-  constructor(private readonly rankings: RankingRepository) {}
+  constructor(
+    private readonly rankings: RankingRepository,
+    private readonly activity: ActivityRepository
+  ) {}
 
   async startBucket(input: {
     ownerId: EntityId;
@@ -295,6 +302,37 @@ export class RankingService {
     bucket: number;
   }): Promise<Ranking> {
     return this.rankings.startBucket(input);
+  }
+
+  /**
+   * Finish ranking flow: insert or update ranking, compute score from position,
+   * and write a frozen-at-publish activity event.
+   */
+  async finishBook(input: {
+    ownerId: EntityId;
+    bookId: EntityId;
+    position: number;
+    total: number;
+  }): Promise<{ ranking: Ranking; event: ActivityEvent }> {
+    const score = scoreFromRank(input.position, input.total);
+
+    const ranking = await this.rankings.upsert({
+      ownerId: input.ownerId,
+      bookId: input.bookId,
+      rank: input.position,
+      score,
+    });
+
+    const event = await this.activity.append({
+      actorId: input.ownerId,
+      verb: "book_finished",
+      bookId: input.bookId,
+      visibility: "followers",
+      scoreAtPublish: score,
+      scoreLockedAtPublish: input.total < 10,
+    });
+
+    return { ranking, event };
   }
 }
 
@@ -561,6 +599,102 @@ export class AuthService {
   }
 }
 
+const MAGIC_LINK_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+export class MagicLinkService {
+  constructor(
+    private readonly magicLinks: MagicLinkRepository,
+    private readonly authIdentities: AuthIdentityRepository,
+    private readonly sessions: SessionRepository,
+    private readonly emailProvider: EmailProvider
+  ) {}
+
+  async requestMagicLink(email: string): Promise<{ expiresAt: Date }> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Clean up any expired tokens for this email
+    await this.magicLinks.deleteExpiredForEmail(normalizedEmail);
+
+    // Generate a random token and hash it for storage
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken, "utf8").digest("hex");
+    const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MS);
+
+    await this.magicLinks.create({
+      email: normalizedEmail,
+      tokenHash,
+      expiresAt,
+    });
+
+    // Send email with the raw token (not the hash)
+    const expiresInMinutes = Math.round(MAGIC_LINK_TTL_MS / 60000);
+    await this.emailProvider.sendMagicLink({
+      to: normalizedEmail,
+      token: rawToken,
+      expiresInMinutes,
+    });
+
+    return { expiresAt };
+  }
+
+  async consumeMagicLink(token: string): Promise<{ sessionToken: string; expiresAt: Date; isNewUser: boolean }> {
+    const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+
+    const magicLink = await this.magicLinks.findByTokenHash(tokenHash);
+
+    if (!magicLink) {
+      throw Object.assign(new Error("Invalid or expired magic link"), { code: "INVALID_TOKEN" });
+    }
+
+    if (magicLink.consumedAt) {
+      throw Object.assign(new Error("Magic link already used"), { code: "TOKEN_CONSUMED" });
+    }
+
+    if (magicLink.expiresAt < new Date()) {
+      throw Object.assign(new Error("Magic link expired"), { code: "TOKEN_EXPIRED" });
+    }
+
+    // Mark the token as consumed (one-time use)
+    await this.magicLinks.markConsumed(tokenHash);
+
+    // Find or create identity by email
+    const existing = await this.authIdentities.findByProvider({
+      provider: "email",
+      providerUserId: magicLink.email,
+    });
+
+    let profileId: EntityId;
+    let isNewUser: boolean;
+
+    if (existing) {
+      profileId = existing.profileId;
+      isNewUser = false;
+    } else {
+      const bytes = randomBytes(16);
+      bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+      bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+      const hex = bytes.toString("hex");
+      const newProfileId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+      await this.authIdentities.create({
+        provider: "email",
+        providerUserId: magicLink.email,
+        profileId: newProfileId,
+      });
+      profileId = newProfileId;
+      isNewUser = true;
+    }
+
+    // Create a session
+    const rawSessionToken = randomBytes(32).toString("hex");
+    const sessionTokenHash = createHash("sha256").update(rawSessionToken, "utf8").digest("hex");
+    const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    await this.sessions.create({ tokenHash: sessionTokenHash, profileId, expiresAt: sessionExpiresAt });
+
+    return { sessionToken: rawSessionToken, expiresAt: sessionExpiresAt, isNewUser };
+  }
+}
+
 export class BlockService implements BlockFilter {
   constructor(private readonly blocks: BlockRepository) {}
 
@@ -808,7 +942,7 @@ export class AppServices {
       repositories.profiles,
       repositories.shelves
     );
-    this.rankings = new RankingService(repositories.rankings);
+    this.rankings = new RankingService(repositories.rankings, repositories.activity);
     this.reviews = new ReviewService(
       repositories.reviews,
       repositories.activity

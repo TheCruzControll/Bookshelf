@@ -265,7 +265,8 @@ describe("AppServices", () => {
       lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
       authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
-      handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() }
+      handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
+      magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() }
     };
     const auth: AuthProvider = {
       getCurrentIdentity: vi.fn().mockResolvedValue(null)
@@ -396,6 +397,22 @@ describe("slugify", () => {
 });
 
 describe("RankingService", () => {
+  function makeRankingsRepo(overrides?: Partial<RankingRepository>): RankingRepository {
+    return {
+      upsert: vi.fn(),
+      findById: vi.fn(),
+      findByOwnerAndBook: vi.fn(),
+      listByOwner: vi.fn(),
+      delete: vi.fn(),
+      startBucket: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  function makeActivity(overrides?: Partial<ActivityRepository>): ActivityRepository {
+    return { append: vi.fn(), getFriendFeed: vi.fn(), ...overrides };
+  }
+
   it("startBucket delegates to rankings.startBucket", async () => {
     const now = new Date();
     const ranking: Ranking = {
@@ -409,18 +426,183 @@ describe("RankingService", () => {
       createdAt: now,
       updatedAt: now,
     };
-    const rankingsRepo: RankingRepository = {
-      upsert: vi.fn(),
-      findById: vi.fn(),
-      findByOwnerAndBook: vi.fn(),
-      listByOwner: vi.fn(),
-      delete: vi.fn(),
-      startBucket: vi.fn().mockResolvedValue(ranking),
-    };
-    const service = new RankingService(rankingsRepo);
+    const rankingsRepo = makeRankingsRepo({ startBucket: vi.fn().mockResolvedValue(ranking) });
+    const service = new RankingService(rankingsRepo, makeActivity());
     const result = await service.startBucket({ ownerId: ranking.profileId, bookId: ranking.bookId, bucket: 3 });
     expect(rankingsRepo.startBucket).toHaveBeenCalledWith({ ownerId: ranking.profileId, bookId: ranking.bookId, bucket: 3 });
     expect(result.bucket).toBe(3);
+  });
+
+  it("finishBook upserts ranking with derived score and appends activity event with frozen score", async () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "00000000-0000-0000-0000-000000000001",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      bookId: "00000000-0000-0000-0000-000000000002",
+      position: 5,
+      score: 5.56,
+      bucket: 3,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const event = {
+      id: "evt-1",
+      actorId: "00000000-0000-0000-0000-000000000001",
+      verb: "book_finished" as const,
+      bookId: "00000000-0000-0000-0000-000000000002",
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: 5.56,
+      scoreLockedAtPublish: false,
+    };
+    const rankingsRepo = makeRankingsRepo({ upsert: vi.fn().mockResolvedValue(ranking) });
+    const activity = makeActivity({ append: vi.fn().mockResolvedValue(event) });
+    const service = new RankingService(rankingsRepo, activity);
+
+    const result = await service.finishBook({
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      bookId: "00000000-0000-0000-0000-000000000002",
+      position: 5,
+      total: 10,
+    });
+
+    // scoreFromRank(5, 10) = (10-5)/(10-1)*10 = 5/9*10 = 5.56
+    expect(rankingsRepo.upsert).toHaveBeenCalledWith({
+      ownerId: "00000000-0000-0000-0000-000000000001",
+      bookId: "00000000-0000-0000-0000-000000000002",
+      rank: 5,
+      score: 5.56,
+    });
+    expect(activity.append).toHaveBeenCalledWith({
+      actorId: "00000000-0000-0000-0000-000000000001",
+      verb: "book_finished",
+      bookId: "00000000-0000-0000-0000-000000000002",
+      visibility: "followers",
+      scoreAtPublish: 5.56,
+      scoreLockedAtPublish: false,
+    });
+    expect(result.ranking).toEqual(ranking);
+    expect(result.event).toEqual(event);
+  });
+
+  it("finishBook sets scoreLockedAtPublish=true when total < 10", async () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "r1",
+      profileId: "owner1",
+      bookId: "book1",
+      position: 1,
+      score: 10,
+      bucket: 5,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const event = {
+      id: "evt-1",
+      actorId: "owner1",
+      verb: "book_finished" as const,
+      bookId: "book1",
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: 10,
+      scoreLockedAtPublish: true,
+    };
+    const rankingsRepo = makeRankingsRepo({ upsert: vi.fn().mockResolvedValue(ranking) });
+    const activity = makeActivity({ append: vi.fn().mockResolvedValue(event) });
+    const service = new RankingService(rankingsRepo, activity);
+
+    await service.finishBook({
+      ownerId: "owner1",
+      bookId: "book1",
+      position: 1,
+      total: 5,
+    });
+
+    expect(activity.append).toHaveBeenCalledWith(
+      expect.objectContaining({ scoreLockedAtPublish: true })
+    );
+  });
+
+  it("finishBook sets scoreLockedAtPublish=false when total >= 10", async () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "r1",
+      profileId: "owner1",
+      bookId: "book1",
+      position: 5,
+      score: 5.56,
+      bucket: 3,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const event = {
+      id: "evt-1",
+      actorId: "owner1",
+      verb: "book_finished" as const,
+      bookId: "book1",
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: 5.56,
+      scoreLockedAtPublish: false,
+    };
+    const rankingsRepo = makeRankingsRepo({ upsert: vi.fn().mockResolvedValue(ranking) });
+    const activity = makeActivity({ append: vi.fn().mockResolvedValue(event) });
+    const service = new RankingService(rankingsRepo, activity);
+
+    await service.finishBook({
+      ownerId: "owner1",
+      bookId: "book1",
+      position: 5,
+      total: 10,
+    });
+
+    expect(activity.append).toHaveBeenCalledWith(
+      expect.objectContaining({ scoreLockedAtPublish: false })
+    );
+  });
+
+  it("finishBook freezes score at publish time (snapshot in activity event)", async () => {
+    const now = new Date();
+    const ranking: Ranking = {
+      id: "r1",
+      profileId: "owner1",
+      bookId: "book1",
+      position: 2,
+      score: 7.5,
+      bucket: 4,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const event = {
+      id: "evt-1",
+      actorId: "owner1",
+      verb: "book_finished" as const,
+      bookId: "book1",
+      visibility: "followers" as const,
+      occurredAt: now,
+      scoreAtPublish: 7.5,
+      scoreLockedAtPublish: false,
+    };
+    const rankingsRepo = makeRankingsRepo({ upsert: vi.fn().mockResolvedValue(ranking) });
+    const activity = makeActivity({ append: vi.fn().mockResolvedValue(event) });
+    const service = new RankingService(rankingsRepo, activity);
+
+    const result = await service.finishBook({
+      ownerId: "owner1",
+      bookId: "book1",
+      position: 2,
+      total: 5,
+    });
+
+    // scoreFromRank(2, 5) = 7.5
+    expect(result.event.scoreAtPublish).toBe(7.5);
+    expect(activity.append).toHaveBeenCalledWith(
+      expect.objectContaining({ scoreAtPublish: 7.5 })
+    );
   });
 });
 
