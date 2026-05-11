@@ -265,11 +265,11 @@ describe("profile.createProfile", () => {
         addBook: vi.fn(),
         rankShelfItem: vi.fn(),
         createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
-      findShelfItem: vi.fn(),
-      upsertShelfItem: vi.fn(),
-      deleteShelfItem: vi.fn(),
-      getMaxPosition: vi.fn().mockResolvedValue(0),
-      moveShelfItem: vi.fn()
+        findShelfItem: vi.fn(),
+        upsertShelfItem: vi.fn(),
+        deleteShelfItem: vi.fn(),
+        getMaxPosition: vi.fn().mockResolvedValue(0),
+        moveShelfItem: vi.fn()
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -314,11 +314,11 @@ describe("profile.createProfile", () => {
         addBook: vi.fn(),
         rankShelfItem: vi.fn(),
         createSystemShelves: vi.fn().mockResolvedValue(systemShelves),
-      findShelfItem: vi.fn(),
-      upsertShelfItem: vi.fn(),
-      deleteShelfItem: vi.fn(),
-      getMaxPosition: vi.fn().mockResolvedValue(0),
-      moveShelfItem: vi.fn()
+        findShelfItem: vi.fn(),
+        upsertShelfItem: vi.fn(),
+        deleteShelfItem: vi.fn(),
+        getMaxPosition: vi.fn().mockResolvedValue(0),
+        moveShelfItem: vi.fn()
       },
     });
     const app = buildApp(makeIdentity(), repos);
