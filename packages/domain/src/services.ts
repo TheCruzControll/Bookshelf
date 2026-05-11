@@ -24,7 +24,8 @@ import type {
 } from "./ports";
 import type { ContentType, EntityId, ActivityEvent, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
-import { scoreFromRank } from "./score";
+import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
+import type { GatedRanking } from "./score";
 
 
 export interface SystemShelfDef {
@@ -331,6 +332,25 @@ export class RankingService {
     });
 
     return { ranking, event };
+  }
+
+  /**
+   * Check whether a user has unlocked scores (>= 10 ranked books).
+   */
+  async getScoreUnlockStatus(ownerId: EntityId): Promise<{ unlocked: boolean; finishedCount: number }> {
+    const rankings = await this.rankings.listByOwner(ownerId);
+    const finishedCount = rankings.length;
+    return { unlocked: isScoreUnlocked(finishedCount), finishedCount };
+  }
+
+  /**
+   * List rankings for a user with scores redacted when the user has not
+   * yet unlocked scores (fewer than 10 ranked books).
+   */
+  async listRankingsWithGate(ownerId: EntityId): Promise<GatedRanking[]> {
+    const rankings = await this.rankings.listByOwner(ownerId);
+    const unlocked = isScoreUnlocked(rankings.length);
+    return rankings.map((r) => redactScore(r, unlocked));
   }
 }
 
