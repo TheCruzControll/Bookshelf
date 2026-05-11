@@ -149,6 +149,7 @@ export interface ShelfRepository {
 }
 
 export interface ReviewRepository {
+  findById(id: EntityId): Promise<Review | null>;
   create(input: {
     authorId: EntityId;
     bookId: EntityId;

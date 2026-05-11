@@ -28,7 +28,7 @@ function makeRepositories(): AppRepositories {
       rankShelfItem: vi.fn(),
       createSystemShelves: vi.fn().mockResolvedValue([])
     },
-    reviews: { create: vi.fn(), update: vi.fn() },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn() },
     activity: {
       append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: "u1", verb: "book_added", visibility: "followers", occurredAt: new Date() }),
       getFriendFeed: vi.fn()

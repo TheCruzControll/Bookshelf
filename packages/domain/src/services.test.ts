@@ -253,7 +253,7 @@ describe("AppServices", () => {
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn() },
-      reviews: { create: vi.fn(), update: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn() },
       activity: { append: vi.fn(), getFriendFeed: vi.fn() },
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn() },
@@ -426,7 +426,7 @@ describe("RankingService", () => {
 
 describe("ReviewService", () => {
   function makeReviewRepo(overrides?: Partial<ReviewRepository>): ReviewRepository {
-    return { create: vi.fn(), update: vi.fn(), ...overrides };
+    return { findById: vi.fn(), create: vi.fn(), update: vi.fn(), ...overrides };
   }
   function makeActivity(): ActivityRepository {
     return { append: vi.fn(), getFriendFeed: vi.fn() };
