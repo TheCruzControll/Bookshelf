@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ContactsService } from "./services";
-import type { BlockRepository, ContactsRepository, EmailIndexRepository } from "./ports";
+import type { BlockRepository, ContactsRepository, EmailIndexRepository, SaltRepository } from "./ports";
 
 function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepository {
   return {
@@ -9,6 +9,7 @@ function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepo
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
     expireBySaltVersion: vi.fn().mockResolvedValue(0),
+    deleteByTargetHash: vi.fn().mockResolvedValue(undefined),
     listByUser: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
@@ -21,6 +22,7 @@ function makeEmailIndexRepo(overrides?: Partial<EmailIndexRepository>): EmailInd
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
     expireBySaltVersion: vi.fn().mockResolvedValue(0),
+    deleteByTargetHash: vi.fn().mockResolvedValue(undefined),
     listByUser: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
@@ -34,6 +36,25 @@ function makeBlockRepo(overrides?: Partial<BlockRepository>): BlockRepository {
     listBlockedByUser: vi.fn().mockResolvedValue([]),
     listBlockingUser: vi.fn().mockResolvedValue([]),
     isBlocked: vi.fn().mockResolvedValue(false),
+    ...overrides,
+  };
+}
+
+function makeSaltRepo(overrides?: Partial<SaltRepository>): SaltRepository {
+  return {
+    create: vi.fn(),
+    findActive: vi.fn().mockResolvedValue({
+      id: "salt-1",
+      version: 5,
+      keyMaterial: "key-material",
+      activeFrom: new Date("2026-05-01"),
+      activeTo: undefined,
+      createdAt: new Date("2026-05-01"),
+    }),
+    findByVersion: vi.fn(),
+    retire: vi.fn(),
+    getLatestVersion: vi.fn(),
+    listAll: vi.fn(),
     ...overrides,
   };
 }
@@ -158,6 +179,55 @@ describe("ContactsService", () => {
 
       expect(contacts.deleteExpired).toHaveBeenCalled();
       expect(emailIndex.deleteExpired).toHaveBeenCalled();
+    });
+  });
+
+  describe("validateSaltVersion", () => {
+    it("passes when salt version matches active salt", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const salts = makeSaltRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks, salts);
+
+      await expect(service.validateSaltVersion(5)).resolves.toBeUndefined();
+      expect(salts.findActive).toHaveBeenCalled();
+    });
+
+    it("throws STALE_SALT when salt version does not match", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const salts = makeSaltRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks, salts);
+
+      await expect(service.validateSaltVersion(3)).rejects.toMatchObject({
+        code: "STALE_SALT",
+        expectedVersion: 5,
+      });
+    });
+
+    it("throws INTERNAL_ERROR when no active salt exists", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const salts = makeSaltRepo({ findActive: vi.fn().mockResolvedValue(null) });
+      const service = new ContactsService(contacts, emailIndex, blocks, salts);
+
+      await expect(service.validateSaltVersion(1)).rejects.toMatchObject({
+        code: "INTERNAL_ERROR",
+      });
+    });
+
+    it("throws INTERNAL_ERROR when salt repository is not configured", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      await expect(service.validateSaltVersion(1)).rejects.toMatchObject({
+        code: "INTERNAL_ERROR",
+      });
     });
   });
 });

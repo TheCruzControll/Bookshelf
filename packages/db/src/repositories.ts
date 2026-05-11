@@ -984,6 +984,11 @@ class DrizzleContactsRepository implements ContactsRepository {
     return result.length;
   }
 
+  async deleteByTargetHash(hashes: string[]): Promise<void> {
+    if (hashes.length === 0) return;
+    await this.db.delete(contactsIndex).where(inArray(contactsIndex.contactHash, hashes));
+  }
+
   async listByUser(userId: EntityId): Promise<ContactsHash[]> {
     const rows = await this.db
       .select()
@@ -1064,6 +1069,11 @@ class DrizzleEmailIndexRepository implements EmailIndexRepository {
       .where(eq(emailIndex.saltVersion, saltVersion))
       .returning();
     return result.length;
+  }
+
+  async deleteByTargetHash(hashes: string[]): Promise<void> {
+    if (hashes.length === 0) return;
+    await this.db.delete(emailIndex).where(inArray(emailIndex.emailHash, hashes));
   }
 
   async listByUser(userId: EntityId): Promise<EmailIndex[]> {

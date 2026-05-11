@@ -38,6 +38,7 @@ function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepo
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
     expireBySaltVersion: vi.fn().mockResolvedValue(0),
+    deleteByTargetHash: vi.fn().mockResolvedValue(undefined),
     listByUser: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
@@ -50,6 +51,7 @@ function makeEmailIndexRepo(overrides?: Partial<EmailIndexRepository>): EmailInd
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
     expireBySaltVersion: vi.fn().mockResolvedValue(0),
+    deleteByTargetHash: vi.fn().mockResolvedValue(undefined),
     listByUser: vi.fn().mockResolvedValue([]),
     ...overrides,
   };

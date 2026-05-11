@@ -294,6 +294,7 @@ export interface ContactsRepository {
   deleteExpired(): Promise<void>;
   /** Mark all hashes created under a given salt version as expiring at the given date */
   expireBySaltVersion(saltVersion: number, expiresAt: Date): Promise<number>;
+  deleteByTargetHash(hashes: string[]): Promise<void>;
   listByUser(userId: EntityId): Promise<ContactsHash[]>;
 }
 
@@ -310,6 +311,7 @@ export interface EmailIndexRepository {
   deleteExpired(): Promise<void>;
   /** Mark all hashes created under a given salt version as expiring at the given date */
   expireBySaltVersion(saltVersion: number, expiresAt: Date): Promise<number>;
+  deleteByTargetHash(hashes: string[]): Promise<void>;
   listByUser(userId: EntityId): Promise<EmailIndex[]>;
 }
 
