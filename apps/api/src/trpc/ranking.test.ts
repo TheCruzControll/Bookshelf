@@ -564,4 +564,213 @@ describe("ranking.compare", () => {
       expect.objectContaining({ visibility: "public" })
     );
   });
+
+  it("rerank compare flow publishes book_ranked activity event on completion", async () => {
+    const session = makeRankingSession();
+    const singleExisting = [
+      makeRanking({ id: "00000000-0000-0000-0000-000000000010", profileId: UUID1, bookId: BOOK_A, position: 1, bucket: 3 }),
+    ];
+    const store = new Map<string, unknown>();
+    // Pre-seed the cache with isRerank=true
+    store.set(`compare:${RANKING_ID}`, {
+      ownerId: UUID1,
+      bookId: NEW_BOOK_ID,
+      bucket: 3,
+      rankedIds: [BOOK_A],
+      lo: 0,
+      hi: 1,
+      isRerank: true,
+    });
+
+    const rankingResult = makeRanking({ id: "00000000-0000-0000-0000-000000000020", profileId: UUID1, bookId: NEW_BOOK_ID, position: 0, score: 10 });
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn().mockResolvedValue(rankingResult),
+        findById: vi.fn().mockResolvedValue(session),
+        findByOwnerAndBook: vi.fn().mockResolvedValue(session),
+        listByOwner: vi.fn().mockResolvedValue([session, ...singleExisting]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+      activity: { append: vi.fn().mockResolvedValue({ id: "evt-1", actorId: UUID1, verb: "book_ranked", bookId: NEW_BOOK_ID, visibility: "followers", occurredAt: NOW, scoreAtPublish: 10, scoreLockedAtPublish: true }), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn() },
+    });
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity(), repos, cache);
+
+    // winner=existing -> hi = mid = 0, so lo=0 >= hi=0 -> done
+    const res = await app.request("/trpc/ranking.compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rankingId: RANKING_ID, winner: "existing" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.done).toBe(true);
+    // finishRerank called -> upsert and activity.append invoked
+    expect(repos.rankings.upsert).toHaveBeenCalled();
+    expect(repos.activity.append).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "book_ranked", bookId: NEW_BOOK_ID })
+    );
+  });
+});
+
+describe("ranking.rerank", () => {
+  const BOOK_ID = UUID2;
+  const RANKING_ID = UUID1;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 1, bucket: 3 }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when ranking does not exist for the book", async () => {
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn(),
+        findByOwnerAndBook: vi.fn().mockResolvedValue(null),
+        listByOwner: vi.fn().mockResolvedValue([]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache();
+    const app = buildApp(makeIdentity(), repos, cache);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 1, bucket: 3 }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 409 when version does not match (optimistic locking)", async () => {
+    const existing = makeRanking({ id: RANKING_ID, profileId: UUID1, bookId: BOOK_ID, version: 2 });
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn(),
+        findByOwnerAndBook: vi.fn().mockResolvedValue(existing),
+        listByOwner: vi.fn().mockResolvedValue([existing]),
+        delete: vi.fn(),
+        startBucket: vi.fn(),
+      },
+    });
+    const cache = makeCache();
+    const app = buildApp(makeIdentity(), repos, cache);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 1, bucket: 3 }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("returns rankingId, bookId, and bucket on success", async () => {
+    const existing = makeRanking({ id: RANKING_ID, profileId: UUID1, bookId: BOOK_ID, version: 1, bucket: 4 });
+    const updated = makeRanking({ id: RANKING_ID, profileId: UUID1, bookId: BOOK_ID, version: 1, bucket: 3 });
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn(),
+        findByOwnerAndBook: vi.fn().mockResolvedValue(existing),
+        listByOwner: vi.fn().mockResolvedValue([existing]),
+        delete: vi.fn(),
+        startBucket: vi.fn().mockResolvedValue(updated),
+      },
+    });
+    const cache = makeCache();
+    const app = buildApp(makeIdentity(), repos, cache);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 1, bucket: 3 }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.rankingId).toBe(RANKING_ID);
+    expect(body.result.data.bookId).toBe(BOOK_ID);
+    expect(body.result.data.bucket).toBe(3);
+  });
+
+  it("pre-seeds comparison state with isRerank=true in cache", async () => {
+    const existing = makeRanking({ id: RANKING_ID, profileId: UUID1, bookId: BOOK_ID, version: 1, bucket: 4 });
+    const updated = makeRanking({ id: RANKING_ID, profileId: UUID1, bookId: BOOK_ID, version: 1, bucket: 3 });
+    const store = new Map<string, unknown>();
+    const repos = makeRepositories({
+      rankings: {
+        upsert: vi.fn(),
+        findById: vi.fn(),
+        findByOwnerAndBook: vi.fn().mockResolvedValue(existing),
+        listByOwner: vi.fn().mockResolvedValue([existing]),
+        delete: vi.fn(),
+        startBucket: vi.fn().mockResolvedValue(updated),
+      },
+    });
+    const cache = makeCache(store);
+    const app = buildApp(makeIdentity(), repos, cache);
+    await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 1, bucket: 3 }),
+    });
+
+    const cached = store.get(`compare:${RANKING_ID}`) as { isRerank?: boolean };
+    expect(cached).toBeDefined();
+    expect(cached.isRerank).toBe(true);
+  });
+
+  it("rejects invalid bookId", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: "not-a-uuid", version: 1, bucket: 3 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects bucket below 1", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 1, bucket: 0 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects bucket above 5", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 1, bucket: 6 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects non-positive version", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/ranking.rerank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookId: BOOK_ID, version: 0, bucket: 3 }),
+    });
+    expect(res.status).toBe(400);
+  });
 });
