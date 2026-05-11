@@ -1,4 +1,4 @@
-import type { EntityId, Visibility } from "./types";
+import type { EntityId, FeedItem, Visibility } from "./types";
 
 export type ViewerRelationship = "self" | "mutual" | "follower" | "none";
 
@@ -58,4 +58,17 @@ export function applyVisibilityFilter<T extends HasVisibility & HasOwnerId>(
 
 export function resolveEffectiveVisibility(a: Visibility, b: Visibility): Visibility {
   return VISIBILITY_RANK[a] >= VISIBILITY_RANK[b] ? a : b;
+}
+
+export function filterFeedByVisibility(
+  viewerId: EntityId,
+  items: FeedItem[],
+  relationshipMap: Map<EntityId, ViewerRelationship>
+): FeedItem[] {
+  return items.filter((item) => {
+    const actorId = item.event.actorId;
+    if (actorId === viewerId) return true;
+    const relationship = relationshipMap.get(actorId) ?? "none";
+    return canView({ viewerId, relationship }, actorId, item.event.visibility);
+  });
 }
