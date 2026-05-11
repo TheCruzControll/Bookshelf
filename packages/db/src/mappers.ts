@@ -11,6 +11,7 @@ import type {
   Follow,
   HandleHistory,
   Import,
+  InAppNotification,
   List,
   ListItem,
   MagicLinkToken,
@@ -39,6 +40,7 @@ import type {
   emailIndex,
   follows,
   handleHistory,
+  inAppNotifications,
   imports,
   magicLinkTokens,
   notificationSettings,
@@ -351,5 +353,19 @@ export function toMagicLinkToken(row: MagicLinkTokenRow): MagicLinkToken {
     tokenHash: row.tokenHash,
     expiresAt: row.expiresAt,
     consumedAt: row.consumedAt ?? undefined
+  };
+}
+
+type InAppNotificationRow = typeof inAppNotifications.$inferSelect;
+
+export function toInAppNotification(row: InAppNotificationRow): InAppNotification {
+  return {
+    id: row.id,
+    recipientId: row.recipientId,
+    actorId: row.actorId ?? undefined,
+    trigger: row.trigger,
+    payload: (row.payload ?? {}) as Record<string, unknown>,
+    readAt: row.readAt ?? undefined,
+    createdAt: row.createdAt,
   };
 }

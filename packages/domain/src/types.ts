@@ -45,6 +45,23 @@ export type ImportSource = "goodreads" | "manual";
 
 export type NotificationPlatform = "apns" | "fcm";
 
+export type NotificationTrigger =
+  | "new_follower"
+  | "mutual_follow_back"
+  | "mutual_rated_high"
+  | "mutual_finished_want_to_read"
+  | "security_event";
+
+export interface InAppNotification {
+  id: EntityId;
+  recipientId: EntityId;
+  actorId?: EntityId | undefined;
+  trigger: NotificationTrigger;
+  payload: Record<string, unknown>;
+  readAt?: Date | undefined;
+  createdAt: Date;
+}
+
 export type BlockDirection = "outgoing" | "incoming";
 
 export interface Profile {

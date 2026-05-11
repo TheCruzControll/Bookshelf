@@ -45,6 +45,7 @@ import type {
   FollowRepository,
   HandleHistoryRepository,
   ImportRepository,
+  InAppNotificationRepository,
   ListRepository,
   MagicLinkRepository,
   NotificationRepository,
@@ -68,6 +69,7 @@ import {
   editions,
   follows,
   handleHistory,
+  inAppNotifications,
   imports,
   magicLinkTokens,
   notificationSettings,
@@ -88,6 +90,7 @@ import {
   toFollow,
   toHandleHistory,
   toImport,
+  toInAppNotification,
   toList,
   toListItem,
   toMagicLinkToken,
@@ -1321,6 +1324,60 @@ export class DrizzleMagicLinkRepository implements MagicLinkRepository {
   }
 }
 
+
+class DrizzleInAppNotificationRepository implements InAppNotificationRepository {
+  constructor(private readonly db: HoneDb) {}
+
+  async list(input: {
+    recipientId: EntityId;
+    cursor?: string;
+    limit: number;
+  }) {
+    const conditions = [eq(inAppNotifications.recipientId, input.recipientId)];
+
+    if (input.cursor) {
+      const cursorRow = await this.db.query.inAppNotifications.findFirst({
+        where: eq(inAppNotifications.id, input.cursor),
+      });
+      if (cursorRow) {
+        conditions.push(lt(inAppNotifications.createdAt, cursorRow.createdAt));
+      }
+    }
+
+    const rows = await this.db
+      .select()
+      .from(inAppNotifications)
+      .where(and(...conditions))
+      .orderBy(desc(inAppNotifications.createdAt))
+      .limit(input.limit);
+
+    return rows.map(toInAppNotification);
+  }
+
+  async markRead(input: {
+    recipientId: EntityId;
+    notificationId: EntityId;
+  }) {
+    await this.db
+      .update(inAppNotifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(inAppNotifications.id, input.notificationId),
+          eq(inAppNotifications.recipientId, input.recipientId),
+          sql`${inAppNotifications.readAt} IS NULL`
+        )
+      );
+  }
+
+  async findById(id: EntityId) {
+    const row = await this.db.query.inAppNotifications.findFirst({
+      where: eq(inAppNotifications.id, id),
+    });
+    return row ? toInAppNotification(row) : null;
+  }
+}
+
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     profiles: new DrizzleProfileRepository(db),
@@ -1341,5 +1398,6 @@ export function createDrizzleRepositories(db: HoneDb): AppRepositories {
     sessions: new DrizzleSessionRepository(db),
     handleHistory: new DrizzleHandleHistoryRepository(db),
     magicLinks: new DrizzleMagicLinkRepository(db),
+    inAppNotifications: new DrizzleInAppNotificationRepository(db),
   };
 }
