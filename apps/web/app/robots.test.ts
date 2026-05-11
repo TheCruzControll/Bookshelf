@@ -21,7 +21,7 @@ describe("robots", () => {
     expect(result).toHaveProperty("sitemap");
   });
 
-  it("disallows settings, account, onboarding, draft, search paths", () => {
+  it("disallows settings, account, onboarding, draft, search, auth paths", () => {
     const result = robots();
     const rules = getRulesArray(result.rules);
     const allDisallowed = rules.flatMap((r) =>
@@ -32,6 +32,9 @@ describe("robots", () => {
     expect(allDisallowed).toContain("/onboarding");
     expect(allDisallowed).toContain("/draft");
     expect(allDisallowed).toContain("/search");
+    expect(allDisallowed).toContain("/sign-in");
+    expect(allDisallowed).toContain("/sign-up");
+    expect(allDisallowed).toContain("/auth");
   });
 
   it("allows public profile and book paths", () => {
