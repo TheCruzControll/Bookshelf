@@ -22,10 +22,9 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "./ports";
-import type { ContentType, EntityId, ActivityEvent, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
+import type { ActivityEvent, ActivityVerb, ContentType, EntityId, FeedItem, Follow, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { scoreFromRank } from "./score";
-
 
 export interface SystemShelfDef {
   name: string;
@@ -53,6 +52,18 @@ export const POSTURE_C_DEFAULTS: Record<ContentType, Visibility> = {
   reading_status: "followers",
   activity_stream: "followers",
 };
+
+const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+
+/**
+ * Compute a deterministic group key for feed event grouping.
+ * Events from the same actor with the same verb within the same 30-minute
+ * window share a group key: (actor_id, verb, floor(occurred_at / 30min)).
+ */
+export function computeGroupKey(actorId: EntityId, verb: ActivityVerb, occurredAt: Date): string {
+  const bucket = Math.floor(occurredAt.getTime() / THIRTY_MINUTES_MS);
+  return `${actorId}:${verb}:${bucket}`;
+}
 
 export function slugify(name: string): string {
   return name

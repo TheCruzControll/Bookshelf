@@ -53,7 +53,7 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "@hone/domain";
-import { POSTURE_C_DEFAULTS, SYSTEM_SHELVES } from "@hone/domain";
+import { computeGroupKey, POSTURE_C_DEFAULTS, SYSTEM_SHELVES } from "@hone/domain";
 import type { HoneDb } from "./client";
 import {
   activityEvents,
@@ -348,9 +348,13 @@ export class DrizzleActivityRepository implements ActivityRepository {
   constructor(private readonly db: HoneDb) {}
 
   async append(event: Parameters<ActivityRepository["append"]>[0]) {
-    const { scoreAtPublish, ...rest } = event;
+    const { scoreAtPublish, groupKey: _existingGroupKey, ...rest } = event;
+    const occurredAt = new Date();
+    const groupKey = computeGroupKey(rest.actorId, rest.verb, occurredAt);
     const [row] = await this.db.insert(activityEvents).values({
       ...rest,
+      occurredAt,
+      groupKey,
       scoreAtPublish: scoreAtPublish != null ? String(scoreAtPublish) : null,
     }).returning();
     if (!row) {
