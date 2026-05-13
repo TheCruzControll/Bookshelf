@@ -40,6 +40,22 @@ via `reasonForSignal()`:
 | `recency` | Recently read by your friends |
 | `popularity_floor` | Widely read on Hone |
 
+### Candidate-aware reason picker (P-03)
+
+`reasonFor(dominantSignal, candidate, locale = "en")` picks the
+"why this?" line and enriches it with candidate data when available:
+
+| Dominant signal | Enriched output |
+|---|---|
+| `mutual_count` (>0) | `"N friend(s) finished this"` |
+| `genre_match` (with genres) | `"Fits your taste in <first genre>"` |
+| `popularity_floor` (>0) | `"Widely read on Hone — N reader(s)"` |
+| all others / empty data | Falls back to the static reason above |
+
+`locale` is currently restricted to `"en"`; the renderer table is
+keyed by locale so additional locales can be added without changing
+callers.
+
 ## Weight tuning
 
 Weights are passed as an optional second argument to `scoreCandidate`.

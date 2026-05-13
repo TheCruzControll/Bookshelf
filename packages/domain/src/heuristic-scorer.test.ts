@@ -3,10 +3,12 @@ import fc from "fast-check";
 import {
   scoreCandidate,
   reasonForSignal,
+  reasonFor,
   DEFAULT_WEIGHTS,
 } from "./heuristic-scorer";
 import type {
   CandidateSignals,
+  ReasonCandidate,
   SignalName,
   ScorerWeights,
 } from "./heuristic-scorer";
@@ -223,6 +225,101 @@ describe("reasonForSignal", () => {
   it("returns distinct reasons for each signal", () => {
     const reasons = ALL_SIGNAL_NAMES.map(reasonForSignal);
     expect(new Set(reasons).size).toBe(ALL_SIGNAL_NAMES.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reasonFor — candidate-aware reason picker
+// ---------------------------------------------------------------------------
+
+function makeCandidate(overrides: Partial<ReasonCandidate> = {}): ReasonCandidate {
+  return {
+    networkFinishedCount: 0,
+    popularityCount: 0,
+    genres: [],
+    ...overrides,
+  };
+}
+
+describe("reasonFor", () => {
+  it.each(ALL_SIGNAL_NAMES)("returns a non-empty string for %s with bare candidate", (signal) => {
+    const reason = reasonFor(signal, makeCandidate());
+    expect(typeof reason).toBe("string");
+    expect(reason.length).toBeGreaterThan(0);
+  });
+
+  it("uses singular 'friend' when exactly one mutual finished", () => {
+    const reason = reasonFor("mutual_count", makeCandidate({ networkFinishedCount: 1 }));
+    expect(reason).toBe("1 friend finished this");
+  });
+
+  it("uses plural 'friends' when multiple mutuals finished", () => {
+    const reason = reasonFor("mutual_count", makeCandidate({ networkFinishedCount: 4 }));
+    expect(reason).toBe("4 friends finished this");
+  });
+
+  it("falls back to generic mutual_count reason when count is zero", () => {
+    const reason = reasonFor("mutual_count", makeCandidate({ networkFinishedCount: 0 }));
+    expect(reason).toBe(reasonForSignal("mutual_count"));
+  });
+
+  it("names the first genre when genre_match is dominant and genres exist", () => {
+    const reason = reasonFor("genre_match", makeCandidate({ genres: ["Sci-Fi", "Fantasy"] }));
+    expect(reason).toBe("Fits your taste in Sci-Fi");
+  });
+
+  it("falls back to generic genre_match reason when no genres present", () => {
+    const reason = reasonFor("genre_match", makeCandidate({ genres: [] }));
+    expect(reason).toBe(reasonForSignal("genre_match"));
+  });
+
+  it("skips blank/whitespace genres when picking the named genre", () => {
+    const reason = reasonFor("genre_match", makeCandidate({ genres: ["", "  ", "Mystery"] }));
+    expect(reason).toBe("Fits your taste in Mystery");
+  });
+
+  it("uses singular 'reader' when exactly one user finished the book", () => {
+    const reason = reasonFor("popularity_floor", makeCandidate({ popularityCount: 1 }));
+    expect(reason).toBe("Widely read on Hone — 1 reader");
+  });
+
+  it("uses plural 'readers' when multiple users finished the book", () => {
+    const reason = reasonFor("popularity_floor", makeCandidate({ popularityCount: 73 }));
+    expect(reason).toBe("Widely read on Hone — 73 readers");
+  });
+
+  it("falls back to generic popularity_floor reason when count is zero", () => {
+    const reason = reasonFor("popularity_floor", makeCandidate({ popularityCount: 0 }));
+    expect(reason).toBe(reasonForSignal("popularity_floor"));
+  });
+
+  it.each(["mutual_avg_score", "taste_overlap", "recency"] as const)(
+    "returns the static generic reason for %s",
+    (signal) => {
+      const reason = reasonFor(signal, makeCandidate({
+        networkFinishedCount: 9,
+        popularityCount: 9,
+        genres: ["X"],
+      }));
+      expect(reason).toBe(reasonForSignal(signal));
+    },
+  );
+
+  it("defaults locale to 'en' and matches explicit 'en'", () => {
+    const candidate = makeCandidate({ networkFinishedCount: 2 });
+    expect(reasonFor("mutual_count", candidate)).toBe(reasonFor("mutual_count", candidate, "en"));
+  });
+
+  it("treats fractional and negative counts safely", () => {
+    expect(reasonFor("mutual_count", makeCandidate({ networkFinishedCount: 2.9 }))).toBe(
+      "2 friends finished this",
+    );
+    expect(reasonFor("mutual_count", makeCandidate({ networkFinishedCount: -3 }))).toBe(
+      reasonForSignal("mutual_count"),
+    );
+    expect(reasonFor("popularity_floor", makeCandidate({ popularityCount: -10 }))).toBe(
+      reasonForSignal("popularity_floor"),
+    );
   });
 });
 
