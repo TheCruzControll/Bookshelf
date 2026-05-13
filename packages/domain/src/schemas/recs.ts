@@ -12,5 +12,13 @@ export const RecsQuerySchema = z.object({
   cursor: z.string().optional(),
 });
 
+/**
+ * Recommendation surface — where the rec list is rendered. Per PRD Q15
+ * there are two v1 surfaces: the Discover tab and the Book Detail
+ * "you might also like" rail.
+ */
+export const RecSurfaceSchema = z.enum(["discover", "book_detail"]);
+
 export type RecommendationInput = z.infer<typeof RecommendationSchema>;
 export type RecsQueryInput = z.infer<typeof RecsQuerySchema>;
+export type RecSurface = z.infer<typeof RecSurfaceSchema>;
