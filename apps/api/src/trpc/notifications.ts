@@ -2,11 +2,13 @@ import { TRPCError } from "@trpc/server";
 import {
   AppServices,
   NotificationPlatformSchema,
+  NotificationSettingsOutputSchema,
   NotificationsListInputSchema,
   NotificationsListOutputSchema,
   NotificationsMarkReadInputSchema,
   NotificationsMarkReadOutputSchema,
   RegisterTokenInputSchema,
+  UpdateNotificationSettingsInputSchema,
 } from "@hone/domain";
 import { z } from "zod";
 import { router, publicProcedure } from "./trpc";
@@ -72,6 +74,38 @@ export const notificationsRouter = router({
         notificationId: input.notificationId,
       });
       return { success: true };
+    }),
+
+  getSettings: publicProcedure
+    .input(z.void())
+    .output(NotificationSettingsOutputSchema)
+    .query(async ({ ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const services = new AppServices(ctx.repositories, {
+        getCurrentIdentity: async () => ctx.identity,
+      });
+      return services.notifications.getSettings(ctx.identity.userId);
+    }),
+
+  updateSettings: publicProcedure
+    .input(UpdateNotificationSettingsInputSchema)
+    .output(NotificationSettingsOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const services = new AppServices(ctx.repositories, {
+        getCurrentIdentity: async () => ctx.identity,
+      });
+      return services.notifications.updateSettings(ctx.identity.userId, input);
     }),
 
   registerToken: publicProcedure
