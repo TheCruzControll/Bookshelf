@@ -30,7 +30,7 @@ export interface VersionConflictPayload<T = unknown> {
  * embeds the typed payload under `data.conflict`.
  */
 export class VersionConflictError<T = unknown> extends Error {
-  readonly code: "VERSION_CONFLICT" = "VERSION_CONFLICT";
+  readonly code = "VERSION_CONFLICT" as const;
   readonly resource: VersionedResource;
   readonly currentVersion: number;
   readonly currentValue: T;
