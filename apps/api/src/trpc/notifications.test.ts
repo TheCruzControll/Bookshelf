@@ -288,3 +288,134 @@ describe("notifications.markRead", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("notifications.registerToken", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("registers an APNs token for the authenticated user", async () => {
+    const repos = makeRepositories({
+      notifications: {
+        registerToken: vi.fn().mockResolvedValue({
+          profileId: UUID1,
+          platform: "apns",
+          token: "device-token-1",
+          lastSeen: new Date("2026-05-13T00:00:00Z"),
+        }),
+        removeToken: vi.fn(),
+        listTokensForProfile: vi.fn(),
+        getSetting: vi.fn(),
+        setSetting: vi.fn(),
+        listSettings: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/notifications.registerToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "apns", token: "device-token-1" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.platform).toBe("apns");
+    expect(body.result.data.token).toBe("device-token-1");
+    expect(repos.notifications.registerToken).toHaveBeenCalledWith({
+      profileId: UUID1,
+      platform: "apns",
+      token: "device-token-1",
+    });
+  });
+
+  it("registers an FCM token", async () => {
+    const repos = makeRepositories({
+      notifications: {
+        registerToken: vi.fn().mockResolvedValue({
+          profileId: UUID1,
+          platform: "fcm",
+          token: "fcm-tok",
+          lastSeen: new Date(),
+        }),
+        removeToken: vi.fn(),
+        listTokensForProfile: vi.fn(),
+        getSetting: vi.fn(),
+        setSetting: vi.fn(),
+        listSettings: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/notifications.registerToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "fcm", token: "fcm-tok" }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects unknown platforms", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/notifications.registerToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "bogus", token: "x" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects empty tokens", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/notifications.registerToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "apns", token: "" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+    const res = await app.request("/trpc/notifications.registerToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: "apns", token: "x" }),
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("notifications.unregisterToken", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("removes a token for the authenticated user", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+    const res = await app.request("/trpc/notifications.unregisterToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "device-token-1" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.success).toBe(true);
+    expect(repos.notifications.removeToken).toHaveBeenCalledWith({
+      profileId: UUID1,
+      token: "device-token-1",
+    });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+    const res = await app.request("/trpc/notifications.unregisterToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "x" }),
+    });
+    expect(res.status).toBe(401);
+  });
+});

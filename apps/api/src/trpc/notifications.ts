@@ -1,15 +1,29 @@
 import { TRPCError } from "@trpc/server";
 import {
   AppServices,
+  NotificationPlatformSchema,
   NotificationSettingsOutputSchema,
   NotificationsListInputSchema,
   NotificationsListOutputSchema,
   NotificationsMarkReadInputSchema,
   NotificationsMarkReadOutputSchema,
+  RegisterTokenInputSchema,
   UpdateNotificationSettingsInputSchema,
 } from "@hone/domain";
 import { z } from "zod";
 import { router, publicProcedure } from "./trpc";
+
+const UnregisterTokenInputSchema = z.object({
+  token: z.string().min(1),
+});
+
+const RegisterTokenOutputSchema = z.object({
+  platform: NotificationPlatformSchema,
+  token: z.string(),
+  lastSeen: z.date(),
+});
+
+const UnregisterTokenOutputSchema = z.object({ success: z.literal(true) });
 
 export const notificationsRouter = router({
   list: publicProcedure
@@ -92,5 +106,44 @@ export const notificationsRouter = router({
         getCurrentIdentity: async () => ctx.identity,
       });
       return services.notifications.updateSettings(ctx.identity.userId, input);
+    }),
+
+  registerToken: publicProcedure
+    .input(RegisterTokenInputSchema)
+    .output(RegisterTokenOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const record = await ctx.repositories.notifications.registerToken({
+        profileId: ctx.identity.userId,
+        platform: input.platform,
+        token: input.token,
+      });
+      return {
+        platform: record.platform,
+        token: record.token,
+        lastSeen: record.lastSeen,
+      };
+    }),
+
+  unregisterToken: publicProcedure
+    .input(UnregisterTokenInputSchema)
+    .output(UnregisterTokenOutputSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      await ctx.repositories.notifications.removeToken({
+        profileId: ctx.identity.userId,
+        token: input.token,
+      });
+      return { success: true as const };
     }),
 });
