@@ -7,6 +7,7 @@ import {
   UpdateReviewOutputSchema,
   DeleteReviewInputSchema,
   DeleteReviewOutputSchema,
+  VersionConflictError,
 } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
 
@@ -66,10 +67,17 @@ export const reviewRouter = router({
             throw new TRPCError({ code: "FORBIDDEN", message: err.message });
           }
           if (errWithCode.code === "VERSION_CONFLICT") {
+            // Wrap so the error formatter can surface a typed conflict
+            // payload (data.conflict) for the client error mapper.
             throw new TRPCError({
               code: "CONFLICT",
               message: "Version conflict",
-              cause: errWithCode.currentReview,
+              cause: new VersionConflictError({
+                resource: "review",
+                currentVersion:
+                  (errWithCode.currentReview as { version?: number } | undefined)?.version ?? 0,
+                currentValue: errWithCode.currentReview,
+              }),
             });
           }
         }

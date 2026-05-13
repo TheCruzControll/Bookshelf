@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
 import {
+  VersionConflictError,
+  extractVersionConflict,
   resolveLww,
   resolveStatusLww,
   resolvePositionLww,
@@ -187,5 +189,108 @@ describe("LWW property tests (fast-check)", () => {
         expect(ab.updatedAt.getTime()).toBe(ba.updatedAt.getTime());
       })
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VersionConflictError + extractVersionConflict (T-02, #163)
+// ---------------------------------------------------------------------------
+
+describe("VersionConflictError", () => {
+  it("carries resource, currentVersion, currentValue", () => {
+    const err = new VersionConflictError({
+      resource: "review",
+      currentVersion: 7,
+      currentValue: { id: "r1", body: "current", version: 7 },
+    });
+    expect(err.code).toBe("VERSION_CONFLICT");
+    expect(err.resource).toBe("review");
+    expect(err.currentVersion).toBe(7);
+    expect(err.currentValue).toEqual({ id: "r1", body: "current", version: 7 });
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  it("uses a sensible default message", () => {
+    const err = new VersionConflictError({
+      resource: "shelf",
+      currentVersion: 1,
+      currentValue: null,
+    });
+    expect(err.message).toMatch(/Version conflict on shelf/);
+  });
+
+  it("toPayload returns the wire shape", () => {
+    const err = new VersionConflictError({
+      resource: "ranking",
+      currentVersion: 3,
+      currentValue: { position: 5 },
+    });
+    expect(err.toPayload()).toEqual({
+      code: "VERSION_CONFLICT",
+      resource: "ranking",
+      currentVersion: 3,
+      currentValue: { position: 5 },
+    });
+  });
+});
+
+describe("extractVersionConflict", () => {
+  it("returns the typed payload on a matching error", () => {
+    const wire = {
+      data: {
+        code: "CONFLICT",
+        conflict: {
+          code: "VERSION_CONFLICT",
+          resource: "review",
+          currentVersion: 4,
+          currentValue: { id: "r1" },
+        },
+      },
+    };
+    const payload = extractVersionConflict<{ id: string }>(wire);
+    expect(payload).toEqual({
+      code: "VERSION_CONFLICT",
+      resource: "review",
+      currentVersion: 4,
+      currentValue: { id: "r1" },
+    });
+  });
+
+  it("also reads conflict from shape.data (some tRPC client envelopes)", () => {
+    const wire = {
+      shape: {
+        data: {
+          code: "CONFLICT",
+          conflict: {
+            code: "VERSION_CONFLICT",
+            resource: "shelf",
+            currentVersion: 1,
+            currentValue: { id: "s1" },
+          },
+        },
+      },
+    };
+    expect(extractVersionConflict(wire)?.resource).toBe("shelf");
+  });
+
+  it("returns null when the error is not a conflict", () => {
+    expect(extractVersionConflict({ data: { code: "NOT_FOUND" } })).toBeNull();
+    expect(extractVersionConflict({})).toBeNull();
+    expect(extractVersionConflict(null)).toBeNull();
+    expect(extractVersionConflict(undefined)).toBeNull();
+    expect(extractVersionConflict("string")).toBeNull();
+  });
+
+  it("returns null when the payload is malformed", () => {
+    expect(
+      extractVersionConflict({
+        data: { code: "CONFLICT", conflict: { resource: "review" } },
+      }),
+    ).toBeNull();
+    expect(
+      extractVersionConflict({
+        data: { code: "CONFLICT", conflict: { code: "OTHER" } },
+      }),
+    ).toBeNull();
   });
 });

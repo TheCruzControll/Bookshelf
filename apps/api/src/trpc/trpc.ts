@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { ZodError } from "zod";
 import { captureException, createLogger } from "@hone/observability";
+import { VersionConflictError } from "@hone/domain";
 import type { TrpcContext } from "./context";
 
 const trpcLogger = createLogger("hone-trpc");
@@ -32,6 +33,24 @@ const t = initTRPC.context<TrpcContext>().create({
         data: {
           ...shape.data,
           stack: undefined
+        }
+      };
+    }
+
+    // Surface optimistic-locking conflicts as a typed payload under
+    // data.conflict so the client can extract the current value and
+    // resource type without parsing the message string.
+    if (
+      error instanceof TRPCError &&
+      error.code === "CONFLICT" &&
+      error.cause instanceof VersionConflictError
+    ) {
+      return {
+        ...shape,
+        data: {
+          ...shape.data,
+          stack: undefined,
+          conflict: error.cause.toPayload()
         }
       };
     }

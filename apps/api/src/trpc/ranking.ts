@@ -9,6 +9,7 @@ import {
   StartBucketOutputSchema,
   RerankInputSchema,
   RerankOutputSchema,
+  VersionConflictError,
   selectCandidate,
 } from "@hone/domain";
 import type { EntityId } from "@hone/domain";
@@ -209,7 +210,11 @@ export const rankingRouter = router({
           bucket: ranking.bucket,
         };
       } catch (err: unknown) {
-        const error = err as Error & { code?: string; currentVersion?: number };
+        const error = err as Error & {
+          code?: string;
+          currentVersion?: number;
+          currentValue?: unknown;
+        };
         if (error.code === "NOT_FOUND") {
           throw new TRPCError({ code: "NOT_FOUND", message: error.message });
         }
@@ -217,6 +222,11 @@ export const rankingRouter = router({
           throw new TRPCError({
             code: "CONFLICT",
             message: `Version conflict: expected ${input.version}, current is ${error.currentVersion}`,
+            cause: new VersionConflictError({
+              resource: "ranking",
+              currentVersion: error.currentVersion ?? 0,
+              currentValue: error.currentValue ?? null,
+            }),
           });
         }
         throw err;

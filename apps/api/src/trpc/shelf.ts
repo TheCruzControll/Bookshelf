@@ -9,6 +9,7 @@ import {
   DeleteShelfOutputSchema,
   ListShelvesInputSchema,
   ListShelvesOutputSchema,
+  VersionConflictError,
 } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
 
@@ -59,12 +60,27 @@ export const shelfRouter = router({
         return { shelf };
       } catch (err) {
         if (err instanceof Error) {
-          const code = (err as NodeJS.ErrnoException & { code?: string }).code;
-          if (code === "NOT_FOUND") {
+          const errWithCode = err as Error & {
+            code?: string;
+            currentVersion?: number;
+            currentShelf?: unknown;
+          };
+          if (errWithCode.code === "NOT_FOUND") {
             throw new TRPCError({ code: "NOT_FOUND", message: err.message });
           }
-          if (code === "FORBIDDEN") {
+          if (errWithCode.code === "FORBIDDEN") {
             throw new TRPCError({ code: "FORBIDDEN", message: err.message });
+          }
+          if (errWithCode.code === "VERSION_CONFLICT") {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Version conflict",
+              cause: new VersionConflictError({
+                resource: "shelf",
+                currentVersion: errWithCode.currentVersion ?? 0,
+                currentValue: errWithCode.currentShelf ?? null,
+              }),
+            });
           }
         }
         throw err;
