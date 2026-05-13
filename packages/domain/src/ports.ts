@@ -276,6 +276,14 @@ export interface InAppNotificationRepository {
     notificationId: EntityId;
   }): Promise<void>;
   findById(id: EntityId): Promise<InAppNotification | null>;
+  /** Count notifications delivered to recipient at or after `since`. Used for rate-cap enforcement. */
+  countSince(input: { recipientId: EntityId; since: Date }): Promise<number>;
+  /** Count notifications produced by actor for recipient at or after `since`. Used for per-actor rate-cap enforcement. */
+  countSinceByActor(input: {
+    recipientId: EntityId;
+    actorId: EntityId;
+    since: Date;
+  }): Promise<number>;
 }
 
 export interface ImportRepository {

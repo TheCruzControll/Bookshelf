@@ -20,6 +20,7 @@ import type {
   ImportRepository,
   InAppNotificationRepository,
   ListRepository,
+  NotificationRepository,
   MagicLinkRepository,
   ProfileRepository,
   RankingRepository,
@@ -34,6 +35,19 @@ import type {
 } from "./ports";
 import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  NOTIFICATION_CAP_PER_ACTOR_DAY,
+  NOTIFICATION_CAP_PER_RECIPIENT_DAY,
+  NOTIFICATION_SETTINGS_KEY,
+  NotificationSettingsSchema,
+} from "./schemas/notifications";
+import type {
+  NotificationChannel,
+  NotificationSettingsValue,
+  NotificationTriggerInput,
+  UpdateNotificationSettingsInput,
+} from "./schemas/notifications";
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
 import { publishActivityEvent } from "./activity-publisher";
@@ -1508,7 +1522,10 @@ export class ContactsService {
 }
 
 export class NotificationService {
-  constructor(private readonly inAppNotifications: InAppNotificationRepository) {}
+  constructor(
+    private readonly inAppNotifications: InAppNotificationRepository,
+    private readonly notifications?: NotificationRepository,
+  ) {}
 
   async list(input: {
     recipientId: EntityId;
@@ -1524,6 +1541,181 @@ export class NotificationService {
   }): Promise<void> {
     await this.inAppNotifications.markRead(input);
   }
+
+  /**
+   * Load merged notification settings for a profile. Missing fields fall
+   * back to `DEFAULT_NOTIFICATION_SETTINGS`. Invalid persisted blobs are
+   * discarded (i.e. treated as "no override") rather than throwing.
+   */
+  async getSettings(profileId: EntityId): Promise<NotificationSettingsValue> {
+    if (!this.notifications) return cloneDefaults();
+    const row = await this.notifications.getSetting({
+      profileId,
+      key: NOTIFICATION_SETTINGS_KEY,
+    });
+    return mergeNotificationSettings(cloneDefaults(), row?.value);
+  }
+
+  /**
+   * Apply a deep-partial update on top of the persisted settings and
+   * write the merged result back. Returns the fully resolved settings.
+   */
+  async updateSettings(
+    profileId: EntityId,
+    partial: UpdateNotificationSettingsInput,
+  ): Promise<NotificationSettingsValue> {
+    if (!this.notifications) {
+      throw new Error("NotificationService.updateSettings requires NotificationRepository");
+    }
+    const existing = await this.getSettings(profileId);
+    const next = mergeNotificationSettings(existing, partial);
+    NotificationSettingsSchema.parse(next);
+    await this.notifications.setSetting({
+      profileId,
+      key: NOTIFICATION_SETTINGS_KEY,
+      value: next,
+    });
+    return next;
+  }
+
+  /**
+   * Determine whether a notification may be sent to `recipientId` from
+   * `actorId` for the given `trigger` at time `now` against channel `channel`.
+   *
+   * Enforces all of:
+   *  - master pause (`masterEnabled = false` → blocked)
+   *  - per-channel toggle
+   *  - per-trigger toggle (security_event ignores trigger toggle to avoid lockout)
+   *  - quiet hours (security_event bypasses quiet hours)
+   *  - global per-recipient cap (5 / 24h)
+   *  - per-actor cap (3 / 24h, only when actorId is provided)
+   */
+  async canSend(input: {
+    recipientId: EntityId;
+    actorId?: EntityId;
+    trigger: NotificationTriggerInput;
+    channel: NotificationChannel;
+    now: Date;
+  }): Promise<{ allowed: true } | { allowed: false; reason: NotificationBlockedReason }> {
+    const settings = await this.getSettings(input.recipientId);
+
+    // security_event is treated as a safety-critical trigger that bypasses
+    // master pause / quiet-hours / trigger toggle. It still respects caps.
+    const isSecurity = input.trigger === "security_event";
+
+    if (!isSecurity && !settings.masterEnabled) {
+      return { allowed: false, reason: "master_paused" };
+    }
+    if (!settings.channels[input.channel]) {
+      return { allowed: false, reason: "channel_disabled" };
+    }
+    if (!isSecurity && !settings.triggers[input.trigger]) {
+      return { allowed: false, reason: "trigger_disabled" };
+    }
+    if (
+      !isSecurity &&
+      settings.quietHours.enabled &&
+      isInQuietHours(input.now, settings.quietHours.startMinute, settings.quietHours.endMinute)
+    ) {
+      return { allowed: false, reason: "quiet_hours" };
+    }
+
+    const dayAgo = new Date(input.now.getTime() - 24 * 60 * 60 * 1000);
+    const recipientCount = await this.inAppNotifications.countSince({
+      recipientId: input.recipientId,
+      since: dayAgo,
+    });
+    if (recipientCount >= NOTIFICATION_CAP_PER_RECIPIENT_DAY) {
+      return { allowed: false, reason: "recipient_cap" };
+    }
+    if (input.actorId) {
+      const actorCount = await this.inAppNotifications.countSinceByActor({
+        recipientId: input.recipientId,
+        actorId: input.actorId,
+        since: dayAgo,
+      });
+      if (actorCount >= NOTIFICATION_CAP_PER_ACTOR_DAY) {
+        return { allowed: false, reason: "actor_cap" };
+      }
+    }
+    return { allowed: true };
+  }
+}
+
+export type NotificationBlockedReason =
+  | "master_paused"
+  | "channel_disabled"
+  | "trigger_disabled"
+  | "quiet_hours"
+  | "recipient_cap"
+  | "actor_cap";
+
+function cloneDefaults(): NotificationSettingsValue {
+  return {
+    masterEnabled: DEFAULT_NOTIFICATION_SETTINGS.masterEnabled,
+    channels: { ...DEFAULT_NOTIFICATION_SETTINGS.channels },
+    triggers: { ...DEFAULT_NOTIFICATION_SETTINGS.triggers },
+    quietHours: { ...DEFAULT_NOTIFICATION_SETTINGS.quietHours },
+  };
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Deep-merge `partial` onto `base`, ignoring keys that don't exist on `base`. */
+function mergeNotificationSettings(
+  base: NotificationSettingsValue,
+  partial: unknown,
+): NotificationSettingsValue {
+  if (!isPlainObject(partial)) return base;
+  const out: NotificationSettingsValue = {
+    masterEnabled: typeof partial.masterEnabled === "boolean" ? partial.masterEnabled : base.masterEnabled,
+    channels: { ...base.channels },
+    triggers: { ...base.triggers },
+    quietHours: { ...base.quietHours },
+  };
+  if (isPlainObject(partial.channels)) {
+    for (const k of Object.keys(out.channels) as Array<keyof typeof out.channels>) {
+      const v = partial.channels[k];
+      if (typeof v === "boolean") out.channels[k] = v;
+    }
+  }
+  if (isPlainObject(partial.triggers)) {
+    for (const k of Object.keys(out.triggers) as Array<keyof typeof out.triggers>) {
+      const v = partial.triggers[k];
+      if (typeof v === "boolean") out.triggers[k] = v;
+    }
+  }
+  if (isPlainObject(partial.quietHours)) {
+    if (typeof partial.quietHours.enabled === "boolean") {
+      out.quietHours.enabled = partial.quietHours.enabled;
+    }
+    if (typeof partial.quietHours.startMinute === "number" && Number.isInteger(partial.quietHours.startMinute)) {
+      const m = partial.quietHours.startMinute;
+      if (m >= 0 && m < 24 * 60) out.quietHours.startMinute = m;
+    }
+    if (typeof partial.quietHours.endMinute === "number" && Number.isInteger(partial.quietHours.endMinute)) {
+      const m = partial.quietHours.endMinute;
+      if (m >= 0 && m < 24 * 60) out.quietHours.endMinute = m;
+    }
+  }
+  return out;
+}
+
+/**
+ * Quiet-hours check. `[start, end)` inclusive of start, exclusive of end. The
+ * window wraps midnight when `start > end`. When `start === end` the window
+ * is empty (never quiet) — consistent with a zero-width interval.
+ */
+function isInQuietHours(now: Date, startMinute: number, endMinute: number): boolean {
+  const minutesNow = now.getUTCHours() * 60 + now.getUTCMinutes();
+  if (startMinute === endMinute) return false;
+  if (startMinute < endMinute) {
+    return minutesNow >= startMinute && minutesNow < endMinute;
+  }
+  // Wraps midnight
+  return minutesNow >= startMinute || minutesNow < endMinute;
 }
 
 const PHONE_VERIFY_CODE_LENGTH = 6;
@@ -1729,7 +1921,10 @@ export class AppServices {
       repositories.profiles,
       repositories.lists,
     );
-    this.notifications = new NotificationService(repositories.inAppNotifications);
+    this.notifications = new NotificationService(
+      repositories.inAppNotifications,
+      repositories.notifications,
+    );
     this.imports = new ImportService(repositories.imports);
     this.sessions = new SessionService(repositories.sessions);
     this.contacts = new ContactsService(

@@ -99,6 +99,8 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       list: vi.fn().mockResolvedValue([]),
       markRead: vi.fn(),
       findById: vi.fn(),
+      countSince: vi.fn().mockResolvedValue(0),
+      countSinceByActor: vi.fn().mockResolvedValue(0),
     },
     phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
     phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },

@@ -299,7 +299,7 @@ describe("AppServices", () => {
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
       handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
       magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
-      inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+      inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn(), countSince: vi.fn().mockResolvedValue(0), countSinceByActor: vi.fn().mockResolvedValue(0) },
       phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
       phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
       salts: { create: vi.fn(), findActive: vi.fn(), findByVersion: vi.fn(), retire: vi.fn(), getLatestVersion: vi.fn(), listAll: vi.fn() },
@@ -2722,6 +2722,8 @@ describe("NotificationService", () => {
       list: vi.fn().mockResolvedValue([]),
       markRead: vi.fn().mockResolvedValue(undefined),
       findById: vi.fn().mockResolvedValue(null),
+      countSince: vi.fn().mockResolvedValue(0),
+      countSinceByActor: vi.fn().mockResolvedValue(0),
       ...overrides,
     };
   }
@@ -2777,6 +2779,304 @@ describe("NotificationService", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// NotificationService — settings CRUD + caps (#147 [Q-03])
+// ---------------------------------------------------------------------------
+
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  NOTIFICATION_CAP_PER_ACTOR_DAY,
+  NOTIFICATION_CAP_PER_RECIPIENT_DAY,
+  NOTIFICATION_SETTINGS_KEY,
+} from "./schemas/notifications";
+import type { NotificationRepository } from "./ports";
+
+function makeNotificationRepo(): NotificationRepository {
+  const store = new Map<string, unknown>();
+  return {
+    registerToken: vi.fn(),
+    removeToken: vi.fn(),
+    listTokensForProfile: vi.fn(),
+    getSetting: vi.fn(async ({ profileId, key }) => {
+      const v = store.get(`${profileId}::${key}`);
+      return v === undefined ? null : { profileId, key, value: v };
+    }),
+    setSetting: vi.fn(async ({ profileId, key, value }) => {
+      store.set(`${profileId}::${key}`, value);
+      return { profileId, key, value };
+    }),
+    listSettings: vi.fn(),
+  };
+}
+
+function makeInAppRepoWithCounts(
+  recipientCount: number,
+  actorCount: number,
+): InAppNotificationRepository {
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    markRead: vi.fn().mockResolvedValue(undefined),
+    findById: vi.fn().mockResolvedValue(null),
+    countSince: vi.fn().mockResolvedValue(recipientCount),
+    countSinceByActor: vi.fn().mockResolvedValue(actorCount),
+  };
+}
+
+const VIEWER = "00000000-0000-0000-0000-0000000000a1";
+const ACTOR = "00000000-0000-0000-0000-0000000000a2";
+const NOW = new Date("2026-05-13T12:00:00Z"); // 12:00 UTC
+
+describe("NotificationService.getSettings", () => {
+  it("returns DEFAULT_NOTIFICATION_SETTINGS when nothing is persisted", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    const settings = await service.getSettings(VIEWER);
+    expect(settings).toEqual(DEFAULT_NOTIFICATION_SETTINGS);
+  });
+
+  it("merges persisted partial blob over defaults", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    await notif.setSetting({
+      profileId: VIEWER,
+      key: NOTIFICATION_SETTINGS_KEY,
+      value: { masterEnabled: false, triggers: { new_follower: false } },
+    });
+    const service = new NotificationService(inApp, notif);
+    const settings = await service.getSettings(VIEWER);
+    expect(settings.masterEnabled).toBe(false);
+    expect(settings.triggers.new_follower).toBe(false);
+    expect(settings.triggers.security_event).toBe(true); // untouched
+    expect(settings.channels.push).toBe(true); // untouched
+  });
+
+  it("falls back to defaults when persisted value is junk", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    await notif.setSetting({
+      profileId: VIEWER,
+      key: NOTIFICATION_SETTINGS_KEY,
+      value: "not an object",
+    });
+    const service = new NotificationService(inApp, notif);
+    const settings = await service.getSettings(VIEWER);
+    expect(settings).toEqual(DEFAULT_NOTIFICATION_SETTINGS);
+  });
+});
+
+describe("NotificationService.updateSettings", () => {
+  it("persists a partial update and returns the merged result", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    const result = await service.updateSettings(VIEWER, {
+      masterEnabled: false,
+      quietHours: { enabled: true, startMinute: 60 },
+    });
+    expect(result.masterEnabled).toBe(false);
+    expect(result.quietHours.enabled).toBe(true);
+    expect(result.quietHours.startMinute).toBe(60);
+    expect(result.quietHours.endMinute).toBe(DEFAULT_NOTIFICATION_SETTINGS.quietHours.endMinute);
+
+    // Re-read and verify durability
+    const reread = await service.getSettings(VIEWER);
+    expect(reread).toEqual(result);
+  });
+
+  it("ignores unknown fields and preserves valid persisted state", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    await service.updateSettings(VIEWER, { channels: { push: false } });
+    const result = await service.updateSettings(VIEWER, {
+      // bogus extra keys allowed in input but not propagated to storage
+    } as never);
+    expect(result.channels.push).toBe(false);
+    expect(result.channels.in_app).toBe(true);
+  });
+
+  it("throws if notifications repository is not configured", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const service = new NotificationService(inApp);
+    await expect(service.updateSettings(VIEWER, { masterEnabled: false })).rejects.toThrow(
+      /requires NotificationRepository/,
+    );
+  });
+});
+
+describe("NotificationService.canSend", () => {
+  it("allows by default when settings are unset and caps not exceeded", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      actorId: ACTOR,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: true });
+  });
+
+  it("blocks when master is paused", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    await service.updateSettings(VIEWER, { masterEnabled: false });
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: false, reason: "master_paused" });
+  });
+
+  it("blocks when channel is disabled", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    await service.updateSettings(VIEWER, { channels: { push: false } });
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: false, reason: "channel_disabled" });
+  });
+
+  it("blocks when trigger is disabled", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    await service.updateSettings(VIEWER, { triggers: { new_follower: false } });
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: false, reason: "trigger_disabled" });
+  });
+
+  it("blocks during quiet hours", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    // 11:00–13:00 UTC quiet, NOW=12:00 UTC
+    await service.updateSettings(VIEWER, {
+      quietHours: { enabled: true, startMinute: 11 * 60, endMinute: 13 * 60 },
+    });
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: false, reason: "quiet_hours" });
+  });
+
+  it("treats quiet hours wrapping midnight correctly", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    // 22:00–08:00 UTC quiet
+    await service.updateSettings(VIEWER, {
+      quietHours: { enabled: true, startMinute: 22 * 60, endMinute: 8 * 60 },
+    });
+    const at3am = new Date("2026-05-13T03:00:00Z");
+    const result3am = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "new_follower",
+      channel: "push",
+      now: at3am,
+    });
+    expect(result3am).toEqual({ allowed: false, reason: "quiet_hours" });
+
+    const at10am = new Date("2026-05-13T10:00:00Z");
+    const result10am = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "new_follower",
+      channel: "push",
+      now: at10am,
+    });
+    expect(result10am).toEqual({ allowed: true });
+  });
+
+  it(`enforces recipient cap of ${NOTIFICATION_CAP_PER_RECIPIENT_DAY}/day`, async () => {
+    const inApp = makeInAppRepoWithCounts(NOTIFICATION_CAP_PER_RECIPIENT_DAY, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      actorId: ACTOR,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: false, reason: "recipient_cap" });
+  });
+
+  it(`enforces per-actor cap of ${NOTIFICATION_CAP_PER_ACTOR_DAY}/day`, async () => {
+    const inApp = makeInAppRepoWithCounts(0, NOTIFICATION_CAP_PER_ACTOR_DAY);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      actorId: ACTOR,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: false, reason: "actor_cap" });
+  });
+
+  it("does not check per-actor cap when no actorId is supplied", async () => {
+    const inApp = makeInAppRepoWithCounts(0, NOTIFICATION_CAP_PER_ACTOR_DAY);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    const result = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "new_follower",
+      channel: "push",
+      now: NOW,
+    });
+    expect(result).toEqual({ allowed: true });
+    expect(inApp.countSinceByActor).not.toHaveBeenCalled();
+  });
+
+  it("security_event bypasses master-pause, trigger toggle, and quiet hours (still respects caps)", async () => {
+    const inApp = makeInAppRepoWithCounts(0, 0);
+    const notif = makeNotificationRepo();
+    const service = new NotificationService(inApp, notif);
+    await service.updateSettings(VIEWER, {
+      masterEnabled: false,
+      triggers: { security_event: false },
+      quietHours: { enabled: true, startMinute: 11 * 60, endMinute: 13 * 60 },
+    });
+    const allowed = await service.canSend({
+      recipientId: VIEWER,
+      trigger: "security_event",
+      channel: "push",
+      now: NOW,
+    });
+    expect(allowed).toEqual({ allowed: true });
+
+    const cappedInApp = makeInAppRepoWithCounts(NOTIFICATION_CAP_PER_RECIPIENT_DAY, 0);
+    const cappedService = new NotificationService(cappedInApp, makeNotificationRepo());
+    const capped = await cappedService.canSend({
+      recipientId: VIEWER,
+      trigger: "security_event",
+      channel: "push",
+      now: NOW,
+    });
+    expect(capped).toEqual({ allowed: false, reason: "recipient_cap" });
+  });
+});
+
 describe("AppServices includes notifications", () => {
   it("exposes notifications service", () => {
     const repositories: AppRepositories = {
@@ -2799,7 +3099,7 @@ describe("AppServices includes notifications", () => {
       sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
       handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
       magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
-      inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn() },
+      inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn(), countSince: vi.fn().mockResolvedValue(0), countSinceByActor: vi.fn().mockResolvedValue(0) },
       phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
       phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
       salts: { create: vi.fn(), findActive: vi.fn(), findByVersion: vi.fn(), retire: vi.fn(), getLatestVersion: vi.fn(), listAll: vi.fn() },
