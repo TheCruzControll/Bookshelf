@@ -54,14 +54,25 @@ export default async function ShelfPage({ params }: Props) {
         {shelf.description ? <p>{shelf.description}</p> : null}
       </section>
 
-      <section>
+      <section aria-label="Books on this shelf">
         {items.length === 0 ? (
           <p>No books on this shelf yet.</p>
         ) : (
-          <ul>
+          <ul className="shelfItems">
             {items.map((item) => (
-              <li key={item.id}>
-                {item.book ? item.book.canonicalTitle : item.bookId}
+              <li key={item.id} className="shelfItem">
+                {item.book?.coverUrl ? (
+                  <img
+                    src={item.book.coverUrl}
+                    alt=""
+                    className="shelfItemCover"
+                    width={48}
+                    height={72}
+                  />
+                ) : null}
+                <a href={`/books/${item.bookId}`} className="shelfItemTitle">
+                  {item.book ? item.book.canonicalTitle : item.bookId}
+                </a>
               </li>
             ))}
           </ul>

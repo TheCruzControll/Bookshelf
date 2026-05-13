@@ -42,9 +42,13 @@ export default async function ListPage({ params }: Props) {
     notFound();
   }
 
+  // Editorial and algorithmic lists are discoverable on equal footing with
+  // user lists (#130). The author-type chip signals provenance without
+  // hiding the list from the rest of the profile surface.
   const items = await fetchListItems(list.id);
 
   const isEditorial = list.authorType === "internal_editorial";
+  const isAlgorithmic = list.authorType === "algorithmic";
 
   return (
     <main className="shell">
@@ -56,19 +60,35 @@ export default async function ListPage({ params }: Props) {
               Verified
             </span>
           ) : null}
+          {isAlgorithmic ? (
+            <span className="badge badge--algorithmic" aria-label="Algorithmic list">
+              Curated by Hone
+            </span>
+          ) : null}
         </p>
         <h1>{list.name}</h1>
         {list.description ? <p>{list.description}</p> : null}
       </section>
 
-      <section>
+      <section aria-label="Books on this list">
         {items.length === 0 ? (
           <p>No books on this list yet.</p>
         ) : (
-          <ol>
+          <ol className="listItems">
             {items.map((item) => (
-              <li key={item.id}>
-                {item.book ? item.book.canonicalTitle : item.bookId}
+              <li key={item.id} className="listItem">
+                {item.book?.coverUrl ? (
+                  <img
+                    src={item.book.coverUrl}
+                    alt=""
+                    className="listItemCover"
+                    width={48}
+                    height={72}
+                  />
+                ) : null}
+                <a href={`/books/${item.bookId}`} className="listItemTitle">
+                  {item.book ? item.book.canonicalTitle : item.bookId}
+                </a>
               </li>
             ))}
           </ol>
