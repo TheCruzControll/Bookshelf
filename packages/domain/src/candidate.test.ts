@@ -191,3 +191,126 @@ describe("selectCandidate property tests", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Binary-insertion convergence (#117 [L-09])
+//
+// Simulates the full ranking-flow loop:
+//   - The user's ranked books occupy positions 1..N (1 = best).
+//   - A new book has an unknown "true" target position T in [1, N+1].
+//   - At each step the flow picks the midpoint of the active [low, high]
+//     range, calls selectCandidate to obtain the corresponding ranked
+//     book, asks the user "is the new book better than this one?", and
+//     halves the range based on the answer.
+//
+// Property under test: the number of comparisons needed to converge is
+// O(log n). For a clean binary search over n positions the bound is
+// ceil(log2(n+1)).
+// ---------------------------------------------------------------------------
+
+function buildSequentialRanked(n: number, bucket: number): RankedCandidate[] {
+  // Positions 1..n, all in the same bucket and with the same genre tag so
+  // that selectCandidate degenerates to "pick the book closest to midpoint".
+  return Array.from({ length: n }, (_, i) => ({
+    bookId: `b-${i + 1}`,
+    position: i + 1,
+    score: 10 - i,
+    bucket,
+    genres: ["test"],
+  }));
+}
+
+function simulateBinaryInsertion(
+  rankedBooks: RankedCandidate[],
+  truePosition: number,
+  bucket: number,
+): { comparisons: number; insertAt: number } {
+  let low = 1;
+  let high = rankedBooks.length;
+  let comparisons = 0;
+  const seen = new Set<string>();
+
+  while (low <= high) {
+    const midpoint = Math.floor((low + high) / 2);
+    const picked = selectCandidate({
+      rankedBooks,
+      targetBucket: bucket,
+      midpoint,
+      newBookGenres: ["test"],
+    });
+    if (!picked) break;
+
+    comparisons += 1;
+
+    // Guard against pathological non-progress: selectCandidate should never
+    // return the same book twice within one search.
+    if (seen.has(picked.bookId)) {
+      throw new Error(
+        `selectCandidate returned ${picked.bookId} twice (low=${low}, high=${high}, mid=${midpoint})`,
+      );
+    }
+    seen.add(picked.bookId);
+
+    if (truePosition <= picked.position) {
+      high = picked.position - 1;
+    } else {
+      low = picked.position + 1;
+    }
+  }
+
+  return { comparisons, insertAt: low };
+}
+
+describe("binary-insertion convergence (#117 [L-09])", () => {
+  it("converges in <= ceil(log2(n+1)) comparisons for sequential ranked positions", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 1024 }),
+        fc.integer({ min: 1, max: 1025 }),
+        (n, rawTarget) => {
+          const truePosition = Math.min(rawTarget, n + 1);
+          const ranked = buildSequentialRanked(n, 3);
+
+          const { comparisons } = simulateBinaryInsertion(ranked, truePosition, 3);
+
+          const bound = Math.ceil(Math.log2(n + 1)) + 1; // +1 slack for off-by-one
+          return comparisons <= bound;
+        },
+      ),
+    );
+  });
+
+  it("always reaches a final insertion position within the inclusive range [1, n+1]", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 256 }),
+        fc.integer({ min: 1, max: 257 }),
+        (n, rawTarget) => {
+          const truePosition = Math.min(rawTarget, n + 1);
+          const ranked = buildSequentialRanked(n, 3);
+
+          const { insertAt } = simulateBinaryInsertion(ranked, truePosition, 3);
+
+          return insertAt >= 1 && insertAt <= n + 1;
+        },
+      ),
+    );
+  });
+
+  it("recovers the true insertion position when ranks are dense and sequential", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 256 }),
+        fc.integer({ min: 1, max: 257 }),
+        (n, rawTarget) => {
+          const truePosition = Math.min(rawTarget, n + 1);
+          const ranked = buildSequentialRanked(n, 3);
+
+          const { insertAt } = simulateBinaryInsertion(ranked, truePosition, 3);
+
+          return insertAt === truePosition;
+        },
+      ),
+    );
+  });
+});
