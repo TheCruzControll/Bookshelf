@@ -139,6 +139,74 @@ export function reasonForSignal(signal: SignalName): string {
 }
 
 // ---------------------------------------------------------------------------
+// Localized, candidate-aware reason picker (P-03, #139)
+// ---------------------------------------------------------------------------
+
+/** Supported reason locales. Architecture is extensible; "en" is the only one shipped. */
+export type ReasonLocale = "en";
+
+/**
+ * Minimal candidate shape required by the reason picker.
+ *
+ * Kept independent of CandidateBook so callers from other contexts (search
+ * results, cold-start lists) can reuse it without dragging in unused fields.
+ */
+export interface ReasonCandidate {
+  /** Number of the viewer's followed users who finished this book. */
+  networkFinishedCount: number;
+  /** Total number of users who have finished this book. */
+  popularityCount: number;
+  /** Genres associated with this book. */
+  genres: string[];
+}
+
+type Pluralize = (n: number, one: string, many: string) => string;
+
+const pluralize: Pluralize = (n, one, many) => (n === 1 ? one : many);
+
+type ReasonRenderer = (candidate: ReasonCandidate) => string;
+
+const REASON_RENDERERS_EN: Record<SignalName, ReasonRenderer> = {
+  mutual_count: (c) => {
+    const n = Math.max(0, Math.floor(c.networkFinishedCount));
+    if (n <= 0) return SIGNAL_REASONS.mutual_count;
+    return `${n} ${pluralize(n, "friend", "friends")} finished this`;
+  },
+  mutual_avg_score: () => SIGNAL_REASONS.mutual_avg_score,
+  taste_overlap: () => SIGNAL_REASONS.taste_overlap,
+  genre_match: (c) => {
+    const top = c.genres.find((g) => g.trim().length > 0);
+    if (!top) return SIGNAL_REASONS.genre_match;
+    return `Fits your taste in ${top}`;
+  },
+  recency: () => SIGNAL_REASONS.recency,
+  popularity_floor: (c) => {
+    const n = Math.max(0, Math.floor(c.popularityCount));
+    if (n <= 0) return SIGNAL_REASONS.popularity_floor;
+    return `Widely read on Hone — ${n} ${pluralize(n, "reader", "readers")}`;
+  },
+};
+
+const RENDERERS_BY_LOCALE: Record<ReasonLocale, Record<SignalName, ReasonRenderer>> = {
+  en: REASON_RENDERERS_EN,
+};
+
+/**
+ * Return the one-line "why this?" string for a recommendation, picked from
+ * the dominant signal and enriched with candidate data.
+ *
+ * Locale defaults to "en". Unknown locales fall back to "en".
+ */
+export function reasonFor(
+  dominantSignal: SignalName,
+  candidate: ReasonCandidate,
+  locale: ReasonLocale = "en",
+): string {
+  const renderers = RENDERERS_BY_LOCALE[locale] ?? RENDERERS_BY_LOCALE.en;
+  return renderers[dominantSignal](candidate);
+}
+
+// ---------------------------------------------------------------------------
 // Core scorer
 // ---------------------------------------------------------------------------
 
