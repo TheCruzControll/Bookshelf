@@ -5,6 +5,7 @@ export * from "./algorithmic-refresh";
 export * from "./candidate";
 export * from "./candidate-query";
 export * from "./heuristic-scorer";
+export * from "./push";
 export * from "./rec-cache";
 // contact-hash uses node:crypto — server-only, import from "@hone/domain/contact-hash"
 // goodreads uses node:crypto — server-only, import from "@hone/domain/goodreads"
@@ -18,4 +19,3 @@ export * from "./score";
 export * from "./services";
 export * from "./types";
 export * from "./visibility";
-
