@@ -29,7 +29,7 @@
  * surface that returns content attributed to another user: shelves, reviews,
  * activity feed, rankings, lists, and search results.
  */
-import { and, asc, desc, eq, gt, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type {
   AccountDeletion,
   AccountDeletionRepository,
@@ -1519,6 +1519,37 @@ class DrizzleInAppNotificationRepository implements InAppNotificationRepository 
       where: eq(inAppNotifications.id, id),
     });
     return row ? toInAppNotification(row) : null;
+  }
+
+  async countSince(input: { recipientId: EntityId; since: Date }) {
+    const rows = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(inAppNotifications)
+      .where(
+        and(
+          eq(inAppNotifications.recipientId, input.recipientId),
+          gte(inAppNotifications.createdAt, input.since),
+        ),
+      );
+    return rows[0]?.count ?? 0;
+  }
+
+  async countSinceByActor(input: {
+    recipientId: EntityId;
+    actorId: EntityId;
+    since: Date;
+  }) {
+    const rows = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(inAppNotifications)
+      .where(
+        and(
+          eq(inAppNotifications.recipientId, input.recipientId),
+          eq(inAppNotifications.actorId, input.actorId),
+          gte(inAppNotifications.createdAt, input.since),
+        ),
+      );
+    return rows[0]?.count ?? 0;
   }
 }
 
