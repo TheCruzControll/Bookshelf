@@ -125,6 +125,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       getMaxPosition: vi.fn().mockResolvedValue(0),
       moveShelfItem: vi.fn(),
       listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]),
+      listShelfItemsByOwner: vi.fn().mockResolvedValue([]),
       ...overrides?.shelves,
     },
     reviews: {
@@ -139,6 +140,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       getFriendFeed: vi.fn(),
       getFriendFeedGrouped: vi.fn(),
       deleteByReviewId: vi.fn().mockResolvedValue(undefined),
+      listByActor: vi.fn().mockResolvedValue([]),
     },
     recommendations: { getForUser: vi.fn() },
     follows: {
@@ -233,6 +235,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       countSince: vi.fn().mockResolvedValue(0),
       countSinceByActor: vi.fn().mockResolvedValue(0),
       create: vi.fn(),
+        listAllByRecipient: vi.fn().mockResolvedValue([]),
     },
     phoneVerifications: {
       upsert: vi.fn(),
@@ -496,7 +499,7 @@ describe("two-client conflict: optimistic locking on review edit", () => {
     });
 
     const repos = makeRepositories({
-      reviews: { findById, create: vi.fn(), update, delete: vi.fn() },
+      reviews: { findById, create: vi.fn(), update, delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity({ userId: OWNER_ID }), repos);
 
@@ -540,7 +543,7 @@ describe("two-client conflict: optimistic locking on review edit", () => {
     const findById = vi.fn().mockResolvedValue(v2);
     const update = vi.fn();
     const repos = makeRepositories({
-      reviews: { findById, create: vi.fn(), update, delete: vi.fn() },
+      reviews: { findById, create: vi.fn(), update, delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity({ userId: OWNER_ID }), repos);
 
@@ -596,7 +599,7 @@ describe("two-client conflict: optimistic locking on review edit", () => {
       });
 
     const repos = makeRepositories({
-      reviews: { findById, create: vi.fn(), update, delete: vi.fn() },
+      reviews: { findById, create: vi.fn(), update, delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity({ userId: OWNER_ID }), repos);
 

@@ -58,9 +58,10 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       getMaxPosition: vi.fn().mockResolvedValue(0),
       moveShelfItem: vi.fn(),
       listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]),
+      listShelfItemsByOwner: vi.fn().mockResolvedValue([]),
     },
-    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-    activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
+    activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn(), listByActor: vi.fn().mockResolvedValue([]) },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
@@ -81,6 +82,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       countSince: vi.fn().mockResolvedValue(0),
       countSinceByActor: vi.fn().mockResolvedValue(0),
       create: vi.fn(),
+        listAllByRecipient: vi.fn().mockResolvedValue([]),
     },
     phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
     phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
@@ -132,6 +134,7 @@ describe("notifications.list", () => {
         countSince: vi.fn().mockResolvedValue(0),
         countSinceByActor: vi.fn().mockResolvedValue(0),
         create: vi.fn(),
+        listAllByRecipient: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -172,6 +175,7 @@ describe("notifications.list", () => {
         countSince: vi.fn().mockResolvedValue(0),
         countSinceByActor: vi.fn().mockResolvedValue(0),
         create: vi.fn(),
+        listAllByRecipient: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -194,6 +198,7 @@ describe("notifications.list", () => {
         countSince: vi.fn().mockResolvedValue(0),
         countSinceByActor: vi.fn().mockResolvedValue(0),
         create: vi.fn(),
+        listAllByRecipient: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity(), repos);

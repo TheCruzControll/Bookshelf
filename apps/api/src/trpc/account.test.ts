@@ -4,7 +4,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { createTrpcContext, type TrpcContextDeps } from "./context";
 import { router } from "./trpc";
 import { accountRouter } from "./account";
-import type { AppRepositories, AuthIdentity, AccountDeletion } from "@hone/domain";
+import type { AppRepositories, AuthIdentity, AccountDeletion, StorageProvider } from "@hone/domain";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -60,9 +60,10 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       getMaxPosition: vi.fn().mockResolvedValue(0),
       moveShelfItem: vi.fn(),
       listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]),
+      listShelfItemsByOwner: vi.fn().mockResolvedValue([]),
     },
-    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-    activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn() },
+    reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
+    activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn(), listByActor: vi.fn().mockResolvedValue([]) },
     recommendations: { getForUser: vi.fn() },
     follows: {
       follow: vi.fn(),
@@ -92,7 +93,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
     handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
     magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
-    inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn(), countSince: vi.fn().mockResolvedValue(0), countSinceByActor: vi.fn().mockResolvedValue(0), create: vi.fn() },
+    inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn(), countSince: vi.fn().mockResolvedValue(0), countSinceByActor: vi.fn().mockResolvedValue(0), create: vi.fn(), listAllByRecipient: vi.fn().mockResolvedValue([]) },
     phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
     phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
     salts: { create: vi.fn(), findActive: vi.fn(), findByVersion: vi.fn(), retire: vi.fn(), getLatestVersion: vi.fn(), listAll: vi.fn() },
@@ -107,11 +108,15 @@ function makeIdentity(overrides?: Partial<AuthIdentity>): AuthIdentity {
   };
 }
 
-function buildApp(identity: AuthIdentity | null, repositories: AppRepositories) {
+function buildApp(
+  identity: AuthIdentity | null,
+  repositories: AppRepositories,
+  storage?: StorageProvider,
+) {
   const testRouter = router({ account: accountRouter });
   const app = new Hono();
   const auth = { getCurrentIdentity: async () => identity };
-  const deps: TrpcContextDeps = { repositories, auth };
+  const deps: TrpcContextDeps = { repositories, auth, ...(storage ? { storage } : {}) };
   app.use(
     "/trpc/*",
     trpcServer({
@@ -348,5 +353,104 @@ describe("account.cancelDelete", () => {
     // Any downstream visibility surface that asks the repo "is this user
     // soft-deleted?" now gets a null row back, i.e. the user is restored.
     expect(await repos.accountDeletions.findByProfileId(UUID1)).toBeNull();
+  });
+});
+
+describe("account.requestExport", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeStorage(): { storage: StorageProvider; putObject: ReturnType<typeof vi.fn> } {
+    const putObject = vi.fn(async (input: { key: string; expiresInMs: number }) => ({
+      url: `https://signed.example.com/${encodeURIComponent(input.key)}?sig=ok`,
+      expiresAt: new Date(Date.now() + input.expiresInMs),
+    }));
+    return { storage: { putObject }, putObject };
+  }
+
+  it("returns a signed URL pointing at the archive for the authenticated viewer", async () => {
+    const repos = makeRepositories();
+    const { storage, putObject } = makeStorage();
+    const app = buildApp(makeIdentity(), repos, storage);
+
+    const res = await app.request("/trpc/account.requestExport", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.result.data.url).toBe("string");
+    expect(body.result.data.url).toContain("signed.example.com");
+    expect(body.result.data.expiresAt).toBeDefined();
+    expect(putObject).toHaveBeenCalledTimes(1);
+    const uploadCall = putObject.mock.calls[0]![0] as { key: string };
+    expect(uploadCall.key).toContain(`account-exports/${UUID1}/`);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const { storage } = makeStorage();
+    const app = buildApp(null, repos, storage);
+
+    const res = await app.request("/trpc/account.requestExport", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 501 NOT_IMPLEMENTED when no storage adapter is wired", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/account.requestExport", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(501);
+  });
+
+  it("only queries repositories for the caller's profile id", async () => {
+    const OTHER = "00000000-0000-0000-0000-0000000000ff";
+    const repos = makeRepositories();
+    const { storage } = makeStorage();
+    const app = buildApp(makeIdentity({ userId: UUID1 }), repos, storage);
+
+    await app.request("/trpc/account.requestExport", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    // Spot-check the per-owner repo calls: each one must receive
+    // UUID1 (the caller) and never OTHER.
+    const calls = [
+      (repos.reviews.listByAuthor as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.shelves.listShelves as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.shelves.listShelfItemsByOwner as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.lists.listByOwner as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.rankings.listByOwner as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.activity.listByActor as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.inAppNotifications.listAllByRecipient as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.notifications.listTokensForProfile as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.contacts.listByUser as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.emailIndex.listByUser as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.phoneNumbers.findByProfileId as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.imports.listByOwner as ReturnType<typeof vi.fn>).mock.calls,
+      (repos.authIdentities.listByProfile as ReturnType<typeof vi.fn>).mock.calls,
+    ];
+    for (const calls_ of calls) {
+      for (const args of calls_) {
+        expect(args[0]).toBe(UUID1);
+        expect(args[0]).not.toBe(OTHER);
+      }
+    }
   });
 });

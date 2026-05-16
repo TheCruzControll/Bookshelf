@@ -19,6 +19,11 @@
 **Shelf:**
 - `shelf.update(id, version, name?, visibility?, description?)` — update shelf metadata with optimistic locking (version must match current; stale version returns 409)
 
+**Account:**
+- `account.requestDelete()` — soft-delete: insert an `account_deletions` row with 30-day grace, revoke all sessions, return the deletion record. Idempotent.
+- `account.cancelDelete()` — remove the `account_deletions` row if it exists and the grace period has not yet expired.
+- `account.requestExport()` — build a gzipped JSON archive of every user-scoped row owned by the viewer and return `{ url, expiresAt }`. Signed URL lifetime defaults to 24h; archive layout documented in `docs/runbook.md`. Returns 501 if no `StorageProvider` is wired.
+
 ### Domain Ports
 
 **Catalog:**
@@ -26,6 +31,9 @@
 - `CatalogProvider.lookupByIsbn(isbn)` — lookup book by ISBN-10 or ISBN-13; returns `BookSearchResult | null`.
 
 `BookSearchResult` covers both Open Library and Google Books response shapes (see `packages/domain/src/types.ts`), with source field indicating `"open_library" | "google_books"`.
+
+**Storage:**
+- `StorageProvider.putObject({ key, body, contentType, expiresInMs })` — upload a binary blob and return `{ url, expiresAt }` where `url` is a time-limited URL that ceases to be valid by `expiresAt`. Production uses a presigned-URL adapter (S3 / GCS / R2); dev uses `LocalFileStorageProvider` (`apps/api/src/storage/local-storage.ts`) which writes to a temp directory and returns a `file://` URL.
 
 ## Cache usage
 

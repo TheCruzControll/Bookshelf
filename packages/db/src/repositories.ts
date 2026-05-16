@@ -730,6 +730,16 @@ export class DrizzleShelfRepository implements ShelfRepository {
       );
     return rows.map((r) => r.ownerId);
   }
+
+  async listShelfItemsByOwner(ownerId: EntityId) {
+    const rows = await this.db
+      .select({ item: shelfItems })
+      .from(shelfItems)
+      .innerJoin(shelves, eq(shelfItems.shelfId, shelves.id))
+      .where(eq(shelves.ownerId, ownerId))
+      .orderBy(asc(shelfItems.addedAt));
+    return rows.map((r) => toShelfItem(r.item));
+  }
 }
 
 export class DrizzleReviewRepository implements ReviewRepository {
@@ -778,6 +788,15 @@ export class DrizzleReviewRepository implements ReviewRepository {
       .where(
         and(eq(reviews.id, input.id), eq(reviews.authorId, input.authorId))
       );
+  }
+
+  async listByAuthor(authorId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.authorId, authorId))
+      .orderBy(desc(reviews.createdAt));
+    return rows.map(toReview);
   }
 }
 
@@ -903,6 +922,15 @@ export class DrizzleActivityRepository implements ActivityRepository {
     await this.db
       .delete(activityEvents)
       .where(eq(activityEvents.reviewId, reviewId));
+  }
+
+  async listByActor(actorId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(activityEvents)
+      .where(eq(activityEvents.actorId, actorId))
+      .orderBy(desc(activityEvents.occurredAt));
+    return rows.map(toActivityEvent);
   }
 }
 
@@ -1930,6 +1958,15 @@ class DrizzleInAppNotificationRepository implements InAppNotificationRepository 
         ),
       );
     return rows[0]?.count ?? 0;
+  }
+
+  async listAllByRecipient(recipientId: EntityId) {
+    const rows = await this.db
+      .select()
+      .from(inAppNotifications)
+      .where(eq(inAppNotifications.recipientId, recipientId))
+      .orderBy(desc(inAppNotifications.createdAt));
+    return rows.map(toInAppNotification);
   }
 }
 
