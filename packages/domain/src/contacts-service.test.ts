@@ -21,6 +21,8 @@ function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepo
     expireBySaltVersion: vi.fn().mockResolvedValue(0),
     deleteByTargetHash: vi.fn().mockResolvedValue(undefined),
     listByUser: vi.fn().mockResolvedValue([]),
+    softDisable: vi.fn().mockResolvedValue(undefined),
+    purgeOlderThan: vi.fn().mockResolvedValue(0),
     ...overrides,
   };
 }
@@ -549,6 +551,107 @@ describe("ContactsService", () => {
       await expect(service.validateSaltVersion(1)).rejects.toMatchObject({
         code: "INTERNAL_ERROR",
       });
+    });
+  });
+
+  describe("disableSync", () => {
+    it("soft-disables every row owned by the viewer at `now`", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      const now = new Date("2026-05-16T12:00:00Z");
+      const result = await service.disableSync({ viewerId: "viewer-1", now });
+
+      expect(contacts.softDisable).toHaveBeenCalledTimes(1);
+      expect(contacts.softDisable).toHaveBeenCalledWith({
+        userId: "viewer-1",
+        now,
+      });
+      expect(result).toEqual({ disabled: true });
+    });
+
+    it("defaults `now` to the current time when omitted", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      const before = Date.now();
+      await service.disableSync({ viewerId: "viewer-1" });
+      const after = Date.now();
+
+      const call = (contacts.softDisable as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+        | { userId: string; now: Date }
+        | undefined;
+      expect(call).toBeDefined();
+      expect(call?.userId).toBe("viewer-1");
+      expect(call?.now.getTime()).toBeGreaterThanOrEqual(before);
+      expect(call?.now.getTime()).toBeLessThanOrEqual(after);
+    });
+
+    it("does not delete email-index rows", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      await service.disableSync({ viewerId: "viewer-1" });
+
+      expect(emailIndex.deleteForUser).not.toHaveBeenCalled();
+      expect(contacts.deleteForUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("purgeDisabled", () => {
+    it("delegates to purgeOlderThan with cutoff = now - 24h", async () => {
+      const contacts = makeContactsRepo({
+        purgeOlderThan: vi.fn().mockResolvedValue(3),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      const now = new Date("2026-05-16T12:00:00Z");
+      const purged = await service.purgeDisabled(now);
+
+      expect(purged).toBe(3);
+      expect(contacts.purgeOlderThan).toHaveBeenCalledTimes(1);
+      const cutoff = (contacts.purgeOlderThan as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as Date;
+      const expected = new Date("2026-05-15T12:00:00Z");
+      expect(cutoff.getTime()).toBe(expected.getTime());
+    });
+
+    it("returns zero when no rows are old enough to purge", async () => {
+      const contacts = makeContactsRepo({
+        purgeOlderThan: vi.fn().mockResolvedValue(0),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      const purged = await service.purgeDisabled(new Date("2026-05-16T12:00:00Z"));
+      expect(purged).toBe(0);
+    });
+
+    it("uses current time when `now` is omitted", async () => {
+      const contacts = makeContactsRepo({
+        purgeOlderThan: vi.fn().mockResolvedValue(1),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      const before = Date.now();
+      await service.purgeDisabled();
+      const after = Date.now();
+
+      const cutoff = (contacts.purgeOlderThan as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as Date;
+      const cutoffMs = cutoff.getTime();
+      const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+      expect(cutoffMs).toBeGreaterThanOrEqual(before - twentyFourHoursMs);
+      expect(cutoffMs).toBeLessThanOrEqual(after - twentyFourHoursMs);
     });
   });
 });

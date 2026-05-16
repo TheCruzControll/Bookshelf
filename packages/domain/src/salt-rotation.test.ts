@@ -41,6 +41,8 @@ function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepo
     expireBySaltVersion: vi.fn().mockResolvedValue(0),
     deleteByTargetHash: vi.fn().mockResolvedValue(undefined),
     listByUser: vi.fn().mockResolvedValue([]),
+    softDisable: vi.fn().mockResolvedValue(undefined),
+    purgeOlderThan: vi.fn().mockResolvedValue(0),
     ...overrides,
   };
 }

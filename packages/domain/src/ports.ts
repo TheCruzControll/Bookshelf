@@ -379,6 +379,17 @@ export interface ContactsRepository {
   expireBySaltVersion(saltVersion: number, expiresAt: Date): Promise<number>;
   deleteByTargetHash(hashes: string[]): Promise<void>;
   listByUser(userId: EntityId): Promise<ContactsHash[]>;
+  /**
+   * Mark all of a user's `contacts_index` rows as disabled at the given
+   * timestamp. Soft-delete primitive for `contacts.disableSync` (#98); rows
+   * remain on disk until `purgeOlderThan` removes them at least 24h later.
+   */
+  softDisable(input: { userId: EntityId; now: Date }): Promise<void>;
+  /**
+   * Hard-delete every `contacts_index` row whose `disabled_at` is older
+   * than the given cutoff. Idempotent. Returns the number of rows deleted.
+   */
+  purgeOlderThan(cutoff: Date): Promise<number>;
 }
 
 export interface EmailIndexRepository {

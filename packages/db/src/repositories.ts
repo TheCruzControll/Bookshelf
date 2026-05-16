@@ -1366,7 +1366,8 @@ class DrizzleContactsRepository implements ContactsRepository {
       .where(
         and(
           inArray(contactsIndex.contactHash, input.hashes),
-          gt(contactsIndex.expiresAt, now)
+          gt(contactsIndex.expiresAt, now),
+          isNull(contactsIndex.disabledAt)
         )
       );
     return rows
@@ -1378,7 +1379,8 @@ class DrizzleContactsRepository implements ContactsRepository {
    * Join contacts_index (viewer's uploaded contact hashes) against
    * phone_numbers to discover Hone profiles whose normalized phone hash
    * matches one of the viewer's contacts. Excludes the viewer and any
-   * contact-index rows whose `expiresAt` has passed.
+   * contact-index rows whose `expiresAt` has passed or that the viewer
+   * has soft-disabled (see `contacts.disableSync`, #98).
    */
   async findMatchingProfilesByPhone(viewerId: EntityId): Promise<EntityId[]> {
     const now = new Date();
@@ -1389,7 +1391,8 @@ class DrizzleContactsRepository implements ContactsRepository {
       .where(
         and(
           eq(contactsIndex.profileId, viewerId),
-          gt(contactsIndex.expiresAt, now)
+          gt(contactsIndex.expiresAt, now),
+          isNull(contactsIndex.disabledAt)
         )
       );
     const seen = new Set<EntityId>();
@@ -1443,6 +1446,26 @@ class DrizzleContactsRepository implements ContactsRepository {
       createdAt: new Date(),
       expiresAt: row.expiresAt,
     }));
+  }
+
+  async softDisable(input: { userId: EntityId; now: Date }): Promise<void> {
+    await this.db
+      .update(contactsIndex)
+      .set({ disabledAt: input.now })
+      .where(
+        and(
+          eq(contactsIndex.profileId, input.userId),
+          isNull(contactsIndex.disabledAt),
+        ),
+      );
+  }
+
+  async purgeOlderThan(cutoff: Date): Promise<number> {
+    const result = await this.db
+      .delete(contactsIndex)
+      .where(lt(contactsIndex.disabledAt, cutoff))
+      .returning();
+    return result.length;
   }
 }
 

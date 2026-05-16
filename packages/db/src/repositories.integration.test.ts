@@ -659,6 +659,73 @@ describeIntegration("repository integration tests (real Postgres)", () => {
       expect(matches).not.toContain(expiredId);
       expect(matches).not.toContain(viewerId);
     });
+
+    it("happy: softDisable stamps disabledAt and excludes rows from match queries", async () => {
+      const viewerId = uid("90000000ab01");
+      const matchedId = uid("90000000ab02");
+      await repos.profiles.create({ id: viewerId, handle: "disable-viewer", displayName: "DV", defaultVisibility: POSTURE_C_DEFAULTS });
+      await repos.profiles.create({ id: matchedId, handle: "disable-target", displayName: "DT", defaultVisibility: POSTURE_C_DEFAULTS });
+      await repos.phoneNumbers.upsert({ profileId: matchedId, e164Hash: "phonehash-disable" });
+      const live = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+      await repos.contacts.upsertHashes({
+        userId: viewerId,
+        hashes: [{ hash: "phonehash-disable", saltVersion: 1, expiresAt: live }],
+      });
+
+      // Pre-condition: match is visible.
+      const before = await repos.contacts.findMatchingProfilesByPhone(viewerId);
+      expect(before).toContain(matchedId);
+
+      // Soft-disable.
+      await repos.contacts.softDisable({ userId: viewerId, now: new Date() });
+
+      // Match queries immediately ignore disabled rows.
+      const after = await repos.contacts.findMatchingProfilesByPhone(viewerId);
+      expect(after).not.toContain(matchedId);
+      const findMatches = await repos.contacts.findMatches({
+        hashes: ["phonehash-disable"],
+        excludeUserId: uid("999999999951"),
+      });
+      expect(findMatches).not.toContain(viewerId);
+    });
+
+    it("happy: purgeOlderThan only deletes rows whose disabledAt is older than the cutoff", async () => {
+      const userId = uid("90000000ac01");
+      await repos.profiles.create({ id: userId, handle: "purge-user", displayName: "PU", defaultVisibility: POSTURE_C_DEFAULTS });
+      const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+      // Insert the "old" disabled row first, then stamp it 25h ago.
+      await repos.contacts.upsertHashes({
+        userId,
+        hashes: [{ hash: "purge-old", saltVersion: 1, expiresAt }],
+      });
+      const old = new Date(Date.now() - 25 * 60 * 60 * 1000); // 25h ago
+      await repos.contacts.softDisable({ userId, now: old });
+
+      // Insert the "fresh" disabled row second. softDisable's
+      // `disabledAt IS NULL` filter means only this new row receives the
+      // newer timestamp.
+      await repos.contacts.upsertHashes({
+        userId,
+        hashes: [{ hash: "purge-fresh", saltVersion: 1, expiresAt }],
+      });
+      const fresh = new Date(Date.now() - 60 * 60 * 1000); // 1h ago
+      await repos.contacts.softDisable({ userId, now: fresh });
+
+      // Also insert an "active" row that never gets disabled.
+      await repos.contacts.upsertHashes({
+        userId,
+        hashes: [{ hash: "purge-active", saltVersion: 1, expiresAt }],
+      });
+
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24h ago
+      const purged = await repos.contacts.purgeOlderThan(cutoff);
+      expect(purged).toBe(1);
+
+      const remaining = await repos.contacts.listByUser(userId);
+      const remainingHashes = remaining.map((r) => r.hash).sort();
+      expect(remainingHashes).toEqual(["purge-active", "purge-fresh"]);
+    });
   });
 
   describe("DrizzleAuthIdentityRepository", () => {
