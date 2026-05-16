@@ -184,6 +184,106 @@ h1 {
   text-align: right;
 }
 
+.feedGroupCard {
+  border-bottom: 1px solid var(--paper-line);
+  background: var(--panel);
+}
+
+.feedGroupSummary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  padding: 24px 20px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+
+.feedGroupSummary:focus-visible {
+  outline: 2px solid var(--ai);
+  outline-offset: -2px;
+}
+
+.feedGroupCovers {
+  position: relative;
+  display: inline-grid;
+  width: 64px;
+  height: 64px;
+}
+
+.feedGroupCover {
+  position: absolute;
+  width: 44px;
+  height: 60px;
+  border: 1px solid var(--ink);
+  background-color: var(--paper-line);
+  background-size: cover;
+  background-position: center;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgb(23 20 17 / 18%);
+}
+
+.feedGroupCover0 {
+  left: 0;
+  top: 2px;
+  transform: rotate(-4deg);
+  z-index: 3;
+}
+
+.feedGroupCover1 {
+  left: 14px;
+  top: 0;
+  z-index: 2;
+}
+
+.feedGroupCover2 {
+  left: 28px;
+  top: 2px;
+  transform: rotate(4deg);
+  z-index: 1;
+}
+
+.feedGroupHeadline {
+  font-family:
+    "Noto Serif JP", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.feedGroupChevron {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.feedGroupItems {
+  border-top: 1px solid var(--paper-line);
+  display: grid;
+  gap: 0;
+}
+
+.feedGroupItems .feedItem {
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.feedGroupItems .feedItem:last-child {
+  border-bottom: 0;
+}
+
+.feedEmpty {
+  margin: 0;
+  padding: 24px 20px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
 .affiliateRow {
   display: grid;
   gap: 0;
