@@ -28,6 +28,15 @@ export type TrpcContext = {
   googleAudience: string | undefined;
   emailProvider: EmailProvider | undefined;
   smsProvider: SmsProvider | undefined;
+  /**
+   * Viewer locale parsed from the incoming `Accept-Language` header.
+   *
+   * Used by surfaces that need locale-sensitive behavior — e.g. the F-07
+   * (#73) search re-ranker boosts results whose language matches the
+   * viewer's locale language code. `undefined` when the header is missing
+   * or unparseable; downstream callers must treat absence as "no preference".
+   */
+  locale: string | undefined;
   [key: string]: unknown;
 };
 
@@ -39,6 +48,27 @@ function extractBearerToken(authHeader: string | undefined): string | null {
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+/**
+ * Parse an `Accept-Language` HTTP header and return the highest-priority
+ * locale tag, or `undefined` if the header is missing / malformed.
+ *
+ * Trims trailing q-factor parameters (`en-US;q=0.9` -> `en-US`) and picks
+ * the first non-wildcard tag. We deliberately do NOT do full RFC 7231
+ * q-value sorting — clients almost always list their preferred locale
+ * first, and the F-07 ranker only needs a primary-language code anyway.
+ */
+export function parseAcceptLanguage(header: string | undefined): string | undefined {
+  if (!header) return undefined;
+  const trimmed = header.trim();
+  if (trimmed.length === 0) return undefined;
+  const first = trimmed.split(",")[0]?.trim();
+  if (!first) return undefined;
+  // Strip any `;q=...` suffix.
+  const tag = first.split(";")[0]?.trim();
+  if (!tag || tag === "*") return undefined;
+  return tag;
 }
 
 export function createTrpcContext(deps: TrpcContextDeps) {
@@ -69,6 +99,8 @@ export function createTrpcContext(deps: TrpcContextDeps) {
       }
     }
 
+    const locale = parseAcceptLanguage(c.req.header("accept-language"));
+
     return {
       identity,
       viewer,
@@ -80,6 +112,7 @@ export function createTrpcContext(deps: TrpcContextDeps) {
       googleAudience: deps.googleAudience,
       emailProvider: deps.emailProvider,
       smsProvider: deps.smsProvider,
+      locale,
     };
   };
 }

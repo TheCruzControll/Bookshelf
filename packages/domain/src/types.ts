@@ -386,4 +386,20 @@ export interface BookSearchResult {
    * the work id on books first seen via Google Books (#72).
    */
   workId?: string | undefined;
+  /**
+   * Number of distinct editions known for this work / volume. Populated by
+   * Open Library from the Solr `edition_count` field and used by the search
+   * re-ranker (#73) as a popularity / canonicality signal — works with more
+   * editions are more likely to be the canonical match. Google Books has no
+   * equivalent so this is left `undefined` for `google_books` results.
+   */
+  editionCount?: number | undefined;
+  /**
+   * Primary language(s) for this work / volume. Open Library returns ISO
+   * 639-2 / 639-3 codes (e.g. `"eng"`, `"fre"`); Google Books returns BCP-47
+   * codes (e.g. `"en"`, `"fr"`). The search re-ranker (#73) normalizes
+   * these and compares against the viewer's locale language. Stored as an
+   * array because Open Library can list multiple languages per work.
+   */
+  languages?: string[] | undefined;
 }

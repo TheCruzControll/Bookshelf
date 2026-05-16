@@ -102,7 +102,7 @@ describe("CatalogService", () => {
       await service.search("cached query", 10);
 
       expect(cache.set).toHaveBeenCalledWith(
-        "catalog:search:cached query:10",
+        "catalog:search:cached query:10:",
         olResults,
         expect.any(Number)
       );
@@ -116,7 +116,7 @@ describe("CatalogService", () => {
       await service.search("gb query", 10);
 
       expect(cache.set).toHaveBeenCalledWith(
-        "catalog:search:gb query:10",
+        "catalog:search:gb query:10:",
         gbResults,
         expect.any(Number)
       );
@@ -147,9 +147,9 @@ describe("CatalogService", () => {
 
       await service.search("  Gatsby  ", 10);
 
-      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:10");
+      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:10:");
       expect(cache.set).toHaveBeenCalledWith(
-        "catalog:search:gatsby:10",
+        "catalog:search:gatsby:10:",
         expect.any(Array),
         expect.any(Number)
       );
@@ -161,8 +161,18 @@ describe("CatalogService", () => {
       await service.search("gatsby", 5);
       await service.search("gatsby", 10);
 
-      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:5");
-      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:10");
+      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:5:");
+      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:10:");
+    });
+
+    it("different viewer locales produce different cache keys", async () => {
+      (ol.search as ReturnType<typeof vi.fn>).mockResolvedValue([makeOLResult()]);
+
+      await service.search("gatsby", 10, "en-US");
+      await service.search("gatsby", 10, "fr-FR");
+
+      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:10:en-us");
+      expect(cache.get).toHaveBeenCalledWith("catalog:search:gatsby:10:fr-fr");
     });
   });
 
