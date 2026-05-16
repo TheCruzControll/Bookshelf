@@ -1067,6 +1067,35 @@ class DrizzleContactsRepository implements ContactsRepository {
       .filter((id) => id !== input.excludeUserId);
   }
 
+  /**
+   * Join contacts_index (viewer's uploaded contact hashes) against
+   * phone_numbers to discover Hone profiles whose normalized phone hash
+   * matches one of the viewer's contacts. Excludes the viewer and any
+   * contact-index rows whose `expiresAt` has passed.
+   */
+  async findMatchingProfilesByPhone(viewerId: EntityId): Promise<EntityId[]> {
+    const now = new Date();
+    const rows = await this.db
+      .select({ profileId: phoneNumbers.profileId })
+      .from(contactsIndex)
+      .innerJoin(phoneNumbers, eq(contactsIndex.contactHash, phoneNumbers.e164Hash))
+      .where(
+        and(
+          eq(contactsIndex.profileId, viewerId),
+          gt(contactsIndex.expiresAt, now)
+        )
+      );
+    const seen = new Set<EntityId>();
+    const out: EntityId[] = [];
+    for (const r of rows) {
+      if (r.profileId === viewerId) continue;
+      if (seen.has(r.profileId)) continue;
+      seen.add(r.profileId);
+      out.push(r.profileId);
+    }
+    return out;
+  }
+
   async deleteForUser(userId: EntityId) {
     await this.db
       .delete(contactsIndex)

@@ -52,7 +52,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
     imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
-    contacts: { upsertHashes: vi.fn().mockResolvedValue(undefined), findMatches: vi.fn().mockResolvedValue([]), deleteForUser: vi.fn().mockResolvedValue(undefined), deleteExpired: vi.fn(), expireBySaltVersion: vi.fn(), listByUser: vi.fn() },
+    contacts: { upsertHashes: vi.fn().mockResolvedValue(undefined), findMatches: vi.fn().mockResolvedValue([]), findMatchingProfilesByPhone: vi.fn().mockResolvedValue([]), deleteForUser: vi.fn().mockResolvedValue(undefined), deleteExpired: vi.fn(), expireBySaltVersion: vi.fn(), listByUser: vi.fn() },
     emailIndex: { upsertHashes: vi.fn().mockResolvedValue(undefined), findMatches: vi.fn().mockResolvedValue([]), deleteForUser: vi.fn().mockResolvedValue(undefined), deleteExpired: vi.fn(), expireBySaltVersion: vi.fn(), listByUser: vi.fn() },
     lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
     authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
@@ -300,36 +300,176 @@ describe("contacts.upload", () => {
 });
 
 describe("contacts.match", () => {
+  const UUID2 = "00000000-0000-0000-0000-000000000002";
+  const UUID3 = "00000000-0000-0000-0000-000000000003";
+  const UUID4 = "00000000-0000-0000-0000-000000000004";
+
+  const profileVisibilityPublic = {
+    identity: "public",
+    follower_list: "public",
+    review: "public",
+    score: "public",
+    finished_shelf: "public",
+    custom_shelf: "public",
+    want_to_read_shelf: "followers",
+    reading_shelf: "followers",
+    dropped_shelf: "followers",
+    reading_status: "followers",
+    activity_stream: "followers",
+  } as const;
+
+  function makeProfile(id: string, handle: string) {
+    return {
+      id,
+      handle,
+      displayName: `User ${handle}`,
+      avatarUrl: undefined,
+      verified: false,
+      defaultVisibility: profileVisibilityPublic,
+      version: 1,
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-01-01"),
+    };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns matched user IDs", async () => {
-    const UUID2 = "00000000-0000-0000-0000-000000000002";
-    const UUID3 = "00000000-0000-0000-0000-000000000003";
-    const repos = makeRepositories();
-    (repos.contacts.findMatches as ReturnType<typeof vi.fn>).mockResolvedValue([UUID2, UUID3]);
+  it("returns minimal public-profile shape for joined matches", async () => {
+    const repos = makeRepositories({
+      contacts: {
+        upsertHashes: vi.fn(),
+        findMatches: vi.fn().mockResolvedValue([]),
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue([UUID2, UUID3]),
+        deleteForUser: vi.fn(),
+        deleteExpired: vi.fn(),
+        expireBySaltVersion: vi.fn(),
+        deleteByTargetHash: vi.fn(),
+        listByUser: vi.fn(),
+      },
+      profiles: {
+        findById: vi.fn(async (id: string) => {
+          if (id === UUID2) return makeProfile(UUID2, "alice");
+          if (id === UUID3) return makeProfile(UUID3, "bob");
+          return null;
+        }),
+        findByHandle: vi.fn(),
+        create: vi.fn(),
+        isHandleTaken: vi.fn(),
+        setHandle: vi.fn(),
+      },
+      follows: {
+        follow: vi.fn(),
+        unfollow: vi.fn(),
+        findFollow: vi.fn().mockResolvedValue(null),
+        listFollowers: vi.fn(),
+        listFollowing: vi.fn(),
+        isMutual: vi.fn().mockResolvedValue(false),
+        countMutuals: vi.fn().mockResolvedValue(2),
+      },
+    });
     const app = buildApp(makeIdentity(), repos);
 
-    const res = await app.request(
-      `/trpc/contacts.match?input=${encodeURIComponent(JSON.stringify({ phoneHashes: ["hash1", "hash2"] }))}`
-    );
+    const res = await app.request(`/trpc/contacts.match?input=${encodeURIComponent(JSON.stringify({}))}`);
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.result.data.matches).toContain(UUID2);
-    expect(body.result.data.matches).toContain(UUID3);
+    const ids = body.result.data.matches.map((m: { profileId: string }) => m.profileId);
+    expect(ids).toEqual(expect.arrayContaining([UUID2, UUID3]));
+    expect(body.result.data.matches[0]).toMatchObject({
+      profileId: expect.any(String),
+      handle: expect.any(String),
+      displayName: expect.any(String),
+    });
+    expect(repos.contacts.findMatchingProfilesByPhone).toHaveBeenCalledWith(UUID1);
+  });
+
+  it("excludes blocked users in both directions", async () => {
+    const repos = makeRepositories({
+      contacts: {
+        upsertHashes: vi.fn(),
+        findMatches: vi.fn(),
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue([UUID2, UUID3, UUID4]),
+        deleteForUser: vi.fn(),
+        deleteExpired: vi.fn(),
+        expireBySaltVersion: vi.fn(),
+        deleteByTargetHash: vi.fn(),
+        listByUser: vi.fn(),
+      },
+      blocks: {
+        block: vi.fn(),
+        unblock: vi.fn(),
+        findBlock: vi.fn(),
+        listBlockedByUser: vi.fn().mockResolvedValue([
+          { id: "b1", blockerId: UUID1, blockedId: UUID3, createdAt: new Date() },
+        ]),
+        listBlockingUser: vi.fn().mockResolvedValue([
+          { id: "b2", blockerId: UUID4, blockedId: UUID1, createdAt: new Date() },
+        ]),
+        isBlocked: vi.fn(),
+      },
+      profiles: {
+        findById: vi.fn(async (id: string) => {
+          if (id === UUID2) return makeProfile(UUID2, "alice");
+          return null;
+        }),
+        findByHandle: vi.fn(),
+        create: vi.fn(),
+        isHandleTaken: vi.fn(),
+        setHandle: vi.fn(),
+      },
+      follows: {
+        follow: vi.fn(),
+        unfollow: vi.fn(),
+        findFollow: vi.fn().mockResolvedValue(null),
+        listFollowers: vi.fn(),
+        listFollowing: vi.fn(),
+        isMutual: vi.fn().mockResolvedValue(false),
+        countMutuals: vi.fn().mockResolvedValue(0),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request(`/trpc/contacts.match?input=${encodeURIComponent(JSON.stringify({}))}`);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const ids = body.result.data.matches.map((m: { profileId: string }) => m.profileId);
+    expect(ids).toEqual([UUID2]);
+    expect(ids).not.toContain(UUID3);
+    expect(ids).not.toContain(UUID4);
   });
 
   it("returns 401 when unauthenticated", async () => {
     const repos = makeRepositories();
     const app = buildApp(null, repos);
 
-    const res = await app.request(
-      `/trpc/contacts.match?input=${encodeURIComponent(JSON.stringify({ phoneHashes: ["hash1"] }))}`
-    );
+    const res = await app.request(`/trpc/contacts.match?input=${encodeURIComponent(JSON.stringify({}))}`);
 
     expect(res.status).toBe(401);
+  });
+
+  it("returns empty matches when viewer has no contacts uploaded", async () => {
+    const repos = makeRepositories({
+      contacts: {
+        upsertHashes: vi.fn(),
+        findMatches: vi.fn(),
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue([]),
+        deleteForUser: vi.fn(),
+        deleteExpired: vi.fn(),
+        expireBySaltVersion: vi.fn(),
+        deleteByTargetHash: vi.fn(),
+        listByUser: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request(`/trpc/contacts.match?input=${encodeURIComponent(JSON.stringify({}))}`);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.matches).toEqual([]);
   });
 });
 

@@ -312,6 +312,13 @@ export interface ContactsRepository {
     hashes: string[];
     excludeUserId: EntityId;
   }): Promise<EntityId[]>;
+  /**
+   * Join `contacts_index` against `phone_numbers` for the viewer's stored
+   * contact hashes. Returns the Hone profile IDs whose normalized phone
+   * hash matches any of the viewer's previously-uploaded contact hashes
+   * (excluding the viewer themselves and expired hashes).
+   */
+  findMatchingProfilesByPhone(viewerId: EntityId): Promise<EntityId[]>;
   deleteForUser(userId: EntityId): Promise<void>;
   deleteExpired(): Promise<void>;
   /** Mark all hashes created under a given salt version as expiring at the given date */
