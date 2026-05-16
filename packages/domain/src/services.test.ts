@@ -3547,4 +3547,36 @@ describe("AccountDeletionService", () => {
 
     expect(await service.isSoftDeleted(UUID1)).toBe(false);
   });
+
+  it("cancelDelete restores visibility — isSoftDeleted flips to false after cancel", async () => {
+    // Model the repo as a real backing store: state lives in this map and
+    // findByProfileId/delete read+mutate it. This proves that after
+    // cancelDelete removes the row, any surface that queries deletion state
+    // (here: isSoftDeleted) sees the user as live.
+    const store = new Map<string, { profileId: string; requestedAt: Date; hardDeleteAfter: Date }>();
+    store.set(UUID1, {
+      profileId: UUID1,
+      requestedAt: NOW,
+      hardDeleteAfter: new Date(NOW.getTime() + THIRTY_DAYS),
+    });
+    const deletionRepo = {
+      create: vi.fn(),
+      findByProfileId: vi.fn().mockImplementation(async (id: string) => store.get(id) ?? null),
+      delete: vi.fn().mockImplementation(async (id: string) => {
+        store.delete(id);
+      }),
+    };
+    const sessionRepo = makeSessionRepo();
+    const service = new AccountDeletionService(deletionRepo, sessionRepo);
+
+    expect(await service.isSoftDeleted(UUID1)).toBe(true);
+
+    const cancelled = await service.cancelDelete(UUID1);
+    expect(cancelled).toBe(true);
+    expect(deletionRepo.delete).toHaveBeenCalledWith(UUID1);
+
+    // After cancel, the row is gone — visibility surfaces keying off
+    // deletion state observe the user as not soft-deleted.
+    expect(await service.isSoftDeleted(UUID1)).toBe(false);
+  });
 });
