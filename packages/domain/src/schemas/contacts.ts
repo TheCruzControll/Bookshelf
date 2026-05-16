@@ -56,6 +56,21 @@ export const ContactsDeleteOutputSchema = z.object({
   success: z.boolean(),
 });
 
+/**
+ * Input/output for `contacts.disableSync` (#98, J-06).
+ *
+ * Soft-disables the viewer's uploaded contact-index rows: every
+ * `contacts_index` row owned by the viewer is stamped with
+ * `disabledAt = now`. A scheduled cleanup job then hard-deletes any
+ * row whose `disabledAt` is more than 24h old, satisfying the privacy
+ * SLA: "disabling sync deletes index rows within 24h."
+ */
+export const ContactsDisableSyncInputSchema = z.object({}).optional().default({});
+
+export const ContactsDisableSyncOutputSchema = z.object({
+  disabled: z.literal(true),
+});
+
 export type ContactsUploadInput = z.infer<typeof ContactsUploadInputSchema>;
 export type ContactsUploadOutput = z.infer<typeof ContactsUploadOutputSchema>;
 export type ContactsMatchInput = z.infer<typeof ContactsMatchInputSchema>;
@@ -63,3 +78,5 @@ export type ContactsMatchProfile = z.infer<typeof ContactsMatchProfileSchema>;
 export type ContactsMatchOutput = z.infer<typeof ContactsMatchOutputSchema>;
 export type ContactsDeleteInput = z.infer<typeof ContactsDeleteInputSchema>;
 export type ContactsDeleteOutput = z.infer<typeof ContactsDeleteOutputSchema>;
+export type ContactsDisableSyncInput = z.infer<typeof ContactsDisableSyncInputSchema>;
+export type ContactsDisableSyncOutput = z.infer<typeof ContactsDisableSyncOutputSchema>;

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run --coverage",
-    "hard-delete": "tsx src/scripts/run-hard-delete.ts"
+    "hard-delete": "tsx src/scripts/run-hard-delete.ts",
+    "purge-disabled-contacts": "tsx src/scripts/purge-disabled-contacts.ts"
   },
   "dependencies": {
     "@hone/cache": "workspace:*",

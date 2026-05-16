@@ -1613,6 +1613,13 @@ export class ImportService {
   }
 }
 
+/**
+ * Soft-deleted `contacts_index` rows are retained for at most this many
+ * milliseconds before {@link ContactsService.purgeDisabled} hard-deletes
+ * them. Per PRD J-06 the SLA is 24h.
+ */
+export const CONTACTS_DISABLE_PURGE_AGE_MS = 24 * 60 * 60 * 1000;
+
 export class ContactsService {
   private readonly blockService: BlockService;
 
@@ -1778,6 +1785,31 @@ export class ContactsService {
       this.contacts.deleteByTargetHash(targetHashes),
       this.emailIndex.deleteByTargetHash(targetHashes),
     ]);
+  }
+
+  /**
+   * Soft-disable the viewer's uploaded contacts (J-06, #98).
+   *
+   * Marks every `contacts_index` row owned by the viewer with
+   * `disabledAt = now`. Disabled rows are hard-deleted no later than 24h
+   * after the disable timestamp by {@link purgeDisabled}.
+   */
+  async disableSync(input: { viewerId: EntityId; now?: Date }): Promise<{ disabled: true }> {
+    const now = input.now ?? new Date();
+    await this.contacts.softDisable({ userId: input.viewerId, now });
+    return { disabled: true };
+  }
+
+  /**
+   * Scheduled cleanup of soft-disabled contact rows (J-06, #98).
+   *
+   * Hard-deletes every `contacts_index` row whose `disabledAt` is older
+   * than `now - 24h`. Returns the number of rows purged so the cron
+   * entry point can log a stable success summary. Idempotent.
+   */
+  async purgeDisabled(now: Date = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - CONTACTS_DISABLE_PURGE_AGE_MS);
+    return this.contacts.purgeOlderThan(cutoff);
   }
 }
 

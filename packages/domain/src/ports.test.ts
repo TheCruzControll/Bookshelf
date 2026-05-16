@@ -69,6 +69,8 @@ type _ContactsRepositoryHasFindMatchingProfilesByPhone = Assert<HasKey<ContactsR
 type _ContactsRepositoryHasDeleteForUser = Assert<HasKey<ContactsRepository, "deleteForUser">>;
 type _ContactsRepositoryHasDeleteExpired = Assert<HasKey<ContactsRepository, "deleteExpired">>;
 type _ContactsRepositoryHasListByUser = Assert<HasKey<ContactsRepository, "listByUser">>;
+type _ContactsRepositoryHasSoftDisable = Assert<HasKey<ContactsRepository, "softDisable">>;
+type _ContactsRepositoryHasPurgeOlderThan = Assert<HasKey<ContactsRepository, "purgeOlderThan">>;
 
 type _ListRepositoryHasCreate = Assert<HasKey<ListRepository, "create">>;
 type _ListRepositoryHasFindById = Assert<HasKey<ListRepository, "findById">>;
@@ -150,6 +152,8 @@ export type {
   _ContactsRepositoryHasDeleteForUser,
   _ContactsRepositoryHasDeleteExpired,
   _ContactsRepositoryHasListByUser,
+  _ContactsRepositoryHasSoftDisable,
+  _ContactsRepositoryHasPurgeOlderThan,
   _ListRepositoryHasCreate,
   _ListRepositoryHasFindById,
   _ListRepositoryHasListByOwner,

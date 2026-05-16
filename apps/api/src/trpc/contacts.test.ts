@@ -53,7 +53,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
     imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
-    contacts: { upsertHashes: vi.fn().mockResolvedValue(undefined), findMatches: vi.fn().mockResolvedValue([]), findMatchingProfilesByPhone: vi.fn().mockResolvedValue([]), deleteForUser: vi.fn().mockResolvedValue(undefined), deleteExpired: vi.fn(), expireBySaltVersion: vi.fn(), listByUser: vi.fn() },
+    contacts: { upsertHashes: vi.fn().mockResolvedValue(undefined), findMatches: vi.fn().mockResolvedValue([]), findMatchingProfilesByPhone: vi.fn().mockResolvedValue([]), deleteForUser: vi.fn().mockResolvedValue(undefined), deleteExpired: vi.fn(), expireBySaltVersion: vi.fn(), listByUser: vi.fn(), softDisable: vi.fn().mockResolvedValue(undefined), purgeOlderThan: vi.fn().mockResolvedValue(0) },
     emailIndex: { upsertHashes: vi.fn().mockResolvedValue(undefined), findMatches: vi.fn().mockResolvedValue([]), deleteForUser: vi.fn().mockResolvedValue(undefined), deleteExpired: vi.fn(), expireBySaltVersion: vi.fn(), listByUser: vi.fn() },
     lists: { create: vi.fn(), findById: vi.fn(), listByOwner: vi.fn(), update: vi.fn(), delete: vi.fn(), addItem: vi.fn(), removeItem: vi.fn(), listItems: vi.fn(), reorderItems: vi.fn() },
     authIdentities: { create: vi.fn(), findByProvider: vi.fn(), listByProfile: vi.fn() },
@@ -348,6 +348,8 @@ describe("contacts.match", () => {
         expireBySaltVersion: vi.fn(),
         deleteByTargetHash: vi.fn(),
         listByUser: vi.fn(),
+        softDisable: vi.fn(),
+        purgeOlderThan: vi.fn().mockResolvedValue(0),
       },
       profiles: {
         findById: vi.fn(async (id: string) => {
@@ -398,6 +400,8 @@ describe("contacts.match", () => {
         expireBySaltVersion: vi.fn(),
         deleteByTargetHash: vi.fn(),
         listByUser: vi.fn(),
+        softDisable: vi.fn(),
+        purgeOlderThan: vi.fn().mockResolvedValue(0),
       },
       blocks: {
         block: vi.fn(),
@@ -464,6 +468,8 @@ describe("contacts.match", () => {
         expireBySaltVersion: vi.fn(),
         deleteByTargetHash: vi.fn(),
         listByUser: vi.fn(),
+        softDisable: vi.fn(),
+        purgeOlderThan: vi.fn().mockResolvedValue(0),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -509,5 +515,47 @@ describe("contacts.delete", () => {
     });
 
     expect(res.status).toBe(401);
+  });
+});
+
+describe("contacts.disableSync", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("soft-disables the viewer's contact rows and returns disabled=true", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/contacts.disableSync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data).toEqual({ disabled: true });
+    expect(repos.contacts.softDisable).toHaveBeenCalledTimes(1);
+    expect(repos.contacts.softDisable).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: UUID1, now: expect.any(Date) }),
+    );
+    // disableSync is soft-only — it must not invoke the hard-delete path
+    expect(repos.contacts.deleteForUser).not.toHaveBeenCalled();
+    expect(repos.emailIndex.deleteForUser).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const repos = makeRepositories();
+    const app = buildApp(null, repos);
+
+    const res = await app.request("/trpc/contacts.disableSync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(401);
+    expect(repos.contacts.softDisable).not.toHaveBeenCalled();
   });
 });

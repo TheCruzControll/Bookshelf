@@ -6,6 +6,8 @@ import {
   ContactsMatchInputSchema,
   ContactsMatchOutputSchema,
   ContactsDeleteOutputSchema,
+  ContactsDisableSyncInputSchema,
+  ContactsDisableSyncOutputSchema,
 } from "@hone/domain";
 import { router, publicProcedure } from "./trpc";
 
@@ -101,5 +103,30 @@ export const contactsRouter = router({
       await services.contacts.deleteForUser(ctx.identity.userId);
 
       return { success: true };
+    }),
+
+  /**
+   * `contacts.disableSync` (#98, J-06).
+   *
+   * Soft-disables every `contacts_index` row owned by the authenticated
+   * viewer (sets `disabled_at = now`). Disabled rows are excluded from
+   * `contacts.match` immediately and hard-deleted by the scheduled
+   * `purge-disabled-contacts` job within 24h.
+   */
+  disableSync: publicProcedure
+    .input(ContactsDisableSyncInputSchema)
+    .output(ContactsDisableSyncOutputSchema)
+    .mutation(async ({ ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
+      }
+      if (!ctx.identity) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const services = new AppServices(ctx.repositories, {
+        getCurrentIdentity: async () => ctx.identity,
+      });
+
+      return services.contacts.disableSync({ viewerId: ctx.identity.userId });
     }),
 });

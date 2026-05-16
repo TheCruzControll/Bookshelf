@@ -485,7 +485,8 @@ export const contactsIndex = pgTable(
       .references(() => profiles.id),
     contactHash: text("contact_hash").notNull(),
     saltVersion: integer("salt_version").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    disabledAt: timestamp("disabled_at", { withTimezone: true })
   },
   (table) => ({
     pairIdx: uniqueIndex("contacts_index_profile_hash_idx").on(
@@ -493,7 +494,8 @@ export const contactsIndex = pgTable(
       table.contactHash
     ),
     profileIdx: index("contacts_index_profile_idx").on(table.profileId),
-    expiresAtIdx: index("contacts_index_expires_at_idx").on(table.expiresAt)
+    expiresAtIdx: index("contacts_index_expires_at_idx").on(table.expiresAt),
+    disabledAtIdx: index("contacts_index_disabled_at_idx").on(table.disabledAt)
   })
 );
 
