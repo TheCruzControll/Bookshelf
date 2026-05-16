@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ImportService, REUPLOAD_OPTIONS } from "./services";
 import type { ImportRepository } from "./ports";
-import type { Import } from "./types";
+import type { BookLookup, MatchCandidate } from "./import-match";
+import type { GoodreadsRow, Import } from "./types";
 
 const UUID1 = "00000000-0000-0000-0000-000000000001";
 const UUID2 = "00000000-0000-0000-0000-000000000002";
@@ -205,6 +206,81 @@ describe("ImportService", () => {
       });
 
       expect(result.importId).toBe(UUID2);
+    });
+  });
+
+  describe("matchRows", () => {
+    const BOOK_ID = "00000000-0000-0000-0000-0000000000aa";
+
+    function makeRow(overrides: Partial<GoodreadsRow> = {}): GoodreadsRow {
+      return {
+        bookId: "1",
+        title: "The Hobbit",
+        author: "J.R.R. Tolkien",
+        additionalAuthors: [],
+        isbn10: undefined,
+        isbn13: undefined,
+        myRating: 0,
+        averageRating: 0,
+        publisher: undefined,
+        binding: undefined,
+        numberOfPages: undefined,
+        yearPublished: undefined,
+        originalPublicationYear: undefined,
+        dateRead: undefined,
+        dateAdded: undefined,
+        bookshelves: [],
+        exclusiveShelf: undefined,
+        myReview: undefined,
+        privateNotes: undefined,
+        readCount: 0,
+        status: "finished",
+        ...overrides,
+      };
+    }
+
+    function makeCandidate(): MatchCandidate {
+      return {
+        bookId: BOOK_ID,
+        title: "The Hobbit",
+        author: "J.R.R. Tolkien",
+      };
+    }
+
+    function makeLookup(overrides: Partial<BookLookup> = {}): BookLookup {
+      return {
+        findByIsbn13: vi.fn().mockResolvedValue(null),
+        findByTitleAuthor: vi.fn().mockResolvedValue([]),
+        ...overrides,
+      };
+    }
+
+    it("delegates each row to the matcher and returns a parallel array", async () => {
+      const repo = makeImportRepository();
+      const lookup = makeLookup({
+        findByIsbn13: vi.fn().mockResolvedValue(makeCandidate()),
+      });
+      const service = new ImportService(repo, lookup);
+
+      const rows = [
+        makeRow({ isbn13: "9780547928227" }),
+        makeRow({ title: "Unknown", author: "Nobody" }),
+      ];
+
+      const results = await service.matchRows(rows);
+
+      expect(results).toHaveLength(2);
+      expect(results[0]!.bucket).toBe("matched");
+      expect(results[1]!.bucket).toBe("unmatched");
+    });
+
+    it("throws when no BookLookup adapter is wired", async () => {
+      const repo = makeImportRepository();
+      const service = new ImportService(repo);
+
+      await expect(service.matchRows([])).rejects.toThrow(
+        /BookLookup/,
+      );
     });
   });
 });

@@ -35,6 +35,9 @@ import type {
 } from "./ports";
 import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
+import { matchImportRow } from "./import-match";
+import type { BookLookup, MatchResult } from "./import-match";
+import type { GoodreadsRow } from "./types";
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
   NOTIFICATION_CAP_PER_ACTOR_DAY,
@@ -1388,7 +1391,30 @@ export const REUPLOAD_OPTIONS: ReuploadStrategy[] = [
 ];
 
 export class ImportService {
-  constructor(private readonly imports: ImportRepository) {}
+  constructor(
+    private readonly imports: ImportRepository,
+    private readonly bookLookup?: BookLookup,
+  ) {}
+
+  /**
+   * Match each parsed Goodreads row against the catalog and return a parallel
+   * array of `MatchResult`s, one per input row. Used by the import pipeline to
+   * bucket rows into Matched / Needs review / Unmatched. See `import-match.ts`
+   * for the underlying algorithm.
+   *
+   * Throws when no book lookup port has been wired — this happens when
+   * `AppServices` is constructed without the optional bookLookup dependency.
+   */
+  async matchRows(rows: readonly GoodreadsRow[]): Promise<MatchResult[]> {
+    if (!this.bookLookup) {
+      throw Object.assign(
+        new Error("ImportService.matchRows requires a BookLookup adapter"),
+        { code: "INTERNAL_ERROR" },
+      );
+    }
+    const lookup = this.bookLookup;
+    return Promise.all(rows.map((row) => matchImportRow(row, lookup)));
+  }
 
   async checkForDuplicate(input: {
     ownerId: EntityId;
@@ -1886,7 +1912,8 @@ export class AppServices {
 
   constructor(
     readonly repositories: AppRepositories,
-    readonly auth: AuthProvider
+    readonly auth: AuthProvider,
+    options?: { bookLookup?: BookLookup }
   ) {
     this.accountDeletion = new AccountDeletionService(
       repositories.accountDeletions,
@@ -1925,7 +1952,7 @@ export class AppServices {
       repositories.inAppNotifications,
       repositories.notifications,
     );
-    this.imports = new ImportService(repositories.imports);
+    this.imports = new ImportService(repositories.imports, options?.bookLookup);
     this.sessions = new SessionService(repositories.sessions);
     this.contacts = new ContactsService(
       repositories.contacts,
