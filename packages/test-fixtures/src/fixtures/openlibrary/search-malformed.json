@@ -1,0 +1,6 @@
+{
+  "this": "is",
+  "not": "the expected Open Library shape",
+  "numFound": "not-a-number",
+  "docs": "should be an array, but it is a string"
+}
