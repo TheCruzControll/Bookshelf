@@ -1,11 +1,21 @@
 import { describe, it, expect, vi } from "vitest";
+import fc from "fast-check";
 import { ContactsService } from "./services";
-import type { BlockRepository, ContactsRepository, EmailIndexRepository, SaltRepository } from "./ports";
+import type {
+  BlockRepository,
+  ContactsRepository,
+  EmailIndexRepository,
+  FollowRepository,
+  ProfileRepository,
+  SaltRepository,
+} from "./ports";
+import type { Profile, Visibility } from "./types";
 
 function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepository {
   return {
     upsertHashes: vi.fn().mockResolvedValue(undefined),
     findMatches: vi.fn().mockResolvedValue([]),
+    findMatchingProfilesByPhone: vi.fn().mockResolvedValue([]),
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
     expireBySaltVersion: vi.fn().mockResolvedValue(0),
@@ -36,6 +46,58 @@ function makeBlockRepo(overrides?: Partial<BlockRepository>): BlockRepository {
     listBlockedByUser: vi.fn().mockResolvedValue([]),
     listBlockingUser: vi.fn().mockResolvedValue([]),
     isBlocked: vi.fn().mockResolvedValue(false),
+    ...overrides,
+  };
+}
+
+const PUBLIC_VISIBILITY = {
+  identity: "public" as Visibility,
+  follower_list: "public" as Visibility,
+  review: "public" as Visibility,
+  score: "public" as Visibility,
+  finished_shelf: "public" as Visibility,
+  custom_shelf: "public" as Visibility,
+  want_to_read_shelf: "followers" as Visibility,
+  reading_shelf: "followers" as Visibility,
+  dropped_shelf: "followers" as Visibility,
+  reading_status: "followers" as Visibility,
+  activity_stream: "followers" as Visibility,
+};
+
+function makeProfile(id: string, handle: string, identityVisibility: Visibility = "public"): Profile {
+  return {
+    id,
+    handle,
+    displayName: `User ${handle}`,
+    avatarUrl: undefined,
+    verified: false,
+    defaultVisibility: { ...PUBLIC_VISIBILITY, identity: identityVisibility },
+    version: 1,
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+  };
+}
+
+function makeProfileRepo(profiles: Map<string, Profile>, overrides?: Partial<ProfileRepository>): ProfileRepository {
+  return {
+    findById: vi.fn(async (id: string) => profiles.get(id) ?? null),
+    findByHandle: vi.fn(),
+    create: vi.fn(),
+    isHandleTaken: vi.fn(),
+    setHandle: vi.fn(),
+    ...overrides,
+  };
+}
+
+function makeFollowRepo(overrides?: Partial<FollowRepository>): FollowRepository {
+  return {
+    follow: vi.fn(),
+    unfollow: vi.fn(),
+    findFollow: vi.fn().mockResolvedValue(null),
+    listFollowers: vi.fn().mockResolvedValue([]),
+    listFollowing: vi.fn().mockResolvedValue([]),
+    isMutual: vi.fn().mockResolvedValue(false),
+    countMutuals: vi.fn().mockResolvedValue(0),
     ...overrides,
   };
 }
@@ -179,6 +241,264 @@ describe("ContactsService", () => {
 
       expect(contacts.deleteExpired).toHaveBeenCalled();
       expect(emailIndex.deleteExpired).toHaveBeenCalled();
+    });
+  });
+
+  describe("match", () => {
+    it("joins contacts_index against phone_numbers and returns minimal profile shape", async () => {
+      const contacts = makeContactsRepo({
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue(["user-2", "user-3"]),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const profiles = new Map<string, Profile>([
+        ["user-2", makeProfile("user-2", "alice")],
+        ["user-3", makeProfile("user-3", "bob")],
+      ]);
+      const profileRepo = makeProfileRepo(profiles);
+      const followRepo = makeFollowRepo({
+        countMutuals: vi.fn().mockResolvedValue(2),
+      });
+      const service = new ContactsService(contacts, emailIndex, blocks, undefined, profileRepo, followRepo);
+
+      const result = await service.match({ viewerId: "viewer-1" });
+
+      expect(contacts.findMatchingProfilesByPhone).toHaveBeenCalledWith("viewer-1");
+      expect(result).toHaveLength(2);
+      expect(result.map((r) => r.profileId).sort()).toEqual(["user-2", "user-3"]);
+      expect(result[0]).toMatchObject({
+        handle: expect.any(String),
+        displayName: expect.any(String),
+        mutualCount: 2,
+      });
+    });
+
+    it("excludes profiles the viewer has blocked", async () => {
+      const contacts = makeContactsRepo({
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue(["user-2", "user-3"]),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo({
+        listBlockedByUser: vi.fn().mockResolvedValue([
+          { id: "b1", blockerId: "viewer-1", blockedId: "user-3", createdAt: new Date() },
+        ]),
+      });
+      const profiles = new Map<string, Profile>([
+        ["user-2", makeProfile("user-2", "alice")],
+        ["user-3", makeProfile("user-3", "bob")],
+      ]);
+      const service = new ContactsService(
+        contacts,
+        emailIndex,
+        blocks,
+        undefined,
+        makeProfileRepo(profiles),
+        makeFollowRepo(),
+      );
+
+      const result = await service.match({ viewerId: "viewer-1" });
+
+      expect(result.map((r) => r.profileId)).toEqual(["user-2"]);
+    });
+
+    it("excludes profiles that blocked the viewer", async () => {
+      const contacts = makeContactsRepo({
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue(["user-2", "user-3"]),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo({
+        listBlockingUser: vi.fn().mockResolvedValue([
+          { id: "b2", blockerId: "user-2", blockedId: "viewer-1", createdAt: new Date() },
+        ]),
+      });
+      const profiles = new Map<string, Profile>([
+        ["user-2", makeProfile("user-2", "alice")],
+        ["user-3", makeProfile("user-3", "bob")],
+      ]);
+      const service = new ContactsService(
+        contacts,
+        emailIndex,
+        blocks,
+        undefined,
+        makeProfileRepo(profiles),
+        makeFollowRepo(),
+      );
+
+      const result = await service.match({ viewerId: "viewer-1" });
+
+      expect(result.map((r) => r.profileId)).toEqual(["user-3"]);
+    });
+
+    it("filters out profiles whose identity is private to non-self viewers", async () => {
+      const contacts = makeContactsRepo({
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue(["user-2", "user-3"]),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const profiles = new Map<string, Profile>([
+        ["user-2", makeProfile("user-2", "alice", "public")],
+        ["user-3", makeProfile("user-3", "bob", "private")],
+      ]);
+      const service = new ContactsService(
+        contacts,
+        emailIndex,
+        blocks,
+        undefined,
+        makeProfileRepo(profiles),
+        makeFollowRepo(),
+      );
+
+      const result = await service.match({ viewerId: "viewer-1" });
+
+      expect(result.map((r) => r.profileId)).toEqual(["user-2"]);
+    });
+
+    it("includes profiles whose identity is mutuals-only when viewer is a mutual", async () => {
+      const contacts = makeContactsRepo({
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue(["user-2"]),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const profiles = new Map<string, Profile>([
+        ["user-2", makeProfile("user-2", "alice", "mutuals")],
+      ]);
+      const followRepo = makeFollowRepo({
+        isMutual: vi.fn().mockResolvedValue(true),
+      });
+      const service = new ContactsService(
+        contacts,
+        emailIndex,
+        blocks,
+        undefined,
+        makeProfileRepo(profiles),
+        followRepo,
+      );
+
+      const result = await service.match({ viewerId: "viewer-1" });
+
+      expect(result.map((r) => r.profileId)).toEqual(["user-2"]);
+    });
+
+    it("returns empty when the viewer has no uploaded contact hashes", async () => {
+      const contacts = makeContactsRepo({
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue([]),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(
+        contacts,
+        emailIndex,
+        blocks,
+        undefined,
+        makeProfileRepo(new Map()),
+        makeFollowRepo(),
+      );
+
+      const result = await service.match({ viewerId: "viewer-1" });
+
+      expect(result).toEqual([]);
+    });
+
+    it("skips missing profiles (soft-deleted) without throwing", async () => {
+      const contacts = makeContactsRepo({
+        findMatchingProfilesByPhone: vi.fn().mockResolvedValue(["user-2", "ghost"]),
+      });
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const profiles = new Map<string, Profile>([
+        ["user-2", makeProfile("user-2", "alice")],
+      ]);
+      const service = new ContactsService(
+        contacts,
+        emailIndex,
+        blocks,
+        undefined,
+        makeProfileRepo(profiles),
+        makeFollowRepo(),
+      );
+
+      const result = await service.match({ viewerId: "viewer-1" });
+
+      expect(result.map((r) => r.profileId)).toEqual(["user-2"]);
+    });
+
+    it("throws INTERNAL_ERROR when profile repository is not configured", async () => {
+      const contacts = makeContactsRepo();
+      const emailIndex = makeEmailIndexRepo();
+      const blocks = makeBlockRepo();
+      const service = new ContactsService(contacts, emailIndex, blocks);
+
+      await expect(service.match({ viewerId: "viewer-1" })).rejects.toMatchObject({
+        code: "INTERNAL_ERROR",
+      });
+    });
+
+    it("property: result is a subset of candidates and never contains blocked or non-public profiles", async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.uniqueArray(fc.stringMatching(/^p[0-9]{1,3}$/), { minLength: 0, maxLength: 12 }),
+          fc.uniqueArray(fc.stringMatching(/^p[0-9]{1,3}$/), { minLength: 0, maxLength: 8 }),
+          fc.uniqueArray(fc.stringMatching(/^p[0-9]{1,3}$/), { minLength: 0, maxLength: 8 }),
+          fc.uniqueArray(fc.stringMatching(/^p[0-9]{1,3}$/), { minLength: 0, maxLength: 8 }),
+          async (candidates, blockedByViewer, blockingViewer, privateIds) => {
+            const viewerId = "viewer";
+            const candidateIds = candidates.filter((id) => id !== viewerId);
+
+            const contacts = makeContactsRepo({
+              findMatchingProfilesByPhone: vi.fn().mockResolvedValue(candidateIds),
+            });
+            const emailIndex = makeEmailIndexRepo();
+            const blocks = makeBlockRepo({
+              listBlockedByUser: vi.fn().mockResolvedValue(
+                blockedByViewer.map((blockedId, i) => ({
+                  id: `bo-${i}`,
+                  blockerId: viewerId,
+                  blockedId,
+                  createdAt: new Date(),
+                })),
+              ),
+              listBlockingUser: vi.fn().mockResolvedValue(
+                blockingViewer.map((blockerId, i) => ({
+                  id: `bi-${i}`,
+                  blockerId,
+                  blockedId: viewerId,
+                  createdAt: new Date(),
+                })),
+              ),
+            });
+            const privSet = new Set(privateIds);
+            const profileMap = new Map<string, Profile>();
+            for (const id of candidateIds) {
+              profileMap.set(id, makeProfile(id, id, privSet.has(id) ? "private" : "public"));
+            }
+            const service = new ContactsService(
+              contacts,
+              emailIndex,
+              blocks,
+              undefined,
+              makeProfileRepo(profileMap),
+              makeFollowRepo(),
+            );
+
+            const result = await service.match({ viewerId });
+            const resultIds = new Set(result.map((r) => r.profileId));
+
+            for (const id of resultIds) {
+              expect(candidateIds).toContain(id);
+            }
+            for (const id of blockedByViewer) {
+              expect(resultIds.has(id)).toBe(false);
+            }
+            for (const id of blockingViewer) {
+              expect(resultIds.has(id)).toBe(false);
+            }
+            for (const id of privateIds) {
+              expect(resultIds.has(id)).toBe(false);
+            }
+          },
+        ),
+        { numRuns: 30 },
+      );
     });
   });
 

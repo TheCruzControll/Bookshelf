@@ -35,6 +35,7 @@ function makeContactsRepo(overrides?: Partial<ContactsRepository>): ContactsRepo
   return {
     upsertHashes: vi.fn().mockResolvedValue(undefined),
     findMatches: vi.fn().mockResolvedValue([]),
+    findMatchingProfilesByPhone: vi.fn().mockResolvedValue([]),
     deleteForUser: vi.fn().mockResolvedValue(undefined),
     deleteExpired: vi.fn().mockResolvedValue(undefined),
     expireBySaltVersion: vi.fn().mockResolvedValue(0),

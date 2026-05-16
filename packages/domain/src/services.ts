@@ -38,6 +38,7 @@ import type { ReuploadStrategy } from "./schemas/imports";
 import { matchImportRow } from "./import-match";
 import type { BookLookup, MatchResult } from "./import-match";
 import type { GoodreadsRow } from "./types";
+import type { ContactsMatchProfile } from "./schemas/contacts";
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
   NOTIFICATION_CAP_PER_ACTOR_DAY,
@@ -54,8 +55,8 @@ import type {
 import { scoreFromRank, isScoreUnlocked, redactScore } from "./score";
 import type { GatedRanking } from "./score";
 import { publishActivityEvent } from "./activity-publisher";
-import { filterFeedByVisibility } from "./visibility";
-import type { ViewerRelationship } from "./visibility";
+import { applyVisibilityFilter, filterFeedByVisibility } from "./visibility";
+import type { ViewerCtx, ViewerRelationship } from "./visibility";
 
 export interface SystemShelfDef {
   name: string;
@@ -1476,6 +1477,8 @@ export class ContactsService {
     private readonly emailIndex: EmailIndexRepository,
     private readonly blocks: BlockRepository,
     private readonly salts?: SaltRepository,
+    private readonly profiles?: ProfileRepository,
+    private readonly follows?: FollowRepository,
   ) {
     this.blockService = new BlockService(blocks);
   }
@@ -1518,6 +1521,93 @@ export class ContactsService {
   async matchEmails(input: { hashes: string[]; viewerId: EntityId }): Promise<EntityId[]> {
     const matches = await this.emailIndex.findMatches({ hashes: input.hashes, excludeUserId: input.viewerId });
     return this.blockService.removeBlockedIds(input.viewerId, matches);
+  }
+
+  /**
+   * Find Hone profiles whose phone number matches one of the viewer's
+   * previously-uploaded contact hashes. Joins `contacts_index` against
+   * `phone_numbers`, removes blocked users in both directions, applies the
+   * Posture C identity visibility filter, and returns a minimal public
+   * profile shape suitable for the People-You-May-Know surface.
+   *
+   * Block enforcement is mandatory per docs/prd-backlog.md: blocking
+   * removes the blocker from the blocked user's contacts-match surface in
+   * both directions. Visibility enforcement uses the matched profile's
+   * `defaultVisibility.identity` against the viewer's relationship
+   * (self / mutual / follower / none).
+   */
+  async match(input: { viewerId: EntityId }): Promise<ContactsMatchProfile[]> {
+    if (!this.profiles) {
+      throw Object.assign(new Error("Profile repository not configured"), { code: "INTERNAL_ERROR" });
+    }
+    const matchedIds = await this.contacts.findMatchingProfilesByPhone(input.viewerId);
+    if (matchedIds.length === 0) return [];
+
+    const blockFiltered = await this.blockService.removeBlockedIds(input.viewerId, matchedIds);
+    if (blockFiltered.length === 0) return [];
+
+    const loadedProfiles = await Promise.all(
+      blockFiltered.map((id) => this.profiles!.findById(id))
+    );
+    const profiles: Profile[] = loadedProfiles.filter((p): p is Profile => p !== null);
+    if (profiles.length === 0) return [];
+
+    const relationships = new Map<EntityId, ViewerRelationship>();
+    await Promise.all(
+      profiles.map(async (p) => {
+        if (p.id === input.viewerId) {
+          relationships.set(p.id, "self");
+          return;
+        }
+        if (this.follows) {
+          const mutual = await this.follows.isMutual({ userA: input.viewerId, userB: p.id });
+          if (mutual) {
+            relationships.set(p.id, "mutual");
+            return;
+          }
+          const viewerFollows = await this.follows.findFollow({
+            followerId: input.viewerId,
+            followeeId: p.id,
+          });
+          relationships.set(p.id, viewerFollows ? "follower" : "none");
+          return;
+        }
+        relationships.set(p.id, "none");
+      })
+    );
+
+    type Annotated = { ownerId: EntityId; visibility: Visibility; profile: Profile };
+    const visible: Annotated[] = [];
+    for (const p of profiles) {
+      const annotated: Annotated = {
+        ownerId: p.id,
+        visibility: p.defaultVisibility.identity,
+        profile: p,
+      };
+      const relationship = relationships.get(p.id) ?? "none";
+      const viewerCtx: ViewerCtx = { viewerId: input.viewerId, relationship };
+      const survivors = applyVisibilityFilter(viewerCtx, [annotated]);
+      if (survivors.length > 0) visible.push(annotated);
+    }
+
+    const withMutualCount = await Promise.all(
+      visible.map(async ({ profile }) => {
+        let mutualCount: number | undefined;
+        if (this.follows) {
+          mutualCount = await this.follows.countMutuals(profile.id);
+        }
+        const shape: ContactsMatchProfile = {
+          profileId: profile.id,
+          handle: profile.handle,
+          displayName: profile.displayName,
+        };
+        if (profile.avatarUrl !== undefined) shape.avatarUrl = profile.avatarUrl;
+        if (mutualCount !== undefined) shape.mutualCount = mutualCount;
+        return shape;
+      })
+    );
+
+    return withMutualCount;
   }
 
   async deleteForUser(userId: EntityId): Promise<void> {
@@ -1959,6 +2049,8 @@ export class AppServices {
       repositories.emailIndex,
       repositories.blocks,
       repositories.salts,
+      repositories.profiles,
+      repositories.follows,
     );
     // PhoneVerifyService requires an SmsProvider; it's initialized
     // externally when the provider is available. This placeholder uses

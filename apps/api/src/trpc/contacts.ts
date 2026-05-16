@@ -67,7 +67,7 @@ export const contactsRouter = router({
   match: publicProcedure
     .input(ContactsMatchInputSchema)
     .output(ContactsMatchOutputSchema)
-    .query(async ({ input, ctx }) => {
+    .query(async ({ ctx }) => {
       if (!ctx.repositories) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Repositories not configured" });
       }
@@ -78,25 +78,11 @@ export const contactsRouter = router({
         getCurrentIdentity: async () => ctx.identity,
       });
 
-      const [phoneMatches, emailMatches] = await Promise.all([
-        input.phoneHashes.length > 0
-          ? services.contacts.matchPhones({
-              hashes: input.phoneHashes,
-              viewerId: ctx.identity.userId,
-            })
-          : Promise.resolve([]),
-        input.emailHashes.length > 0
-          ? services.contacts.matchEmails({
-              hashes: input.emailHashes,
-              viewerId: ctx.identity.userId,
-            })
-          : Promise.resolve([]),
-      ]);
+      const matches = await services.contacts.match({
+        viewerId: ctx.identity.userId,
+      });
 
-      // Deduplicate matches from both indexes
-      const uniqueMatches = [...new Set([...phoneMatches, ...emailMatches])];
-
-      return { matches: uniqueMatches };
+      return { matches };
     }),
 
   delete: publicProcedure

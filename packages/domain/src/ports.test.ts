@@ -65,6 +65,7 @@ type _ImportRepositoryHasUpdateStatus = Assert<HasKey<ImportRepository, "updateS
 
 type _ContactsRepositoryHasUpsertHashes = Assert<HasKey<ContactsRepository, "upsertHashes">>;
 type _ContactsRepositoryHasFindMatches = Assert<HasKey<ContactsRepository, "findMatches">>;
+type _ContactsRepositoryHasFindMatchingProfilesByPhone = Assert<HasKey<ContactsRepository, "findMatchingProfilesByPhone">>;
 type _ContactsRepositoryHasDeleteForUser = Assert<HasKey<ContactsRepository, "deleteForUser">>;
 type _ContactsRepositoryHasDeleteExpired = Assert<HasKey<ContactsRepository, "deleteExpired">>;
 type _ContactsRepositoryHasListByUser = Assert<HasKey<ContactsRepository, "listByUser">>;
@@ -145,6 +146,7 @@ export type {
   _ImportRepositoryHasUpdateStatus,
   _ContactsRepositoryHasUpsertHashes,
   _ContactsRepositoryHasFindMatches,
+  _ContactsRepositoryHasFindMatchingProfilesByPhone,
   _ContactsRepositoryHasDeleteForUser,
   _ContactsRepositoryHasDeleteExpired,
   _ContactsRepositoryHasListByUser,

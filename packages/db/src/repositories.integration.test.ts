@@ -518,6 +518,30 @@ describeIntegration("repository integration tests (real Postgres)", () => {
       const result = await repos.contacts.findMatches({ hashes: [], excludeUserId: contactsUserId });
       expect(result).toHaveLength(0);
     });
+
+    it("happy: findMatchingProfilesByPhone joins against phone_numbers and skips expired/self", async () => {
+      const viewerId = uid("90000000aa01");
+      const matchedId = uid("90000000aa02");
+      const expiredId = uid("90000000aa03");
+      await repos.profiles.create({ id: viewerId, handle: "match-viewer", displayName: "MV", defaultVisibility: POSTURE_C_DEFAULTS });
+      await repos.profiles.create({ id: matchedId, handle: "match-target", displayName: "MT", defaultVisibility: POSTURE_C_DEFAULTS });
+      await repos.profiles.create({ id: expiredId, handle: "match-expired", displayName: "ME", defaultVisibility: POSTURE_C_DEFAULTS });
+      await repos.phoneNumbers.upsert({ profileId: matchedId, e164Hash: "phonehash-live" });
+      await repos.phoneNumbers.upsert({ profileId: expiredId, e164Hash: "phonehash-stale" });
+      const live = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+      const stale = new Date(Date.now() - 60_000);
+      await repos.contacts.upsertHashes({
+        userId: viewerId,
+        hashes: [
+          { hash: "phonehash-live", saltVersion: 1, expiresAt: live },
+          { hash: "phonehash-stale", saltVersion: 1, expiresAt: stale },
+        ],
+      });
+      const matches = await repos.contacts.findMatchingProfilesByPhone(viewerId);
+      expect(matches).toContain(matchedId);
+      expect(matches).not.toContain(expiredId);
+      expect(matches).not.toContain(viewerId);
+    });
   });
 
   describe("DrizzleAuthIdentityRepository", () => {
