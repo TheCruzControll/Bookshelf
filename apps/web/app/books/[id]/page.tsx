@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
-import type { AffiliateLocale } from "@hone/domain";
+import type { AffiliateLocale, RecommendationInput } from "@hone/domain";
+import { Nav } from "../../components/Nav";
+import { RecCarousel } from "../../components/RecCarousel";
 import { BookBuySection } from "./BookBuySection";
+import { fetchBookDetailRecommendations } from "./fetchBookDetailRecommendations";
 import { buildBookMeta } from "../../u/og-meta";
 
 interface BookDetailPageProps {
@@ -33,8 +36,11 @@ export default async function BookDetailPage({ params, searchParams }: BookDetai
     author: "An author"
   };
 
+  const recommendations: RecommendationInput[] = await fetchBookDetailRecommendations(id);
+
   return (
-    <main className="shell">
+    <main className="shell bookDetailShell">
+      <Nav currentPath="/books" />
       <section className="hero">
         <p className="eyebrow">Book Detail</p>
         <h1>Buy this book</h1>
@@ -51,6 +57,7 @@ export default async function BookDetailPage({ params, searchParams }: BookDetai
           <BookBuySection book={book} bookId={id} locale={locale} />
         </div>
       </section>
+      <RecCarousel recommendations={recommendations} />
     </main>
   );
 }
