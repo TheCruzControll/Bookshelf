@@ -4,6 +4,8 @@ export * from "./algorithmic-list";
 export * from "./algorithmic-refresh";
 export * from "./candidate";
 export * from "./candidate-query";
+export * from "./cold-start";
+export * from "./editorial";
 export * from "./heuristic-scorer";
 export * from "./push";
 export * from "./rec-cache";
