@@ -470,6 +470,28 @@ export interface AccountDeletionRepository {
   }): Promise<AccountDeletion>;
   findByProfileId(profileId: EntityId): Promise<AccountDeletion | null>;
   delete(profileId: EntityId): Promise<void>;
+  /**
+   * List deletion records whose grace period has elapsed
+   * (hardDeleteAfter <= now). Used by the hard-delete cron.
+   */
+  listExpired(now: Date): Promise<AccountDeletion[]>;
+  /**
+   * Hard-delete every user-scoped row for the given profile in a single
+   * transaction. Deletes (in dependency order): reviews, ranking signals,
+   * activity events, shelf_items belonging to the user's shelves/lists,
+   * shelves (which covers lists, since lists are shelves with kind="list"),
+   * taste vectors, recommendation scores, push tokens, notification
+   * settings, in-app notifications (both as recipient and actor),
+   * follows (either side), blocks placed by the user, oauth identities,
+   * phone numbers, contacts index, email index, handle history, sessions,
+   * imports, the profile row, and finally the account_deletions row.
+   *
+   * Note: retention of `blocks` placed AGAINST the user (so re-signups
+   * with the same hashed phone re-trigger blocks) is handled by issue
+   * #154 via the `blocks_against_hash` table; this method leaves those
+   * rows untouched.
+   */
+  purgeProfile(profileId: EntityId): Promise<void>;
 }
 
 export interface AppRepositories {

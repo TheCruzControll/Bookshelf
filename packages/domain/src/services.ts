@@ -1890,6 +1890,33 @@ export class AccountDeletionService {
     const deletion = await this.accountDeletions.findByProfileId(profileId);
     return deletion !== null;
   }
+
+  /**
+   * Hard-delete every account whose 30-day grace period has elapsed.
+   *
+   * Intended to be invoked daily by an external scheduler (see
+   * `apps/api/src/scripts/run-hard-delete.ts`). For each expired
+   * deletion record, every user-scoped row is removed in a single DB
+   * transaction (reviews, lists / list items, shelves / shelf items,
+   * ranking signals, activity / feed events, follower & following
+   * relationships, blocks placed by the user, sessions, push tokens,
+   * etc.) and the `account_deletions` row itself is removed last.
+   *
+   * Retention of blocks placed AGAINST the user is handled by #154
+   * via the `blocks_against_hash` table and is intentionally out of
+   * scope here.
+   *
+   * @returns the number of accounts purged in this run.
+   */
+  async runHardDelete(now: Date = new Date()): Promise<number> {
+    const expired = await this.accountDeletions.listExpired(now);
+    let purged = 0;
+    for (const deletion of expired) {
+      await this.accountDeletions.purgeProfile(deletion.profileId);
+      purged += 1;
+    }
+    return purged;
+  }
 }
 
 export class AppServices {

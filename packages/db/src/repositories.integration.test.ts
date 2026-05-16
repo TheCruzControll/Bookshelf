@@ -793,4 +793,244 @@ describeIntegration("repository integration tests (real Postgres)", () => {
       expect(recs).toHaveLength(0);
     });
   });
+
+  describe("DrizzleAccountDeletionRepository.purgeProfile (R-02)", () => {
+    const targetId = uid("aa0000000001");
+    const otherId = uid("aa0000000002");
+    const purgeBookId = uid("aa0000000003");
+    const purgeShelfId = uid("aa0000000004");
+    const purgeListId = uid("aa0000000005");
+    const purgeReviewIdSeed = uid("aa0000000006");
+
+    beforeAll(async () => {
+      await repos.profiles.create({
+        id: targetId,
+        handle: "purge-target",
+        displayName: "Purge Target",
+        defaultVisibility: POSTURE_C_DEFAULTS,
+      });
+      await repos.profiles.create({
+        id: otherId,
+        handle: "purge-other",
+        displayName: "Purge Other",
+        defaultVisibility: POSTURE_C_DEFAULTS,
+      });
+      await db.execute(
+        `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${purgeBookId}', 'Purge Book', now(), now())`
+      );
+
+      // shelf + shelf items
+      await db.execute(
+        `INSERT INTO shelves (id, owner_id, name, slug, visibility, is_system, kind, author_type, version, created_at, updated_at) VALUES ('${purgeShelfId}', '${targetId}', 'My Shelf', 'my-shelf', 'public', false, 'custom', 'user', 1, now(), now())`
+      );
+      await db.execute(
+        `INSERT INTO shelf_items (shelf_id, book_id, status, added_at, updated_at) VALUES ('${purgeShelfId}', '${purgeBookId}', 'reading', now(), now())`
+      );
+
+      // list (stored as a shelf with kind='list') + list items
+      await db.execute(
+        `INSERT INTO shelves (id, owner_id, name, slug, visibility, is_system, kind, author_type, version, created_at, updated_at) VALUES ('${purgeListId}', '${targetId}', 'My List', 'my-list', 'public', false, 'list', 'user', 1, now(), now())`
+      );
+      await db.execute(
+        `INSERT INTO shelf_items (shelf_id, book_id, status, position, added_at, updated_at) VALUES ('${purgeListId}', '${purgeBookId}', 'want_to_read', 0, now(), now())`
+      );
+
+      // review
+      await db.execute(
+        `INSERT INTO reviews (id, author_id, book_id, body, visibility, version, created_at, updated_at) VALUES ('${purgeReviewIdSeed}', '${targetId}', '${purgeBookId}', 'a review', 'public', 1, now(), now())`
+      );
+
+      // activity events / feed
+      await db.execute(
+        `INSERT INTO activity_events (actor_id, verb, book_id, visibility, occurred_at) VALUES ('${targetId}', 'book_added', '${purgeBookId}', 'followers', now())`
+      );
+
+      // ranking signals
+      await db.execute(
+        `INSERT INTO rankings (profile_id, book_id, position, score, bucket, version, created_at, updated_at) VALUES ('${targetId}', '${purgeBookId}', 1, 5.0, 1, 1, now(), now())`
+      );
+
+      // follows — both directions
+      await db.execute(
+        `INSERT INTO follows (follower_id, followee_id, created_at) VALUES ('${targetId}', '${otherId}', now())`
+      );
+      await db.execute(
+        `INSERT INTO follows (follower_id, followee_id, created_at) VALUES ('${otherId}', '${targetId}', now())`
+      );
+
+      // blocks placed BY the user (cleared) and AGAINST the user (also
+      // cleared from `blocks`; retention via blocks_against_hash is
+      // handled by #154 and is out of scope here).
+      await db.execute(
+        `INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES ('${targetId}', '${otherId}', now())`
+      );
+      await db.execute(
+        `INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES ('${otherId}', '${targetId}', now())`
+      );
+
+      // auth identity, phone number, contacts, email index, handle
+      // history, sessions, imports, push tokens, notification settings,
+      // taste vectors, recommendation scores, in-app notifications.
+      await db.execute(
+        `INSERT INTO auth_identities (provider, provider_user_id, profile_id) VALUES ('apple', 'apple-${targetId}', '${targetId}')`
+      );
+      await db.execute(
+        `INSERT INTO phone_numbers (profile_id, e164_hash) VALUES ('${targetId}', 'phone-hash-${targetId}')`
+      );
+      await db.execute(
+        `INSERT INTO contacts_index (profile_id, contact_hash, salt_version, expires_at) VALUES ('${targetId}', 'contact-${targetId}', 1, now() + interval '30 days')`
+      );
+      await db.execute(
+        `INSERT INTO email_index (profile_id, email_hash, salt_version, expires_at) VALUES ('${targetId}', 'email-${targetId}', 1, now() + interval '30 days')`
+      );
+      await db.execute(
+        `INSERT INTO handle_history (profile_id, old_handle, retired_at, expires_at) VALUES ('${targetId}', 'old-handle', now(), now() + interval '5 years')`
+      );
+      await db.execute(
+        `INSERT INTO sessions (token_hash, profile_id, expires_at) VALUES ('session-${targetId}', '${targetId}', now() + interval '30 days')`
+      );
+      await db.execute(
+        `INSERT INTO imports (owner_id, source, status, created_at) VALUES ('${targetId}', 'goodreads', 'completed', now())`
+      );
+      await db.execute(
+        `INSERT INTO notification_tokens (profile_id, platform, token, last_seen) VALUES ('${targetId}', 'apns', 'token-${targetId}', now())`
+      );
+      await db.execute(
+        `INSERT INTO notification_settings (profile_id, key, value) VALUES ('${targetId}', 'foo', '"bar"'::jsonb)`
+      );
+      await db.execute(
+        `INSERT INTO taste_vectors (profile_id, vector, updated_at) VALUES ('${targetId}', '[]'::jsonb, now())`
+      );
+      await db.execute(
+        `INSERT INTO recommendation_scores (user_id, book_id, score, reason) VALUES ('${targetId}', '${purgeBookId}', 80, 'taste')`
+      );
+      await db.execute(
+        `INSERT INTO in_app_notifications (recipient_id, actor_id, trigger, payload) VALUES ('${targetId}', '${otherId}', 'new_follower', '{}'::jsonb)`
+      );
+      await db.execute(
+        `INSERT INTO in_app_notifications (recipient_id, actor_id, trigger, payload) VALUES ('${otherId}', '${targetId}', 'new_follower', '{}'::jsonb)`
+      );
+
+      // The deletion record itself — grace expired.
+      await repos.accountDeletions.create({
+        profileId: targetId,
+        requestedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+        hardDeleteAfter: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      });
+    });
+
+    it("listExpired returns deletions whose grace has passed", async () => {
+      const expired = await repos.accountDeletions.listExpired(new Date());
+      const ids = expired.map((r) => r.profileId);
+      expect(ids).toContain(targetId);
+    });
+
+    it("purgeProfile removes every user-scoped row and the deletion record", async () => {
+      await repos.accountDeletions.purgeProfile(targetId);
+
+      // profile gone
+      const profile = await repos.profiles.findById(targetId);
+      expect(profile).toBeNull();
+
+      // deletion record gone
+      const deletion = await repos.accountDeletions.findByProfileId(targetId);
+      expect(deletion).toBeNull();
+
+      // Each user-scoped table no longer holds rows referencing the user.
+      const assertEmpty = async (sql: string, label: string) => {
+        const result = await db.execute(sql);
+        // node-pg result: { rows: [{ count: '0' }], ... }
+        const rows = (result as unknown as { rows: Array<{ count: string }> }).rows;
+        expect(
+          Number(rows[0]!.count),
+          `expected no rows for ${label}`,
+        ).toBe(0);
+      };
+
+      await assertEmpty(
+        `SELECT count(*) FROM shelves WHERE owner_id = '${targetId}'`,
+        "shelves",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM shelf_items WHERE shelf_id IN ('${purgeShelfId}', '${purgeListId}')`,
+        "shelf_items",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM reviews WHERE author_id = '${targetId}'`,
+        "reviews",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM activity_events WHERE actor_id = '${targetId}'`,
+        "activity_events",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM rankings WHERE profile_id = '${targetId}'`,
+        "rankings",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM follows WHERE follower_id = '${targetId}' OR followee_id = '${targetId}'`,
+        "follows (both sides)",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM blocks WHERE blocker_id = '${targetId}' OR blocked_id = '${targetId}'`,
+        "blocks",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM auth_identities WHERE profile_id = '${targetId}'`,
+        "auth_identities",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM phone_numbers WHERE profile_id = '${targetId}'`,
+        "phone_numbers",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM contacts_index WHERE profile_id = '${targetId}'`,
+        "contacts_index",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM email_index WHERE profile_id = '${targetId}'`,
+        "email_index",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM handle_history WHERE profile_id = '${targetId}'`,
+        "handle_history",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM sessions WHERE profile_id = '${targetId}'`,
+        "sessions",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM imports WHERE owner_id = '${targetId}'`,
+        "imports",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM notification_tokens WHERE profile_id = '${targetId}'`,
+        "notification_tokens",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM notification_settings WHERE profile_id = '${targetId}'`,
+        "notification_settings",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM taste_vectors WHERE profile_id = '${targetId}'`,
+        "taste_vectors",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM recommendation_scores WHERE user_id = '${targetId}'`,
+        "recommendation_scores",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM in_app_notifications WHERE recipient_id = '${targetId}' OR actor_id = '${targetId}'`,
+        "in_app_notifications",
+      );
+      await assertEmpty(
+        `SELECT count(*) FROM account_deletions WHERE profile_id = '${targetId}'`,
+        "account_deletions",
+      );
+
+      // Sanity check — the OTHER profile is untouched.
+      const other = await repos.profiles.findById(otherId);
+      expect(other).not.toBeNull();
+    });
+  });
 });

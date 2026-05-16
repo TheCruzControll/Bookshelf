@@ -33,6 +33,8 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       create: vi.fn().mockResolvedValue(makeDeletion()),
       findByProfileId: vi.fn().mockResolvedValue(null),
       delete: vi.fn(),
+      listExpired: vi.fn().mockResolvedValue([]),
+      purgeProfile: vi.fn(),
       ...overrides?.accountDeletions,
     },
     profiles: {
@@ -130,6 +132,8 @@ describe("account.requestDelete", () => {
         create: vi.fn().mockResolvedValue(deletion),
         findByProfileId: vi.fn().mockResolvedValue(null),
         delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -154,6 +158,8 @@ describe("account.requestDelete", () => {
         create: vi.fn(),
         findByProfileId: vi.fn().mockResolvedValue(existingDeletion),
         delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -193,6 +199,8 @@ describe("account.requestDelete", () => {
         })),
         findByProfileId: vi.fn().mockResolvedValue(null),
         delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -223,6 +231,8 @@ describe("account.cancelDelete", () => {
         create: vi.fn(),
         findByProfileId: vi.fn().mockResolvedValue(makeDeletion({ hardDeleteAfter: futureDate })),
         delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -245,6 +255,8 @@ describe("account.cancelDelete", () => {
         create: vi.fn(),
         findByProfileId: vi.fn().mockResolvedValue(null),
         delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -281,6 +293,8 @@ describe("account.cancelDelete", () => {
         create: vi.fn(),
         findByProfileId: vi.fn().mockResolvedValue(expiredDeletion),
         delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -312,6 +326,8 @@ describe("account.cancelDelete", () => {
         delete: vi.fn().mockImplementation(async (id: string) => {
           store.delete(id);
         }),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
       },
     });
     const app = buildApp(makeIdentity(), repos);
