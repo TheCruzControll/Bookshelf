@@ -47,7 +47,9 @@ import type {
   FollowRepository,
   HandleHistoryRepository,
   ImportRepository,
+  InAppNotification,
   InAppNotificationRepository,
+  NotificationTrigger,
   ListRepository,
   MagicLinkRepository,
   NotificationRepository,
@@ -438,6 +440,27 @@ export class DrizzleShelfRepository implements ShelfRepository {
     if (!row) throw new Error("Shelf item not found");
     return toShelfItem(row);
   }
+
+  async listOwnersWithBookOnSystemShelf(input: {
+    bookId: EntityId;
+    slug: string;
+    ownerIds: EntityId[];
+  }): Promise<EntityId[]> {
+    if (input.ownerIds.length === 0) return [];
+    const rows = await this.db
+      .select({ ownerId: shelves.ownerId })
+      .from(shelfItems)
+      .innerJoin(shelves, eq(shelfItems.shelfId, shelves.id))
+      .where(
+        and(
+          eq(shelfItems.bookId, input.bookId),
+          eq(shelves.slug, input.slug),
+          eq(shelves.isSystem, true),
+          inArray(shelves.ownerId, input.ownerIds)
+        )
+      );
+    return rows.map((r) => r.ownerId);
+  }
 }
 
 export class DrizzleReviewRepository implements ReviewRepository {
@@ -727,6 +750,21 @@ class DrizzleFollowRepository implements FollowRepository {
       )
       .where(eq(follows.followerId, userId));
     return result[0]?.count ?? 0;
+  }
+
+  async listMutualIds(userId: EntityId): Promise<EntityId[]> {
+    // A user `m` is a mutual of `userId` iff `userId` follows `m` AND `m`
+    // follows `userId`. Self-join the follows table on (followerId, followeeId)
+    // flipped between the two sides.
+    const rows = await this.db
+      .select({ mutualId: follows.followeeId })
+      .from(follows)
+      .innerJoin(
+        sql`${follows} AS f2`,
+        sql`${follows}.followee_id = f2.follower_id AND ${follows}.follower_id = f2.followee_id`
+      )
+      .where(eq(follows.followerId, userId));
+    return rows.map((r) => r.mutualId);
   }
 }
 
@@ -1548,6 +1586,27 @@ class DrizzleInAppNotificationRepository implements InAppNotificationRepository 
       where: eq(inAppNotifications.id, id),
     });
     return row ? toInAppNotification(row) : null;
+  }
+
+  async create(input: {
+    recipientId: EntityId;
+    actorId?: EntityId | undefined;
+    trigger: NotificationTrigger;
+    payload: Record<string, unknown>;
+  }): Promise<InAppNotification> {
+    const [row] = await this.db
+      .insert(inAppNotifications)
+      .values({
+        recipientId: input.recipientId,
+        actorId: input.actorId ?? null,
+        trigger: input.trigger,
+        payload: input.payload,
+      })
+      .returning();
+    if (!row) {
+      throw new Error("Failed to create in-app notification");
+    }
+    return toInAppNotification(row);
   }
 
   async countSince(input: { recipientId: EntityId; since: Date }) {

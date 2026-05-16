@@ -57,6 +57,7 @@ import type { GatedRanking } from "./score";
 import { publishActivityEvent } from "./activity-publisher";
 import { applyVisibilityFilter, filterFeedByVisibility } from "./visibility";
 import type { ViewerCtx, ViewerRelationship } from "./visibility";
+import type { PushDispatchOutcome, PushSender } from "./push";
 
 export interface SystemShelfDef {
   name: string;
@@ -530,10 +531,21 @@ export class ProfileService {
   }
 }
 
+/** Threshold at or above which a finished book triggers the
+ * `mutual_rated_high` push (#148, Q-04 trigger #3). The 1–10 score is
+ * derived from rank via `scoreFromRank`. */
+export const MUTUAL_RATED_HIGH_THRESHOLD = 8;
+
+/** Slug of the system "Want to Read" shelf consulted for trigger #4. */
+const WANT_TO_READ_SLUG = "want-to-read";
+
 export class RankingService {
   constructor(
     private readonly rankings: RankingRepository,
-    private readonly activity: ActivityRepository
+    private readonly activity: ActivityRepository,
+    private readonly follows?: FollowRepository,
+    private readonly shelves?: ShelfRepository,
+    private readonly notifications?: NotificationService,
   ) {}
 
   async startBucket(input: {
@@ -572,6 +584,16 @@ export class RankingService {
         score,
         locked: input.total < 10,
       },
+    });
+
+    // (#148, Q-04, triggers #3/#4) Fan out direct-social pushes for the
+    // finished book. The trigger-point service owns the recipient
+    // resolution; NotificationService owns the gating (caps, quiet hours,
+    // per-trigger toggles).
+    await this.fanOutFinishedBookPushes({
+      actorId: input.ownerId,
+      bookId: input.bookId,
+      score,
     });
 
     // Event is guaranteed non-null when scoreSnapshot is provided.
@@ -645,7 +667,92 @@ export class RankingService {
       },
     });
 
+    // (#148, Q-04, trigger #3) A rerank can newly push a book into the 8+
+    // band — fan out the mutual_rated_high notification on those edges.
+    // The WTR fan-out (#4) is intentionally skipped here: trigger #4 is
+    // semantically scoped to the moment a book is *first* finished, not
+    // every rerank. Reranks don't change which mutuals have the book on
+    // their Want-to-Read shelf in a way that's user-meaningful.
+    await this.fanOutHighRatingPush({
+      actorId: input.ownerId,
+      bookId: input.bookId,
+      score,
+    });
+
     return { ranking, event: event! };
+  }
+
+  /**
+   * Fan-out helper for the post-finish notifications (triggers #3 and #4).
+   * No-op when notification/follow/shelf collaborators aren't wired (e.g.
+   * minimal test constructions) so callers don't need to thread no-op
+   * dependencies through.
+   */
+  private async fanOutFinishedBookPushes(input: {
+    actorId: EntityId;
+    bookId: EntityId;
+    score: number;
+  }): Promise<void> {
+    if (!this.notifications || !this.follows) return;
+
+    const mutualIds = await this.follows.listMutualIds(input.actorId);
+    if (mutualIds.length === 0) return;
+
+    if (input.score >= MUTUAL_RATED_HIGH_THRESHOLD) {
+      for (const recipientId of mutualIds) {
+        await this.notifications.enqueueDirectSocialPush({
+          recipientId,
+          actorId: input.actorId,
+          trigger: "mutual_rated_high",
+          payload: {
+            actorId: input.actorId,
+            bookId: input.bookId,
+            score: input.score,
+          },
+        });
+      }
+    }
+
+    if (this.shelves) {
+      const wtrOwners = await this.shelves.listOwnersWithBookOnSystemShelf({
+        bookId: input.bookId,
+        slug: WANT_TO_READ_SLUG,
+        ownerIds: mutualIds,
+      });
+      for (const recipientId of wtrOwners) {
+        await this.notifications.enqueueDirectSocialPush({
+          recipientId,
+          actorId: input.actorId,
+          trigger: "mutual_finished_want_to_read",
+          payload: {
+            actorId: input.actorId,
+            bookId: input.bookId,
+          },
+        });
+      }
+    }
+  }
+
+  private async fanOutHighRatingPush(input: {
+    actorId: EntityId;
+    bookId: EntityId;
+    score: number;
+  }): Promise<void> {
+    if (!this.notifications || !this.follows) return;
+    if (input.score < MUTUAL_RATED_HIGH_THRESHOLD) return;
+    const mutualIds = await this.follows.listMutualIds(input.actorId);
+    for (const recipientId of mutualIds) {
+      await this.notifications.enqueueDirectSocialPush({
+        recipientId,
+        actorId: input.actorId,
+        trigger: "mutual_rated_high",
+        payload: {
+          actorId: input.actorId,
+          bookId: input.bookId,
+          score: input.score,
+        },
+      });
+    }
   }
 
   /**
@@ -1207,7 +1314,8 @@ export class FollowService {
 
   constructor(
     private readonly follows: FollowRepository,
-    private readonly blocks: BlockRepository
+    private readonly blocks: BlockRepository,
+    private readonly notifications?: NotificationService,
   ) {
     this.blockService = new BlockService(blocks);
   }
@@ -1226,13 +1334,49 @@ export class FollowService {
       throw Object.assign(new Error("Cannot follow this user"), { code: "FORBIDDEN" });
     }
 
-    // Idempotent: if already following, return existing
+    // Idempotent: if already following, return existing — no push fires on
+    // re-follow because the edge was not newly created.
     const existing = await this.follows.findFollow(input);
     if (existing) {
       return existing;
     }
 
-    return this.follows.follow(input);
+    // Detect mutual-follow-back BEFORE creating the new edge: the reverse
+    // edge must already exist for this follow to make the relationship
+    // mutual. We delegate enqueueing to NotificationService so the gating
+    // (quiet hours, caps, per-trigger toggles) lives in one place.
+    const reverseEdge = await this.follows.findFollow({
+      followerId: input.followeeId,
+      followeeId: input.followerId,
+    });
+
+    const created = await this.follows.follow(input);
+
+    if (this.notifications) {
+      if (reverseEdge) {
+        // (#148, Q-04, trigger #2) Mutual follow back. The new edge makes
+        // the relationship mutual; notify the original follower (the
+        // followee of this new edge) that their follow has been
+        // reciprocated. The more-specific trigger replaces the plain
+        // new_follower push so we don't double-notify on the same action.
+        await this.notifications.enqueueDirectSocialPush({
+          recipientId: input.followeeId,
+          actorId: input.followerId,
+          trigger: "mutual_follow_back",
+          payload: { followerId: input.followerId, followeeId: input.followeeId },
+        });
+      } else {
+        // (#148, Q-04, trigger #1) New follower → notify the followee.
+        await this.notifications.enqueueDirectSocialPush({
+          recipientId: input.followeeId,
+          actorId: input.followerId,
+          trigger: "new_follower",
+          payload: { followerId: input.followerId, followeeId: input.followeeId },
+        });
+      }
+    }
+
+    return created;
   }
 
   async deleteFollow(input: { followerId: EntityId; followeeId: EntityId }): Promise<void> {
@@ -1641,6 +1785,7 @@ export class NotificationService {
   constructor(
     private readonly inAppNotifications: InAppNotificationRepository,
     private readonly notifications?: NotificationRepository,
+    private readonly pushSender?: PushSender,
   ) {}
 
   async list(input: {
@@ -1755,6 +1900,103 @@ export class NotificationService {
       }
     }
     return { allowed: true };
+  }
+
+  /**
+   * Enqueue a direct-social push for one of the four Q-04 triggers
+   * (#148, Q18 minimal posture). The flow is:
+   *
+   *  1. Gate via `canSend(channel: "push")` — quiet hours, per-trigger toggle,
+   *     channel toggle, master pause, recipient cap, and per-actor cap are
+   *     all enforced here. If gating blocks delivery the push is dropped and
+   *     no in-app row is created (matches the #147 cap behaviour).
+   *  2. Persist the in-app row so the in-app notifications surface stays
+   *     consistent even when push is muted by quiet hours / caps.
+   *  3. Hand off to `PushSender.sendToProfile` when a sender is wired.
+   *
+   * The body/title are derived from the trigger so callers don't need to
+   * compose copy. Per-token results are returned to aid testing and audit;
+   * upstream failures don't throw.
+   */
+  async enqueueDirectSocialPush(input: {
+    recipientId: EntityId;
+    actorId?: EntityId | undefined;
+    trigger: DirectSocialTrigger;
+    payload?: Record<string, unknown> | undefined;
+    now?: Date | undefined;
+  }): Promise<EnqueueDirectSocialPushResult> {
+    const now = input.now ?? new Date();
+    const payload = input.payload ?? {};
+
+    const decision = await this.canSend({
+      recipientId: input.recipientId,
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      trigger: input.trigger,
+      channel: "push",
+      now,
+    });
+    if (!decision.allowed) {
+      return { enqueued: false, reason: decision.reason };
+    }
+
+    const record = await this.inAppNotifications.create({
+      recipientId: input.recipientId,
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      trigger: input.trigger,
+      payload,
+    });
+
+    let dispatched: PushDispatchOutcome[] | undefined;
+    if (this.pushSender) {
+      const copy = directSocialPushCopy(input.trigger);
+      dispatched = await this.pushSender.sendToProfile({
+        recipientId: input.recipientId,
+        payload: {
+          title: copy.title,
+          body: copy.body,
+          trigger: input.trigger,
+          data: {
+            trigger: input.trigger,
+            ...(input.actorId ? { actorId: input.actorId } : {}),
+          },
+        },
+      });
+    }
+
+    return { enqueued: true, notification: record, dispatched };
+  }
+}
+
+/** Triggers eligible for direct-social push (#148, Q18). `security_event` is excluded. */
+export type DirectSocialTrigger =
+  | "new_follower"
+  | "mutual_follow_back"
+  | "mutual_rated_high"
+  | "mutual_finished_want_to_read";
+
+export type EnqueueDirectSocialPushResult =
+  | {
+      enqueued: true;
+      notification: InAppNotification;
+      dispatched?: PushDispatchOutcome[] | undefined;
+    }
+  | { enqueued: false; reason: NotificationBlockedReason };
+
+function directSocialPushCopy(
+  trigger: DirectSocialTrigger,
+): { title: string; body: string } {
+  switch (trigger) {
+    case "new_follower":
+      return { title: "New follower", body: "Someone started following you." };
+    case "mutual_follow_back":
+      return { title: "Followed you back", body: "A mutual just followed you back." };
+    case "mutual_rated_high":
+      return { title: "Mutual loved a book", body: "A mutual rated a book 8 or higher." };
+    case "mutual_finished_want_to_read":
+      return {
+        title: "A book on your Want to Read is in",
+        body: "A mutual just finished a book on your Want to Read shelf.",
+      };
   }
 }
 
@@ -2019,7 +2261,17 @@ export class AppServices {
       repositories.profiles,
       repositories.shelves
     );
-    this.rankings = new RankingService(repositories.rankings, repositories.activity);
+    this.notifications = new NotificationService(
+      repositories.inAppNotifications,
+      repositories.notifications,
+    );
+    this.rankings = new RankingService(
+      repositories.rankings,
+      repositories.activity,
+      repositories.follows,
+      repositories.shelves,
+      this.notifications,
+    );
     this.reviews = new ReviewService(
       repositories.reviews,
       repositories.activity
@@ -2027,7 +2279,8 @@ export class AppServices {
     this.blocks = new BlockService(repositories.blocks, repositories.follows);
     this.follows = new FollowService(
       repositories.follows,
-      repositories.blocks
+      repositories.blocks,
+      this.notifications,
     );
     this.social = new SocialService(
       repositories.follows,
@@ -2037,10 +2290,6 @@ export class AppServices {
       repositories.activity,
       repositories.profiles,
       repositories.lists,
-    );
-    this.notifications = new NotificationService(
-      repositories.inAppNotifications,
-      repositories.notifications,
     );
     this.imports = new ImportService(repositories.imports, options?.bookLookup);
     this.sessions = new SessionService(repositories.sessions);

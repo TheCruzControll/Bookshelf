@@ -74,6 +74,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       deleteShelfItem: vi.fn(),
       getMaxPosition: vi.fn().mockResolvedValue(0),
       moveShelfItem: vi.fn(),
+      listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]),
     },
     reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     activity: {
@@ -83,7 +84,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       deleteByReviewId: vi.fn(),
     },
     recommendations: { getForUser: vi.fn() },
-    follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn() },
+    follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn() },
     rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
@@ -101,6 +102,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       findById: vi.fn(),
       countSince: vi.fn().mockResolvedValue(0),
       countSinceByActor: vi.fn().mockResolvedValue(0),
+      create: vi.fn(),
     },
     phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
     phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
@@ -336,7 +338,7 @@ describe("feed.list visibility + block filter", () => {
         getFriendFeedGrouped: vi.fn().mockResolvedValue(items),
         deleteByReviewId: vi.fn(),
       },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
@@ -362,7 +364,7 @@ describe("feed.list visibility + block filter", () => {
         getFriendFeedGrouped: vi.fn().mockResolvedValue(items),
         deleteByReviewId: vi.fn(),
       },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(true), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(true), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
@@ -388,7 +390,7 @@ describe("feed.list visibility + block filter", () => {
         getFriendFeedGrouped: vi.fn().mockResolvedValue(items),
         deleteByReviewId: vi.fn(),
       },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
@@ -414,7 +416,7 @@ describe("feed.list visibility + block filter", () => {
         getFriendFeedGrouped: vi.fn().mockResolvedValue(items),
         deleteByReviewId: vi.fn(),
       },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(true), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(true), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
@@ -448,7 +450,7 @@ describe("feed.list visibility + block filter", () => {
       // UUID2 is blocked by viewer
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([{ blockerId: UUID1, blockedId: UUID2, createdAt: NOW }]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn() },
       // UUID3 is not mutual → mutuals-visibility item hidden
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
@@ -480,7 +482,7 @@ describe("feed.list visibility + block filter", () => {
         getFriendFeedGrouped: vi.fn().mockResolvedValue(items),
         deleteByReviewId: vi.fn(),
       },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
@@ -507,7 +509,7 @@ describe("feed.list visibility + block filter", () => {
         getFriendFeedGrouped: vi.fn().mockResolvedValue(items),
         deleteByReviewId: vi.fn(),
       },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn() },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request(
