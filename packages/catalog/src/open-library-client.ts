@@ -72,6 +72,17 @@ function extractFirstIsbn13(isbns: string[] | undefined): string | undefined {
   return isbns.find((i) => i.length === 13) ?? isbns[0];
 }
 
+/**
+ * Extract a bare OL work id (e.g. `OL45804W`) from a fully-qualified work
+ * key path (e.g. `/works/OL45804W`). Returns `undefined` for any value that
+ * does not match the expected shape.
+ */
+function extractWorkId(workKey: string | undefined): string | undefined {
+  if (!workKey) return undefined;
+  const match = /^\/works\/(OL\d+W)$/.exec(workKey);
+  return match?.[1];
+}
+
 function isRetryable(status: number): boolean {
   return status === 429 || status >= 500;
 }
@@ -134,6 +145,7 @@ export class OpenLibraryClient implements CatalogProvider {
       isbn13: extractFirstIsbn13(isbn13Candidates),
       pageCount: doc.number_of_pages_median,
       genres: doc.subject?.slice(0, 10),
+      workId: extractWorkId(doc.key),
     };
   }
 
@@ -155,6 +167,7 @@ export class OpenLibraryClient implements CatalogProvider {
       isbn10,
       isbn13,
       genres: edition.subjects?.slice(0, 10),
+      workId: extractWorkId(edition.works?.[0]?.key),
     };
   }
 

@@ -14,6 +14,7 @@ describe("db mappers smoke test", () => {
       description: null,
       coverUrl: null,
       firstPublishedYear: 1965,
+      olWorkId: null,
       createdAt: now,
       updatedAt: now
     };
@@ -25,6 +26,7 @@ describe("db mappers smoke test", () => {
     expect(book.subtitle).toBeUndefined();
     expect(book.description).toBeUndefined();
     expect(book.coverUrl).toBeUndefined();
+    expect(book.olWorkId).toBeUndefined();
   });
 
   it("toBook maps optional fields when present", () => {
@@ -36,6 +38,7 @@ describe("db mappers smoke test", () => {
       description: "Epic sci-fi",
       coverUrl: "https://example.com/cover.jpg",
       firstPublishedYear: null,
+      olWorkId: "OL45804W",
       createdAt: now,
       updatedAt: now
     };
@@ -45,6 +48,7 @@ describe("db mappers smoke test", () => {
     expect(book.description).toBe("Epic sci-fi");
     expect(book.coverUrl).toBe("https://example.com/cover.jpg");
     expect(book.firstPublishedYear).toBeUndefined();
+    expect(book.olWorkId).toBe("OL45804W");
   });
 
   it("toProfile maps a row to a Profile domain object", () => {

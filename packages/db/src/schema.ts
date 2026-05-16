@@ -141,6 +141,13 @@ export const books = pgTable(
     description: text("description"),
     coverUrl: text("cover_url"),
     firstPublishedYear: integer("first_published_year"),
+    /**
+     * Open Library canonical work id (e.g. `OL45804W`). Nullable because a
+     * Book may first surface via Google Books, which has no equivalent
+     * concept. Back-filled when an OL result later matches the same
+     * ISBN-13. See `packages/domain/src/catalog-merge.ts` (issue #72).
+     */
+    olWorkId: text("ol_work_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -149,7 +156,8 @@ export const books = pgTable(
       .defaultNow()
   },
   (table) => ({
-    titleIdx: index("books_title_idx").on(table.canonicalTitle)
+    titleIdx: index("books_title_idx").on(table.canonicalTitle),
+    olWorkIdIdx: uniqueIndex("books_ol_work_id_idx").on(table.olWorkId)
   })
 );
 

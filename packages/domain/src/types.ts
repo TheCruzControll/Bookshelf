@@ -90,6 +90,14 @@ export interface Book {
   coverUrl?: string | undefined;
   firstPublishedYear?: number | undefined;
   genres?: string[] | undefined;
+  /**
+   * Open Library canonical work identifier (e.g. `OL45804W`).
+   * Set when the book is first seen via Open Library or back-filled later
+   * when an OL result surfaces for a book previously seen only via Google
+   * Books. Once set, this value is treated as authoritative and is never
+   * overwritten (see `packages/domain/src/catalog-merge.ts`).
+   */
+  olWorkId?: string | undefined;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -371,4 +379,11 @@ export interface BookSearchResult {
   isbn10?: string | undefined;
   isbn13?: string | undefined;
   genres?: string[] | undefined;
+  /**
+   * Open Library canonical work identifier (e.g. `OL45804W`). Only ever
+   * populated for results where `source === "open_library"` — Google Books
+   * has no equivalent concept. Used by the edition merge logic to back-fill
+   * the work id on books first seen via Google Books (#72).
+   */
+  workId?: string | undefined;
 }

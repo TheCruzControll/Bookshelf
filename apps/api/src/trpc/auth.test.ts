@@ -26,7 +26,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       isHandleTaken: vi.fn().mockResolvedValue(false),
       setHandle: vi.fn(),
     },
-    books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
+    books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), findBookByIsbn13: vi.fn().mockResolvedValue(null), search: vi.fn(), upsertFromCatalogResult: vi.fn() },
     shelves: {
       listShelves: vi.fn(),
       findById: vi.fn(),

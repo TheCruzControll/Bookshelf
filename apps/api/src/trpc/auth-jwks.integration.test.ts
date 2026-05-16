@@ -101,7 +101,7 @@ function makeRepositories(): AppRepositories {
   return {
     accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
     profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
-    books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
+    books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), findBookByIsbn13: vi.fn().mockResolvedValue(null), search: vi.fn(), upsertFromCatalogResult: vi.fn() },
     shelves: {
       listShelves: vi.fn().mockResolvedValue([]),
       findById: vi.fn(),

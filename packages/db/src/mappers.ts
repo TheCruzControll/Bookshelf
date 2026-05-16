@@ -113,6 +113,7 @@ export function toBook(row: BookRow): Book {
     description: row.description ?? undefined,
     coverUrl: row.coverUrl ?? undefined,
     firstPublishedYear: row.firstPublishedYear ?? undefined,
+    olWorkId: row.olWorkId ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
