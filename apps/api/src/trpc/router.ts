@@ -10,6 +10,7 @@ import { listRouter } from "./list";
 import { notificationsRouter } from "./notifications";
 import { profileRouter } from "./profile";
 import { rankingRouter } from "./ranking";
+import { recommendationsRouter } from "./recommendations";
 import { reviewRouter } from "./review";
 import { shelfRouter } from "./shelf";
 import { shelfItemRouter } from "./shelf-item";
@@ -29,6 +30,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   profile: profileRouter,
   ranking: rankingRouter,
+  recommendations: recommendationsRouter,
   review: reviewRouter,
   shelf: shelfRouter,
   shelfItem: shelfItemRouter,
