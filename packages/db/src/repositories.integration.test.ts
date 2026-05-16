@@ -119,6 +119,123 @@ describeIntegration("repository integration tests (real Postgres)", () => {
       const result = await repos.books.findEditionByIsbn("0000000000000");
       expect(result).toBeNull();
     });
+
+    it("happy: findBookByIsbn13 returns the book joined via editions", async () => {
+      const bookId = uid("200000000003");
+      await db.execute(
+        `INSERT INTO books (id, canonical_title, created_at, updated_at) VALUES ('${bookId}', 'Joined Book', now(), now())`
+      );
+      const editionId = uid("200000000004");
+      await db.execute(
+        `INSERT INTO editions (id, book_id, isbn_13, title, source) VALUES ('${editionId}', '${bookId}', '9780000000001', 'Joined Book', 'open_library')`
+      );
+
+      const book = await repos.books.findBookByIsbn13("9780000000001");
+      expect(book).not.toBeNull();
+      expect(book!.id).toBe(bookId);
+    });
+
+    it("failure: findBookByIsbn13 returns null for unknown isbn", async () => {
+      const result = await repos.books.findBookByIsbn13("9999999999999");
+      expect(result).toBeNull();
+    });
+
+    describe("upsertFromCatalogResult — edition merge (#72)", () => {
+      it("creates a new Book + Edition on first ingest", async () => {
+        const outcome = await repos.books.upsertFromCatalogResult({
+          source: "open_library",
+          sourceKey: "/works/MERGE_TEST_1",
+          title: "Merge Test One",
+          authors: ["Author One"],
+          isbn13: "9780000000010",
+          workId: "MERGE_TEST_1",
+        });
+
+        expect(outcome.bookCreated).toBe(true);
+        expect(outcome.editionCreated).toBe(true);
+        expect(outcome.workIdBackfilled).toBe(false);
+        expect(outcome.book.olWorkId).toBe("MERGE_TEST_1");
+        expect(outcome.edition.bookId).toBe(outcome.book.id);
+        expect(outcome.edition.isbn13).toBe("9780000000010");
+      });
+
+      it("same ISBN-13 across OL + GB → one Book, two Editions", async () => {
+        const isbn13 = "9780000000020";
+
+        const olOutcome = await repos.books.upsertFromCatalogResult({
+          source: "open_library",
+          sourceKey: "/works/MERGE_TEST_2",
+          title: "Merge Test Two (OL)",
+          authors: ["Author Two"],
+          isbn13,
+          workId: "MERGE_TEST_2",
+        });
+
+        const gbOutcome = await repos.books.upsertFromCatalogResult({
+          source: "google_books",
+          sourceKey: "GB_MERGE_TEST_2",
+          title: "Merge Test Two (GB)",
+          authors: ["Author Two"],
+          isbn13,
+        });
+
+        expect(olOutcome.bookCreated).toBe(true);
+        expect(gbOutcome.bookCreated).toBe(false);
+        expect(gbOutcome.editionCreated).toBe(true);
+        // Both editions attach to the same Book row.
+        expect(gbOutcome.book.id).toBe(olOutcome.book.id);
+        // OL work id remains intact.
+        expect(gbOutcome.book.olWorkId).toBe("MERGE_TEST_2");
+      });
+
+      it("GB first then OL — workId is back-filled on the existing Book", async () => {
+        const isbn13 = "9780000000030";
+
+        const gbOutcome = await repos.books.upsertFromCatalogResult({
+          source: "google_books",
+          sourceKey: "GB_MERGE_TEST_3",
+          title: "Merge Test Three (GB)",
+          authors: ["Author Three"],
+          isbn13,
+        });
+        expect(gbOutcome.book.olWorkId).toBeUndefined();
+
+        const olOutcome = await repos.books.upsertFromCatalogResult({
+          source: "open_library",
+          sourceKey: "/works/MERGE_TEST_3",
+          title: "Merge Test Three (OL)",
+          authors: ["Author Three"],
+          isbn13,
+          workId: "MERGE_TEST_3",
+        });
+
+        expect(olOutcome.bookCreated).toBe(false);
+        expect(olOutcome.workIdBackfilled).toBe(true);
+        expect(olOutcome.book.id).toBe(gbOutcome.book.id);
+        expect(olOutcome.book.olWorkId).toBe("MERGE_TEST_3");
+      });
+
+      it("OL twice with same sourceKey — idempotent, no duplicate Edition", async () => {
+        const result = {
+          source: "open_library" as const,
+          sourceKey: "/works/MERGE_TEST_4",
+          title: "Merge Test Four",
+          authors: ["Author Four"],
+          isbn13: "9780000000040",
+          workId: "MERGE_TEST_4",
+        };
+
+        const first = await repos.books.upsertFromCatalogResult(result);
+        const second = await repos.books.upsertFromCatalogResult(result);
+
+        expect(first.bookCreated).toBe(true);
+        expect(first.editionCreated).toBe(true);
+        expect(second.bookCreated).toBe(false);
+        expect(second.editionCreated).toBe(false);
+        expect(second.book.id).toBe(first.book.id);
+        expect(second.edition.id).toBe(first.edition.id);
+      });
+    });
   });
 
   describe("DrizzleShelfRepository", () => {

@@ -98,6 +98,7 @@ describe("OpenLibraryClient", () => {
         isbn13: "9780743273565",
         pageCount: 180,
         genres: ["Fiction", "American literature"],
+        workId: "OL123W",
       });
 
       expect(results[1]).toEqual({
@@ -113,6 +114,7 @@ describe("OpenLibraryClient", () => {
         isbn13: undefined,
         pageCount: undefined,
         genres: undefined,
+        workId: "OL456W",
       });
     });
 
@@ -226,7 +228,34 @@ describe("OpenLibraryClient", () => {
         isbn10: "0743273567",
         isbn13: "9780743273565",
         genres: ["Fiction"],
+        workId: "OL123W",
       });
+    });
+
+    it("includes workId from the edition.works[0].key", async () => {
+      globalThis.fetch = mockFetch({
+        json: {
+          key: "/books/OL1M",
+          title: "Test",
+          works: [{ key: "/works/OL45804W" }],
+        },
+      });
+
+      const client = makeClient();
+      const result = await client.lookupByIsbn("0743273567");
+
+      expect(result!.workId).toBe("OL45804W");
+    });
+
+    it("workId is undefined when edition has no works entry", async () => {
+      globalThis.fetch = mockFetch({
+        json: { key: "/books/OL1M", title: "Test" },
+      });
+
+      const client = makeClient();
+      const result = await client.lookupByIsbn("0743273567");
+
+      expect(result!.workId).toBeUndefined();
     });
 
     it("returns null for non-existent ISBN (404)", async () => {

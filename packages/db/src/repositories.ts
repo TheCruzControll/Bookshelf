@@ -65,7 +65,8 @@ import type {
   SessionRepository,
   ShelfRepository
 } from "@hone/domain";
-import { computeGroupKey, POSTURE_C_DEFAULTS, SYSTEM_SHELVES } from "@hone/domain";
+import { computeGroupKey, planCatalogMerge, POSTURE_C_DEFAULTS, SYSTEM_SHELVES } from "@hone/domain";
+import type { BookSearchResult, CatalogMergeOutcome } from "@hone/domain";
 import type { HoneDb } from "./client";
 import {
   accountDeletions,
@@ -331,6 +332,16 @@ export class DrizzleBookRepository implements BookRepository {
     return row ? toEdition(row) : null;
   }
 
+  async findBookByIsbn13(isbn13: string) {
+    const row = await this.db
+      .select({ book: books })
+      .from(editions)
+      .innerJoin(books, eq(editions.bookId, books.id))
+      .where(eq(editions.isbn13, isbn13))
+      .limit(1);
+    return row[0] ? toBook(row[0].book) : null;
+  }
+
   async search(query: string, limit: number) {
     const rows = await this.db
       .select()
@@ -339,6 +350,155 @@ export class DrizzleBookRepository implements BookRepository {
       .limit(limit);
 
     return rows.map(toBook);
+  }
+
+  /**
+   * Persist a catalog hit, applying the F-06 (#72) edition merge rules
+   * (see `planCatalogMerge` in `@hone/domain`).
+   *
+   * The whole operation runs in a single transaction so concurrent
+   * ingests of the same ISBN-13 cannot create duplicate Book rows. Within
+   * the transaction we:
+   *   1. look up an existing Book by `editions.isbn_13` (when present);
+   *   2. ask the pure planner what to do;
+   *   3. INSERT or UPDATE the Book row accordingly;
+   *   4. upsert the Edition by `(source, source_key)`.
+   */
+  async upsertFromCatalogResult(
+    result: BookSearchResult
+  ): Promise<CatalogMergeOutcome> {
+    return this.db.transaction(async (tx) => {
+      const existing = result.isbn13
+        ? await this.findExistingBookByIsbn13(tx, result.isbn13)
+        : null;
+
+      const plan = planCatalogMerge(result, existing);
+
+      let bookRow;
+      let bookCreated = false;
+      let workIdBackfilled = false;
+
+      if (plan.book.kind === "create") {
+        const insertValues: typeof books.$inferInsert = {
+          canonicalTitle: plan.book.attributes.canonicalTitle,
+          subtitle: plan.book.attributes.subtitle ?? null,
+          description: plan.book.attributes.description ?? null,
+          coverUrl: plan.book.attributes.coverUrl ?? null,
+          firstPublishedYear: plan.book.attributes.firstPublishedYear ?? null,
+          olWorkId: plan.book.attributes.olWorkId ?? null,
+        };
+        const [inserted] = await tx
+          .insert(books)
+          .values(insertValues)
+          .returning();
+        if (!inserted) {
+          throw new Error("Failed to insert book row");
+        }
+        bookRow = inserted;
+        bookCreated = true;
+      } else if (Object.keys(plan.book.patch).length > 0) {
+        const [updated] = await tx
+          .update(books)
+          .set({
+            olWorkId: plan.book.patch.olWorkId,
+            updatedAt: new Date(),
+          })
+          .where(eq(books.id, plan.book.bookId))
+          .returning();
+        if (!updated) {
+          throw new Error("Failed to update book row");
+        }
+        bookRow = updated;
+        workIdBackfilled = plan.book.patch.olWorkId !== undefined;
+      } else {
+        // No book-level change required — just fetch the existing row.
+        const fetched = await tx.query.books.findFirst({
+          where: eq(books.id, plan.book.bookId),
+        });
+        if (!fetched) {
+          throw new Error("Existing book disappeared mid-transaction");
+        }
+        bookRow = fetched;
+      }
+
+      // Upsert the edition by `(source, source_key)` when sourceKey is set;
+      // otherwise fall back to a key-less insert. This makes repeated
+      // ingestion of the same OL/GB hit idempotent.
+      const existingEdition =
+        plan.edition.sourceKey !== undefined
+          ? await tx.query.editions.findFirst({
+              where: and(
+                eq(editions.source, plan.edition.source),
+                eq(editions.sourceKey, plan.edition.sourceKey)
+              ),
+            })
+          : null;
+
+      let editionRow;
+      let editionCreated = false;
+
+      if (existingEdition) {
+        // Attach to the resolved book id (in case sources collided across books).
+        const [updated] = await tx
+          .update(editions)
+          .set({
+            bookId: bookRow.id,
+            isbn10: plan.edition.isbn10 ?? null,
+            isbn13: plan.edition.isbn13 ?? null,
+            title: plan.edition.title,
+            publisher: plan.edition.publisher ?? null,
+            publishedDate: plan.edition.publishedDate ?? null,
+            pageCount: plan.edition.pageCount ?? null,
+          })
+          .where(eq(editions.id, existingEdition.id))
+          .returning();
+        if (!updated) {
+          throw new Error("Failed to update edition row");
+        }
+        editionRow = updated;
+      } else {
+        const [inserted] = await tx
+          .insert(editions)
+          .values({
+            bookId: bookRow.id,
+            isbn10: plan.edition.isbn10 ?? null,
+            isbn13: plan.edition.isbn13 ?? null,
+            title: plan.edition.title,
+            publisher: plan.edition.publisher ?? null,
+            publishedDate: plan.edition.publishedDate ?? null,
+            pageCount: plan.edition.pageCount ?? null,
+            source: plan.edition.source,
+            sourceKey: plan.edition.sourceKey ?? null,
+          })
+          .returning();
+        if (!inserted) {
+          throw new Error("Failed to insert edition row");
+        }
+        editionRow = inserted;
+        editionCreated = true;
+      }
+
+      return {
+        book: toBook(bookRow),
+        edition: toEdition(editionRow),
+        bookCreated,
+        editionCreated,
+        workIdBackfilled,
+      };
+    });
+  }
+
+  private async findExistingBookByIsbn13(
+    tx: Parameters<Parameters<HoneDb["transaction"]>[0]>[0],
+    isbn13: string
+  ) {
+    const row = await tx
+      .select({ book: books })
+      .from(editions)
+      .innerJoin(books, eq(editions.bookId, books.id))
+      .where(eq(editions.isbn13, isbn13))
+      .limit(1);
+    return row[0] ? toBook(row[0].book) : null;
   }
 }
 

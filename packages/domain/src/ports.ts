@@ -1,3 +1,4 @@
+import type { CatalogMergeOutcome } from "./catalog-merge";
 import type {
   AccountDeletion,
   ActivityEvent,
@@ -122,7 +123,31 @@ export interface ProfileRepository {
 export interface BookRepository {
   findBookById(id: EntityId): Promise<Book | null>;
   findEditionByIsbn(isbn: string): Promise<Edition | null>;
+  /**
+   * Find the Book whose Editions include the supplied ISBN-13 (matched
+   * against `editions.isbn_13`). Returns `null` when no Edition matches.
+   * Used by the edition merge logic to detect duplicates before deciding
+   * whether to attach a new Edition to an existing Book.
+   */
+  findBookByIsbn13(isbn13: string): Promise<Book | null>;
   search(query: string, limit: number): Promise<Book[]>;
+  /**
+   * Persist a fresh catalog hit. Implements the F-06 (#72) merge rules:
+   *
+   *   1. If the result carries an ISBN-13 that matches an existing Edition,
+   *      the new Edition is attached to that Edition's Book — we do not
+   *      create a second Book row.
+   *   2. If the matched Book was first seen via Google Books (no `olWorkId`)
+   *      and the new result is an Open Library hit with a `workId`, the
+   *      Book's `olWorkId` is back-filled from the result.
+   *   3. The Edition row is upserted by `(source, sourceKey)` — repeated
+   *      ingestion of the same catalog hit is idempotent.
+   *
+   * Implementations must perform the lookup + write atomically (one
+   * transaction) so concurrent ingests of the same ISBN-13 cannot create
+   * duplicate Book rows.
+   */
+  upsertFromCatalogResult(result: BookSearchResult): Promise<CatalogMergeOutcome>;
 }
 
 export interface ShelfRepository {
