@@ -285,7 +285,7 @@ describe("ProfileService", () => {
 describe("AppServices", () => {
   it("exposes shelves, handles, and profiles services", () => {
     const repositories: AppRepositories = {
-      accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn() },
+      accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn(), listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]) },
@@ -3103,7 +3103,7 @@ describe("NotificationService.canSend", () => {
 describe("AppServices includes notifications", () => {
   it("exposes notifications service", () => {
     const repositories: AppRepositories = {
-      accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn() },
+      accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), search: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn(), listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]) },
@@ -3447,6 +3447,8 @@ describe("AccountDeletionService", () => {
       })),
       findByProfileId: vi.fn().mockResolvedValue(null),
       delete: vi.fn(),
+      listExpired: vi.fn().mockResolvedValue([]),
+      purgeProfile: vi.fn(),
       ...overrides,
     };
   }
@@ -3588,6 +3590,8 @@ describe("AccountDeletionService", () => {
       delete: vi.fn().mockImplementation(async (id: string) => {
         store.delete(id);
       }),
+      listExpired: vi.fn().mockResolvedValue([]),
+      purgeProfile: vi.fn(),
     };
     const sessionRepo = makeSessionRepo();
     const service = new AccountDeletionService(deletionRepo, sessionRepo);
@@ -3601,5 +3605,89 @@ describe("AccountDeletionService", () => {
     // After cancel, the row is gone — visibility surfaces keying off
     // deletion state observe the user as not soft-deleted.
     expect(await service.isSoftDeleted(UUID1)).toBe(false);
+  });
+
+  describe("runHardDelete (R-02 cron)", () => {
+    const UUID2 = "00000000-0000-0000-0000-000000000002";
+    const UUID3 = "00000000-0000-0000-0000-000000000003";
+
+    it("returns 0 when nothing is expired", async () => {
+      const deletionRepo = {
+        create: vi.fn(),
+        findByProfileId: vi.fn(),
+        delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
+      };
+      const service = new AccountDeletionService(deletionRepo, makeSessionRepo());
+
+      const purged = await service.runHardDelete(NOW);
+
+      expect(purged).toBe(0);
+      expect(deletionRepo.purgeProfile).not.toHaveBeenCalled();
+    });
+
+    it("purges every expired account and returns the count", async () => {
+      const expired = [
+        { profileId: UUID1, requestedAt: NOW, hardDeleteAfter: new Date(NOW.getTime() - 1000) },
+        { profileId: UUID2, requestedAt: NOW, hardDeleteAfter: new Date(NOW.getTime() - 1) },
+        { profileId: UUID3, requestedAt: NOW, hardDeleteAfter: NOW },
+      ];
+      const deletionRepo = {
+        create: vi.fn(),
+        findByProfileId: vi.fn(),
+        delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue(expired),
+        purgeProfile: vi.fn().mockResolvedValue(undefined),
+      };
+      const service = new AccountDeletionService(deletionRepo, makeSessionRepo());
+
+      const purged = await service.runHardDelete(NOW);
+
+      expect(purged).toBe(3);
+      expect(deletionRepo.listExpired).toHaveBeenCalledWith(NOW);
+      expect(deletionRepo.purgeProfile).toHaveBeenCalledTimes(3);
+      expect(deletionRepo.purgeProfile).toHaveBeenNthCalledWith(1, UUID1);
+      expect(deletionRepo.purgeProfile).toHaveBeenNthCalledWith(2, UUID2);
+      expect(deletionRepo.purgeProfile).toHaveBeenNthCalledWith(3, UUID3);
+    });
+
+    it("uses now() by default and does not purge unexpired records", async () => {
+      const listExpired = vi.fn().mockResolvedValue([]);
+      const deletionRepo = {
+        create: vi.fn(),
+        findByProfileId: vi.fn(),
+        delete: vi.fn(),
+        listExpired,
+        purgeProfile: vi.fn(),
+      };
+      const service = new AccountDeletionService(deletionRepo, makeSessionRepo());
+
+      const before = Date.now();
+      await service.runHardDelete();
+      const after = Date.now();
+
+      expect(listExpired).toHaveBeenCalledOnce();
+      const arg = listExpired.mock.calls[0]![0] as Date;
+      expect(arg).toBeInstanceOf(Date);
+      expect(arg.getTime()).toBeGreaterThanOrEqual(before);
+      expect(arg.getTime()).toBeLessThanOrEqual(after);
+    });
+
+    it("propagates errors from purgeProfile so the cron run is retried", async () => {
+      const expired = [
+        { profileId: UUID1, requestedAt: NOW, hardDeleteAfter: new Date(NOW.getTime() - 1000) },
+      ];
+      const deletionRepo = {
+        create: vi.fn(),
+        findByProfileId: vi.fn(),
+        delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue(expired),
+        purgeProfile: vi.fn().mockRejectedValue(new Error("db down")),
+      };
+      const service = new AccountDeletionService(deletionRepo, makeSessionRepo());
+
+      await expect(service.runHardDelete(NOW)).rejects.toThrow("db down");
+    });
   });
 });

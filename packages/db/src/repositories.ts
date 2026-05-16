@@ -92,7 +92,8 @@ import {
   phoneNumbers,
   phoneVerifications,
   shelfItems,
-  shelves
+  shelves,
+  tasteVectors
 } from "./schema";
 import {
   toAccountDeletion,
@@ -157,6 +158,114 @@ export class DrizzleAccountDeletionRepository implements AccountDeletionReposito
     await this.db
       .delete(accountDeletions)
       .where(eq(accountDeletions.profileId, profileId));
+  }
+
+  async listExpired(now: Date): Promise<AccountDeletion[]> {
+    const rows = await this.db
+      .select()
+      .from(accountDeletions)
+      .where(lte(accountDeletions.hardDeleteAfter, now))
+      .orderBy(asc(accountDeletions.hardDeleteAfter));
+    return rows.map(toAccountDeletion);
+  }
+
+  async purgeProfile(profileId: EntityId): Promise<void> {
+    // Single transaction: every user-scoped row is removed atomically.
+    // Order matters because foreign keys are NOT declared with
+    // ON DELETE CASCADE in the schema — children must be deleted
+    // before their parents.
+    await this.db.transaction(async (tx) => {
+      // 1. Activity / feed events authored by the user. Activity events
+      //    can reference reviews and shelves owned by the user, so they
+      //    must be removed before those parents.
+      await tx.delete(activityEvents).where(eq(activityEvents.actorId, profileId));
+
+      // 2. In-app notifications — both as recipient and as actor.
+      await tx
+        .delete(inAppNotifications)
+        .where(
+          or(
+            eq(inAppNotifications.recipientId, profileId),
+            eq(inAppNotifications.actorId, profileId),
+          ),
+        );
+
+      // 3. Ranking signals.
+      await tx.delete(rankings).where(eq(rankings.profileId, profileId));
+
+      // 4. Reviews authored by the user.
+      await tx.delete(reviews).where(eq(reviews.authorId, profileId));
+
+      // 5. Shelf items / list items belonging to shelves owned by the
+      //    user (lists live in the `shelves` table with kind="list").
+      const ownedShelves = await tx
+        .select({ id: shelves.id })
+        .from(shelves)
+        .where(eq(shelves.ownerId, profileId));
+      if (ownedShelves.length > 0) {
+        const shelfIds = ownedShelves.map((s) => s.id);
+        await tx.delete(shelfItems).where(inArray(shelfItems.shelfId, shelfIds));
+      }
+
+      // 6. Shelves (and lists).
+      await tx.delete(shelves).where(eq(shelves.ownerId, profileId));
+
+      // 7. Taste vectors / recommendation scores.
+      await tx
+        .delete(recommendationScores)
+        .where(eq(recommendationScores.userId, profileId));
+      await tx.delete(tasteVectors).where(eq(tasteVectors.profileId, profileId));
+
+      // 8. Push notification tokens & per-user notification settings.
+      await tx
+        .delete(notificationTokens)
+        .where(eq(notificationTokens.profileId, profileId));
+      await tx
+        .delete(notificationSettings)
+        .where(eq(notificationSettings.profileId, profileId));
+
+      // 9. Follower / following relationships — clean both sides.
+      await tx
+        .delete(follows)
+        .where(
+          or(
+            eq(follows.followerId, profileId),
+            eq(follows.followeeId, profileId),
+          ),
+        );
+
+      // 10. Blocks the user PLACED. Blocks placed AGAINST the user are
+      //     retained via `blocks_against_hash` (#154) — leave those alone.
+      // TODO(#154): when the blocks-against-hash migration lands, surface
+      // the hashed phone for `blocks` rows where blockedId == profileId
+      // into `blocks_against_hash` before deleting the source rows.
+      await tx.delete(blocks).where(eq(blocks.blockerId, profileId));
+      await tx.delete(blocks).where(eq(blocks.blockedId, profileId));
+
+      // 11. Auth identities, phone number, contacts/email indexes,
+      //     handle history, sessions, imports.
+      await tx
+        .delete(authIdentities)
+        .where(eq(authIdentities.profileId, profileId));
+      await tx.delete(phoneNumbers).where(eq(phoneNumbers.profileId, profileId));
+      await tx
+        .delete(contactsIndex)
+        .where(eq(contactsIndex.profileId, profileId));
+      await tx.delete(emailIndex).where(eq(emailIndex.profileId, profileId));
+      await tx
+        .delete(handleHistory)
+        .where(eq(handleHistory.profileId, profileId));
+      await tx.delete(sessions).where(eq(sessions.profileId, profileId));
+      await tx.delete(imports).where(eq(imports.ownerId, profileId));
+
+      // 12. Profile row itself.
+      await tx.delete(profiles).where(eq(profiles.id, profileId));
+
+      // 13. Finally, the account_deletions row.
+      await tx
+        .delete(accountDeletions)
+        .where(eq(accountDeletions.profileId, profileId));
+    });
   }
 }
 

@@ -10,7 +10,8 @@ export default mergeConfig(rootConfig, defineConfig({
         "**/dist/**",
         "**/*.config.ts",
         "src/index.ts",
-        "src/server.ts"
+        "src/server.ts",
+        "src/scripts/**"
       ],
       thresholds: {
         lines: 80,

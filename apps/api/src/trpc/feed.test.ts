@@ -51,7 +51,7 @@ function makeFeedItem(overrides?: Partial<FeedItem>): FeedItem {
 
 function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories {
   return {
-    accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn() },
+    accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
     profiles: {
       findById: vi.fn(),
       findByHandle: vi.fn(),

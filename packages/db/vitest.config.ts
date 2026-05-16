@@ -9,6 +9,7 @@ export default mergeConfig(rootConfig, defineConfig({
         "**/node_modules/**",
         "**/dist/**",
         "**/*.config.ts",
+        "**/*.integration.test.ts",
         "src/index.ts",
         "src/client.ts",
         "src/schema.ts",
