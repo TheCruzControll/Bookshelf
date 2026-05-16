@@ -12,6 +12,10 @@ interface OLSearchDoc {
   publisher?: string[];
   number_of_pages_median?: number;
   subject?: string[];
+  /** Total editions known to OL for this work — used by the search re-ranker (#73). */
+  edition_count?: number;
+  /** ISO 639-2 / 639-3 language codes (e.g. `"eng"`). */
+  language?: string[];
 }
 
 interface OLSearchResponse {
@@ -106,7 +110,8 @@ export class OpenLibraryClient implements CatalogProvider {
     const params = new URLSearchParams({
       q: query,
       limit: String(limit),
-      fields: "key,title,subtitle,author_name,first_publish_year,cover_i,isbn,publisher,number_of_pages_median,subject",
+      fields:
+        "key,title,subtitle,author_name,first_publish_year,cover_i,isbn,publisher,number_of_pages_median,subject,edition_count,language",
     });
 
     const url = `${this.baseUrl}/search.json?${params.toString()}`;
@@ -146,6 +151,8 @@ export class OpenLibraryClient implements CatalogProvider {
       pageCount: doc.number_of_pages_median,
       genres: doc.subject?.slice(0, 10),
       workId: extractWorkId(doc.key),
+      editionCount: doc.edition_count,
+      languages: doc.language,
     };
   }
 

@@ -19,6 +19,7 @@ export * from "./isbn";
 export * from "./levenshtein";
 export * from "./lww";
 export * from "./ports";
+export * from "./rank-search";
 export * from "./schemas";
 export * from "./score";
 export * from "./services";

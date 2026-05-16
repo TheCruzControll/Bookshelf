@@ -18,6 +18,8 @@ interface GBVolumeInfo {
     type: string;
     identifier: string;
   }>;
+  /** BCP-47 language code, e.g. `"en"` or `"fr"`. Used by the search re-ranker (#73). */
+  language?: string;
 }
 
 interface GBVolume {
@@ -145,6 +147,7 @@ export class GoogleBooksClient implements CatalogProvider {
       isbn10: extractIsbn10(info?.industryIdentifiers),
       isbn13: extractIsbn13(info?.industryIdentifiers),
       genres: info?.categories?.slice(0, 10),
+      languages: info?.language ? [info.language] : undefined,
     };
   }
 

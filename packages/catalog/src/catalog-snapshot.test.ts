@@ -71,7 +71,7 @@ function makeService(cache: MemoryCache): CatalogService {
 }
 
 function searchCacheKey(query: string, limit: number): string {
-  return `catalog:search:${query.toLowerCase().trim()}:${limit}`;
+  return `catalog:search:${query.toLowerCase().trim()}:${limit}:`;
 }
 
 describe("Catalog snapshot tests (nock-recorded OL + GB fixtures)", () => {

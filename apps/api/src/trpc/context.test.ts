@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
 import { Hono } from "hono";
-import { createTrpcContext, type TrpcContext } from "./context";
+import { createTrpcContext, parseAcceptLanguage, type TrpcContext } from "./context";
 import type { AppRepositories, Profile, Session } from "@hone/domain";
 import { POSTURE_C_DEFAULTS } from "@hone/domain";
 
@@ -176,6 +176,47 @@ describe("createTrpcContext – cookie token", () => {
 
     expect(repos.sessions.findByTokenHash).toHaveBeenCalledWith(hashToken(bearerToken));
     expect(ctx.viewer).toEqual(profile);
+  });
+});
+
+describe("parseAcceptLanguage", () => {
+  it("returns undefined for a missing header", () => {
+    expect(parseAcceptLanguage(undefined)).toBeUndefined();
+  });
+
+  it("returns undefined for an empty / whitespace header", () => {
+    expect(parseAcceptLanguage("")).toBeUndefined();
+    expect(parseAcceptLanguage("   ")).toBeUndefined();
+  });
+
+  it("returns undefined for a bare wildcard", () => {
+    expect(parseAcceptLanguage("*")).toBeUndefined();
+  });
+
+  it("returns the primary tag of a single-locale header", () => {
+    expect(parseAcceptLanguage("en-US")).toBe("en-US");
+  });
+
+  it("returns the first listed tag (ignoring q-factor ordering)", () => {
+    expect(parseAcceptLanguage("en-US,fr;q=0.7")).toBe("en-US");
+  });
+
+  it("strips q-factor parameters from the primary tag", () => {
+    expect(parseAcceptLanguage("en-US;q=0.9, fr;q=0.7")).toBe("en-US");
+  });
+});
+
+describe("createTrpcContext – locale", () => {
+  it("populates ctx.locale from Accept-Language header", async () => {
+    const repos = makeRepositories();
+    const ctx = await resolveContext(repos, { "accept-language": "fr-FR,en;q=0.8" });
+    expect(ctx.locale).toBe("fr-FR");
+  });
+
+  it("ctx.locale is undefined when the header is missing", async () => {
+    const repos = makeRepositories();
+    const ctx = await resolveContext(repos);
+    expect(ctx.locale).toBeUndefined();
   });
 });
 
