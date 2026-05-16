@@ -16,6 +16,7 @@
     "@hone/domain": "workspace:*"
   },
   "devDependencies": {
+    "nock": "^14.0.15",
     "typescript": "^5.9.0",
     "vitest": "^2.1.9"
   }

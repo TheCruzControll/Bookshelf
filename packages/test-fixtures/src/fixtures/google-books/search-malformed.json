@@ -1,0 +1,5 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 1,
+  "items": "this is not an array — malformed Google Books payload"
+}
