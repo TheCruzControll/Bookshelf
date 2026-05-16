@@ -98,6 +98,7 @@ function makeFollowRepo(overrides?: Partial<FollowRepository>): FollowRepository
     listFollowing: vi.fn().mockResolvedValue([]),
     isMutual: vi.fn().mockResolvedValue(false),
     countMutuals: vi.fn().mockResolvedValue(0),
+    listMutualIds: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }

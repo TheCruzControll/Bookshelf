@@ -21,6 +21,7 @@ import type {
   NotificationPlatform,
   NotificationSetting,
   NotificationToken,
+  NotificationTrigger,
   Ranking,
   FeedItem,
   Profile,
@@ -167,6 +168,17 @@ export interface ShelfRepository {
   deleteShelfItem(input: { shelfId: EntityId; bookId: EntityId }): Promise<void>;
   getMaxPosition(shelfId: EntityId): Promise<number>;
   moveShelfItem(input: { shelfId: EntityId; bookId: EntityId; position: number }): Promise<ShelfItem>;
+  /**
+   * Given a set of candidate owners, return the subset whose system shelf
+   * (matched by slug, e.g. "want-to-read") currently contains `bookId`.
+   * Used by direct-social notification fan-out (#148) to find mutuals that
+   * have a freshly-finished book on their Want-to-Read shelf.
+   */
+  listOwnersWithBookOnSystemShelf(input: {
+    bookId: EntityId;
+    slug: string;
+    ownerIds: EntityId[];
+  }): Promise<EntityId[]>;
 }
 
 export interface ReviewRepository {
@@ -223,6 +235,12 @@ export interface FollowRepository {
   listFollowing(userId: EntityId, viewerId?: EntityId): Promise<Follow[]>;
   isMutual(input: { userA: EntityId; userB: EntityId }): Promise<boolean>;
   countMutuals(userId: EntityId): Promise<number>;
+  /**
+   * List the profile IDs of `userId`'s mutual follows (users who follow `userId`
+   * and whom `userId` also follows). Used by direct-social notification fan-out
+   * (#148) so the caller can enqueue per-recipient pushes.
+   */
+  listMutualIds(userId: EntityId): Promise<EntityId[]>;
 }
 
 export interface BlockRepository {
@@ -276,6 +294,17 @@ export interface InAppNotificationRepository {
     notificationId: EntityId;
   }): Promise<void>;
   findById(id: EntityId): Promise<InAppNotification | null>;
+  /**
+   * Insert a new in-app notification record. The in-app surface persists
+   * everything regardless of push status (per Q17 spec), so this is invoked
+   * once per direct-social event the platform produces.
+   */
+  create(input: {
+    recipientId: EntityId;
+    actorId?: EntityId | undefined;
+    trigger: NotificationTrigger;
+    payload: Record<string, unknown>;
+  }): Promise<InAppNotification>;
   /** Count notifications delivered to recipient at or after `since`. Used for rate-cap enforcement. */
   countSince(input: { recipientId: EntityId; since: Date }): Promise<number>;
   /** Count notifications produced by actor for recipient at or after `since`. Used for per-actor rate-cap enforcement. */
