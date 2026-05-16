@@ -11,7 +11,9 @@ export * from "./rec-cache";
 // goodreads uses node:crypto — server-only, import from "@hone/domain/goodreads"
 // salt-rotation uses node:crypto — server-only, import from "@hone/domain/salt-rotation"
 // salt-provider uses node:crypto — server-only, import from "@hone/domain/salt-provider"
+export * from "./import-match";
 export * from "./isbn";
+export * from "./levenshtein";
 export * from "./lww";
 export * from "./ports";
 export * from "./schemas";
