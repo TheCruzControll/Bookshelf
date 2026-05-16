@@ -272,4 +272,63 @@ describe("account.cancelDelete", () => {
 
     expect(res.status).toBe(401);
   });
+
+  it("returns cancelled=false when grace period has expired (no-op past 30 days)", async () => {
+    const pastDate = new Date(Date.now() - 1000);
+    const expiredDeletion = makeDeletion({ hardDeleteAfter: pastDate });
+    const repos = makeRepositories({
+      accountDeletions: {
+        create: vi.fn(),
+        findByProfileId: vi.fn().mockResolvedValue(expiredDeletion),
+        delete: vi.fn(),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/account.cancelDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.cancelled).toBe(false);
+    expect(repos.accountDeletions.delete).not.toHaveBeenCalled();
+  });
+
+  it("removes the account_deletions row and restores visibility on all surfaces", async () => {
+    // Model the repo as a real backing store: cancelDelete must mutate it.
+    // After the cancel, any reader (here: a follow-up findByProfileId, which
+    // is the source of truth for every visibility surface that could key on
+    // deletion state) sees the user as live.
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    const store = new Map<string, AccountDeletion>();
+    store.set(UUID1, makeDeletion({ hardDeleteAfter: futureDate }));
+    const repos = makeRepositories({
+      accountDeletions: {
+        create: vi.fn(),
+        findByProfileId: vi.fn().mockImplementation(async (id: string) => store.get(id) ?? null),
+        delete: vi.fn().mockImplementation(async (id: string) => {
+          store.delete(id);
+        }),
+      },
+    });
+    const app = buildApp(makeIdentity(), repos);
+
+    const res = await app.request("/trpc/account.cancelDelete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.cancelled).toBe(true);
+    expect(repos.accountDeletions.delete).toHaveBeenCalledWith(UUID1);
+    expect(store.has(UUID1)).toBe(false);
+    // Any downstream visibility surface that asks the repo "is this user
+    // soft-deleted?" now gets a null row back, i.e. the user is restored.
+    expect(await repos.accountDeletions.findByProfileId(UUID1)).toBeNull();
+  });
 });
