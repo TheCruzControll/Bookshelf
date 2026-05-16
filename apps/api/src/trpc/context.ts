@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { AuthIdentity, AuthProvider, AppRepositories, AppleJwksProvider, GoogleJwksProvider, EmailProvider, SmsProvider, Profile } from "@hone/domain";
+import type { AuthIdentity, AuthProvider, AppRepositories, AppleJwksProvider, GoogleJwksProvider, EmailProvider, SmsProvider, Profile, StorageProvider } from "@hone/domain";
 import type { Cache } from "@hone/cache";
 
 export interface TrpcContextDeps {
@@ -15,6 +15,7 @@ export interface TrpcContextDeps {
   googleAudience?: string;
   emailProvider?: EmailProvider;
   smsProvider?: SmsProvider;
+  storage?: StorageProvider;
 }
 
 export type TrpcContext = {
@@ -37,6 +38,7 @@ export type TrpcContext = {
    * or unparseable; downstream callers must treat absence as "no preference".
    */
   locale: string | undefined;
+  storage: StorageProvider | undefined;
   [key: string]: unknown;
 };
 
@@ -113,6 +115,7 @@ export function createTrpcContext(deps: TrpcContextDeps) {
       emailProvider: deps.emailProvider,
       smsProvider: deps.smsProvider,
       locale,
+      storage: deps.storage,
     };
   };
 }

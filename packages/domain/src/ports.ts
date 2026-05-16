@@ -97,14 +97,27 @@ export interface GoogleTokenClaims {
   azp?: string;
 }
 
+/**
+ * Port for object storage backing surfaces that must hand a binary blob
+ * to the user via a time-limited URL — currently the GDPR data export
+ * (issue #153). The production adapter is expected to upload to an
+ * object store (S3, GCS, etc.) and return a presigned URL; the dev
+ * adapter writes to a temporary directory and returns a `file://` URL
+ * suitable for local testing.
+ *
+ * Implementations MUST honour `expiresInMs`: the returned URL must
+ * cease to be valid by `expiresAt`. Callers should not need to specify
+ * a bucket — the implementation owns its destination.
+ */
 export interface StorageProvider {
-  getPublicUrl(path: string): string;
   putObject(input: {
-    bucket: string;
-    path: string;
-    body: ArrayBuffer;
+    /** Storage key (path within the implementation's destination). */
+    key: string;
+    body: Uint8Array;
     contentType: string;
-  }): Promise<{ path: string }>;
+    /** How long the returned URL should remain valid, in milliseconds. */
+    expiresInMs: number;
+  }): Promise<{ url: string; expiresAt: Date }>;
 }
 
 export interface ProfileRepository {
@@ -204,6 +217,13 @@ export interface ShelfRepository {
     slug: string;
     ownerIds: EntityId[];
   }): Promise<EntityId[]>;
+  /**
+   * List every `ShelfItem` belonging to a shelf owned by `ownerId`.
+   * Used by the GDPR export builder (#153). Spans shelves of every
+   * `kind` (system, custom, list) — lists are shelves with
+   * `kind === "list"` in this schema.
+   */
+  listShelfItemsByOwner(ownerId: EntityId): Promise<ShelfItem[]>;
 }
 
 export interface ReviewRepository {
@@ -223,6 +243,12 @@ export interface ReviewRepository {
     visibility?: Visibility | undefined;
   }): Promise<Review>;
   delete(input: { id: EntityId; authorId: EntityId }): Promise<void>;
+  /**
+   * List every review authored by `authorId`. Used by the GDPR export
+   * builder (#153); does not apply visibility filtering because the
+   * caller is always the author themselves.
+   */
+  listByAuthor(authorId: EntityId): Promise<Review[]>;
 }
 
 export interface ActivityRepository {
@@ -246,6 +272,11 @@ export interface ActivityRepository {
     groupLimit: number;
   }): Promise<FeedItem[]>;
   deleteByReviewId(reviewId: EntityId): Promise<void>;
+  /**
+   * List every activity event authored by `actorId`. Used by the GDPR
+   * export builder (#153) — the caller is always the actor.
+   */
+  listByActor(actorId: EntityId): Promise<ActivityEvent[]>;
 }
 
 export interface RecommendationRepository {
@@ -338,6 +369,12 @@ export interface InAppNotificationRepository {
     actorId: EntityId;
     since: Date;
   }): Promise<number>;
+  /**
+   * List every in-app notification delivered to `recipientId`, ordered
+   * newest first. Used by the GDPR export builder (#153); intentionally
+   * unpaginated because the export is a one-off snapshot.
+   */
+  listAllByRecipient(recipientId: EntityId): Promise<InAppNotification[]>;
 }
 
 export interface ImportRepository {

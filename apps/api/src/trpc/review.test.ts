@@ -58,14 +58,16 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       getMaxPosition: vi.fn().mockResolvedValue(0),
       moveShelfItem: vi.fn(),
       listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]),
+      listShelfItemsByOwner: vi.fn().mockResolvedValue([]),
     },
     reviews: {
       findById: vi.fn(),
       create: vi.fn().mockResolvedValue(makeReview()),
       update: vi.fn(),
       delete: vi.fn().mockResolvedValue(undefined),
+      listByAuthor: vi.fn().mockResolvedValue([]),
     },
-    activity: { append: vi.fn().mockResolvedValue(undefined), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn().mockResolvedValue(undefined) },
+    activity: { append: vi.fn().mockResolvedValue(undefined), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn().mockResolvedValue(undefined), listByActor: vi.fn().mockResolvedValue([]) },
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
@@ -79,7 +81,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     sessions: { create: vi.fn(), findByTokenHash: vi.fn(), revokeByTokenHash: vi.fn(), revokeAllForProfile: vi.fn() },
     handleHistory: { record: vi.fn(), findCurrentByOldHandle: vi.fn() },
     magicLinks: { create: vi.fn(), findByTokenHash: vi.fn(), markConsumed: vi.fn(), deleteExpiredForEmail: vi.fn() },
-    inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn(), countSince: vi.fn().mockResolvedValue(0), countSinceByActor: vi.fn().mockResolvedValue(0), create: vi.fn() },
+    inAppNotifications: { list: vi.fn().mockResolvedValue([]), markRead: vi.fn().mockResolvedValue(undefined), findById: vi.fn(), countSince: vi.fn().mockResolvedValue(0), countSinceByActor: vi.fn().mockResolvedValue(0), create: vi.fn(), listAllByRecipient: vi.fn().mockResolvedValue([]) },
     phoneVerifications: { upsert: vi.fn(), findByPhone: vi.fn(), incrementAttempts: vi.fn(), deleteByPhone: vi.fn(), deleteExpired: vi.fn() },
     phoneNumbers: { upsert: vi.fn(), findByProfileId: vi.fn(), findByHash: vi.fn() },
     salts: { create: vi.fn(), findActive: vi.fn(), findByVersion: vi.fn(), retire: vi.fn(), getLatestVersion: vi.fn(), listAll: vi.fn() },
@@ -116,7 +118,7 @@ describe("review.create", () => {
   it("creates a review with public visibility by default", async () => {
     const review = makeReview({ visibility: "public" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -132,7 +134,7 @@ describe("review.create", () => {
   it("creates a review with followers visibility", async () => {
     const review = makeReview({ visibility: "followers" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -148,7 +150,7 @@ describe("review.create", () => {
   it("creates a review with mutuals visibility", async () => {
     const review = makeReview({ visibility: "mutuals" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -164,7 +166,7 @@ describe("review.create", () => {
   it("creates a review with private visibility", async () => {
     const review = makeReview({ visibility: "private" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -210,7 +212,7 @@ describe("review.create", () => {
   it("activity event visibility matches review visibility", async () => {
     const review = makeReview({ visibility: "mutuals" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
     await app.request("/trpc/review.create", {
@@ -259,7 +261,7 @@ describe("review.create", () => {
   it("returns the review id and body in the response", async () => {
     const review = makeReview({ id: UUID2, body: "A great book" });
     const repos = makeRepositories({
-      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn() },
+      reviews: { findById: vi.fn(), create: vi.fn().mockResolvedValue(review), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     });
     const app = buildApp(makeIdentity(), repos);
     const res = await app.request("/trpc/review.create", {
@@ -288,6 +290,7 @@ describe("review.update", () => {
         create: vi.fn(),
         update: vi.fn().mockResolvedValue(updated),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -311,6 +314,7 @@ describe("review.update", () => {
         create: vi.fn(),
         update: vi.fn().mockResolvedValue(updated),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -332,6 +336,7 @@ describe("review.update", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -351,6 +356,7 @@ describe("review.update", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -371,6 +377,7 @@ describe("review.update", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -390,6 +397,7 @@ describe("review.update", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -442,6 +450,7 @@ describe("review.update", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -467,6 +476,7 @@ describe("review.delete", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn().mockResolvedValue(undefined),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -488,6 +498,7 @@ describe("review.delete", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn().mockResolvedValue(undefined),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -506,6 +517,7 @@ describe("review.delete", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);
@@ -525,6 +537,7 @@ describe("review.delete", () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      listByAuthor: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity({ userId: UUID1 }), repos);

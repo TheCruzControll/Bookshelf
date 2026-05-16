@@ -13,6 +13,7 @@ function makeActivity(overrides?: Partial<ActivityRepository>): ActivityReposito
     getFriendFeed: vi.fn(),
     getFriendFeedGrouped: vi.fn(),
     deleteByReviewId: vi.fn(),
+    listByActor: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }

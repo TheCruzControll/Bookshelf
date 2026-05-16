@@ -1,4 +1,5 @@
 import { createHash, randomBytes, subtle } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import type {
   AccountDeletionRepository,
@@ -22,18 +23,19 @@ import type {
   ListRepository,
   NotificationRepository,
   MagicLinkRepository,
+  PhoneNumberRepository,
+  PhoneVerificationRepository,
   ProfileRepository,
   RankingRepository,
   RecommendationRepository,
   ReviewRepository,
   SessionRepository,
-  PhoneNumberRepository,
-  PhoneVerificationRepository,
   SaltRepository,
   ShelfRepository,
-  SmsProvider
+  SmsProvider,
+  StorageProvider,
 } from "./ports";
-import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, ContentType, EntityId, FeedItem, Follow, InAppNotification, List, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
+import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, ContactsHash, ContentType, EmailIndex, EntityId, FeedItem, Follow, Import, InAppNotification, List, NotificationSetting, NotificationToken, OAuthIdentity, PhoneNumber, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { matchImportRow } from "./import-match";
 import type { BookLookup, MatchResult } from "./import-match";
@@ -2283,8 +2285,171 @@ export class AccountDeletionService {
   }
 }
 
+/**
+ * Default lifetime of a GDPR export signed URL. 24h is long enough for
+ * a user to email themselves the link and download the archive, short
+ * enough that a leaked URL has limited blast radius.
+ */
+export const ACCOUNT_EXPORT_URL_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Schema version embedded in every GDPR export. Bump on any breaking
+ * change to the archive layout so downstream consumers can detect it.
+ */
+export const ACCOUNT_EXPORT_SCHEMA_VERSION = 1;
+
+/**
+ * Shape of the JSON document inside a GDPR export. Every field is the
+ * personal data the platform holds for the requesting profile and only
+ * the requesting profile — see `docs/runbook.md` for the human-facing
+ * description. The shape is intentionally a plain object (not a class)
+ * so it round-trips cleanly through `JSON.stringify` / `JSON.parse`.
+ */
+export interface AccountExportPayload {
+  schemaVersion: number;
+  /** ISO-8601 timestamp at which the export was assembled. */
+  generatedAt: string;
+  /** Subject of the export — always the requesting profile. */
+  profileId: EntityId;
+  profile: Profile | null;
+  oauthIdentities: OAuthIdentity[];
+  reviews: Review[];
+  shelves: Shelf[];
+  shelfItems: ShelfItem[];
+  lists: List[];
+  rankings: Ranking[];
+  follows: { following: Follow[]; followers: Follow[] };
+  blocks: { outgoing: Block[]; incoming: Block[] };
+  activityEvents: ActivityEvent[];
+  inAppNotifications: InAppNotification[];
+  notificationTokens: NotificationToken[];
+  notificationSettings: NotificationSetting[];
+  contactsHashes: ContactsHash[];
+  emailHashes: EmailIndex[];
+  phoneNumber: PhoneNumber | null;
+  imports: Import[];
+}
+
+/**
+ * Builds a downloadable GDPR data export for a profile (issue #153).
+ *
+ * The service collects every user-scoped row owned by the requesting
+ * profile via the repository ports — never touching another profile's
+ * data — gzips the resulting JSON document, and hands the binary blob
+ * to a `StorageProvider` which returns a signed URL that expires after
+ * {@link ACCOUNT_EXPORT_URL_TTL_MS}.
+ */
+export class AccountExportService {
+  constructor(
+    private readonly repositories: AppRepositories,
+    private readonly storage: StorageProvider,
+    private readonly options: { ttlMs?: number; now?: () => Date } = {},
+  ) {}
+
+  /**
+   * Assemble the in-memory archive payload. Pure(-ish) — only reads
+   * from repositories, never writes. Exposed for unit tests; callers
+   * should normally use {@link buildExport}.
+   */
+  async collectPayload(profileId: EntityId): Promise<AccountExportPayload> {
+    const repos = this.repositories;
+    const now = (this.options.now ?? (() => new Date()))();
+
+    const [
+      profile,
+      oauthIdentities,
+      reviewsList,
+      shelvesList,
+      shelfItemsList,
+      listsList,
+      rankingsList,
+      following,
+      followers,
+      outgoingBlocks,
+      incomingBlocks,
+      activityEventsList,
+      inAppList,
+      tokens,
+      settings,
+      contactsHashes,
+      emailHashes,
+      phoneNumber,
+      importsList,
+    ] = await Promise.all([
+      repos.profiles.findById(profileId),
+      repos.authIdentities.listByProfile(profileId),
+      repos.reviews.listByAuthor(profileId),
+      repos.shelves.listShelves(profileId, profileId),
+      repos.shelves.listShelfItemsByOwner(profileId),
+      repos.lists.listByOwner(profileId, profileId),
+      repos.rankings.listByOwner(profileId, profileId),
+      repos.follows.listFollowing(profileId, profileId),
+      repos.follows.listFollowers(profileId, profileId),
+      repos.blocks.listBlockedByUser(profileId),
+      repos.blocks.listBlockingUser(profileId),
+      repos.activity.listByActor(profileId),
+      repos.inAppNotifications.listAllByRecipient(profileId),
+      repos.notifications.listTokensForProfile(profileId),
+      repos.notifications.listSettings(profileId),
+      repos.contacts.listByUser(profileId),
+      repos.emailIndex.listByUser(profileId),
+      repos.phoneNumbers.findByProfileId(profileId),
+      repos.imports.listByOwner(profileId),
+    ]);
+
+    return {
+      schemaVersion: ACCOUNT_EXPORT_SCHEMA_VERSION,
+      generatedAt: now.toISOString(),
+      profileId,
+      profile,
+      oauthIdentities,
+      reviews: reviewsList,
+      shelves: shelvesList,
+      shelfItems: shelfItemsList,
+      lists: listsList,
+      rankings: rankingsList,
+      follows: { following, followers },
+      blocks: { outgoing: outgoingBlocks, incoming: incomingBlocks },
+      activityEvents: activityEventsList,
+      inAppNotifications: inAppList,
+      notificationTokens: tokens,
+      notificationSettings: settings,
+      contactsHashes,
+      emailHashes,
+      phoneNumber,
+      imports: importsList,
+    };
+  }
+
+  /**
+   * Build the GDPR export archive for `profileId` and return a signed
+   * URL that points to a single gzipped JSON file (`profile.json.gz`).
+   * The URL expires after {@link ACCOUNT_EXPORT_URL_TTL_MS} (24h by
+   * default; override via `options.ttlMs`).
+   */
+  async buildExport(profileId: EntityId): Promise<{ url: string; expiresAt: Date }> {
+    const payload = await this.collectPayload(profileId);
+    const json = JSON.stringify(payload);
+    const gz = gzipSync(Buffer.from(json, "utf8"));
+    // gzipSync returns a Buffer; expose it to the storage port as a
+    // plain Uint8Array to keep the port free of node-specific types.
+    const body = new Uint8Array(gz.buffer, gz.byteOffset, gz.byteLength);
+    const ttlMs = this.options.ttlMs ?? ACCOUNT_EXPORT_URL_TTL_MS;
+    const now = (this.options.now ?? (() => new Date()))();
+    const key = `account-exports/${profileId}/${now.getTime()}-profile.json.gz`;
+    const { url, expiresAt } = await this.storage.putObject({
+      key,
+      body,
+      contentType: "application/gzip",
+      expiresInMs: ttlMs,
+    });
+    return { url, expiresAt };
+  }
+}
+
 export class AppServices {
   readonly accountDeletion: AccountDeletionService;
+  readonly accountExport: AccountExportService | null;
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
@@ -2304,12 +2469,18 @@ export class AppServices {
   constructor(
     readonly repositories: AppRepositories,
     readonly auth: AuthProvider,
-    options?: { bookLookup?: BookLookup }
+    options?: { bookLookup?: BookLookup; storage?: StorageProvider }
   ) {
     this.accountDeletion = new AccountDeletionService(
       repositories.accountDeletions,
       repositories.sessions,
     );
+    // The export service requires an object-storage adapter. Wire it
+    // when one is supplied; otherwise leave it `null` so the API layer
+    // can return a clear error from the export procedure.
+    this.accountExport = options?.storage
+      ? new AccountExportService(repositories, options.storage)
+      : null;
     this.shelves = new ShelfService(
       repositories.shelves,
       repositories.activity,

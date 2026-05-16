@@ -91,6 +91,7 @@ function makeInAppRepo(overrides?: Partial<InAppNotificationRepository>): InAppN
     })),
     countSince: vi.fn().mockResolvedValue(0),
     countSinceByActor: vi.fn().mockResolvedValue(0),
+    listAllByRecipient: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -111,6 +112,7 @@ function makeShelfRepo(overrides?: Partial<ShelfRepository>): ShelfRepository {
     getMaxPosition: vi.fn().mockResolvedValue(0),
     moveShelfItem: vi.fn(),
     listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]),
+    listShelfItemsByOwner: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -147,6 +149,7 @@ function makeActivityRepo(): ActivityRepository {
     getFriendFeed: vi.fn().mockResolvedValue([]),
     getFriendFeedGrouped: vi.fn().mockResolvedValue([]),
     deleteByReviewId: vi.fn(),
+    listByActor: vi.fn().mockResolvedValue([]),
   };
 }
 
