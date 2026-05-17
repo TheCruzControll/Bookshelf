@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ImportService, REUPLOAD_OPTIONS } from "./services";
 import type { ImportRepository } from "./ports";
-import type { BookLookup, MatchCandidate } from "./import-match";
+import type {
+  BookLookup,
+  MatchCandidate,
+  MatchResult,
+  ViewerShelfStateLookup,
+} from "./import-match";
 import type { GoodreadsRow, Import } from "./types";
 
 const UUID1 = "00000000-0000-0000-0000-000000000001";
@@ -281,6 +286,76 @@ describe("ImportService", () => {
       await expect(service.matchRows([])).rejects.toThrow(
         /BookLookup/,
       );
+    });
+
+    it("passes the viewer-state lookup through to the matcher to produce conflicts", async () => {
+      const repo = makeImportRepository();
+      const lookup = makeLookup({
+        findByIsbn13: vi.fn().mockResolvedValue(makeCandidate()),
+      });
+      const viewerState: ViewerShelfStateLookup = {
+        // Hone says `dropped`; the row will say `finished` → conflict.
+        getCurrentStatusForBook: vi.fn().mockResolvedValue("dropped"),
+      };
+      const service = new ImportService(repo, lookup);
+
+      const rows = [
+        makeRow({ isbn13: "9780547928227", status: "finished" }),
+      ];
+      const results = await service.matchRows(rows, viewerState);
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.bucket).toBe("conflict");
+      expect(viewerState.getCurrentStatusForBook).toHaveBeenCalledWith(
+        BOOK_ID,
+      );
+    });
+
+    it("omitting viewerState leaves conflict detection disabled (backwards compatible)", async () => {
+      const repo = makeImportRepository();
+      const lookup = makeLookup({
+        findByIsbn13: vi.fn().mockResolvedValue(makeCandidate()),
+      });
+      const service = new ImportService(repo, lookup);
+
+      const results = await service.matchRows([
+        makeRow({ isbn13: "9780547928227", status: "finished" }),
+      ]);
+
+      expect(results[0]!.bucket).toBe("matched");
+    });
+  });
+
+  describe("countConflicts", () => {
+    it("returns 0 for an empty array", () => {
+      const repo = makeImportRepository();
+      const service = new ImportService(repo);
+      expect(service.countConflicts([])).toBe(0);
+    });
+
+    it("counts only `conflict`-bucket results", () => {
+      const repo = makeImportRepository();
+      const service = new ImportService(repo);
+      const bookId = "00000000-0000-0000-0000-0000000000aa";
+      const results: MatchResult[] = [
+        { bucket: "matched", confidence: 1, bookId },
+        {
+          bucket: "conflict",
+          confidence: 1,
+          bookId,
+          currentHoneStatus: "dropped",
+          goodreadsStatus: "finished",
+        },
+        { bucket: "unmatched", confidence: 0 },
+        {
+          bucket: "conflict",
+          confidence: 1,
+          bookId,
+          currentHoneStatus: "reading",
+          goodreadsStatus: "want_to_read",
+        },
+      ];
+      expect(service.countConflicts(results)).toBe(2);
     });
   });
 });

@@ -38,7 +38,7 @@ import type {
 import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, ContactsHash, ContentType, EmailIndex, EntityId, FeedItem, Follow, Import, InAppNotification, List, NotificationSetting, NotificationToken, OAuthIdentity, PhoneNumber, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { matchImportRow } from "./import-match";
-import type { BookLookup, MatchResult } from "./import-match";
+import type { BookLookup, MatchResult, ViewerShelfStateLookup } from "./import-match";
 import type { GoodreadsRow } from "./types";
 import type { ContactsMatchProfile } from "./schemas/contacts";
 import {
@@ -1546,13 +1546,22 @@ export class ImportService {
   /**
    * Match each parsed Goodreads row against the catalog and return a parallel
    * array of `MatchResult`s, one per input row. Used by the import pipeline to
-   * bucket rows into Matched / Needs review / Unmatched. See `import-match.ts`
-   * for the underlying algorithm.
+   * bucket rows into Matched / Needs review / Unmatched / Conflict. See
+   * `import-match.ts` for the underlying algorithm.
+   *
+   * `viewerState` is optional but required for conflict detection (#103):
+   * when supplied, definitive (ISBN) matches whose viewer shelf status
+   * differs from the row's Goodreads status are bucketed as `conflict`
+   * instead of `matched`. Without `viewerState`, no conflict detection
+   * happens — backwards-compatible with pre-#103 call sites.
    *
    * Throws when no book lookup port has been wired — this happens when
    * `AppServices` is constructed without the optional bookLookup dependency.
    */
-  async matchRows(rows: readonly GoodreadsRow[]): Promise<MatchResult[]> {
+  async matchRows(
+    rows: readonly GoodreadsRow[],
+    viewerState?: ViewerShelfStateLookup,
+  ): Promise<MatchResult[]> {
     if (!this.bookLookup) {
       throw Object.assign(
         new Error("ImportService.matchRows requires a BookLookup adapter"),
@@ -1560,7 +1569,24 @@ export class ImportService {
       );
     }
     const lookup = this.bookLookup;
-    return Promise.all(rows.map((row) => matchImportRow(row, lookup)));
+    return Promise.all(
+      rows.map((row) => matchImportRow(row, lookup, viewerState)),
+    );
+  }
+
+  /**
+   * Count how many `MatchResult`s in a parallel array landed in the
+   * `conflict` bucket. Persisted on the `imports` row's `conflict_count`
+   * column by the import committer (#106). Exposed as a small pure helper
+   * here so the import pipeline can keep the count in sync without
+   * re-implementing the bucket check.
+   */
+  countConflicts(results: readonly MatchResult[]): number {
+    let n = 0;
+    for (const r of results) {
+      if (r.bucket === "conflict") n += 1;
+    }
+    return n;
   }
 
   async checkForDuplicate(input: {
