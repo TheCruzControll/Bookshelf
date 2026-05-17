@@ -37,6 +37,12 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       purgeProfile: vi.fn(),
       ...overrides?.accountDeletions,
     },
+    deletedProfileTombstones: {
+      create: vi.fn(),
+      findByHandle: vi.fn().mockResolvedValue(null),
+      purgeExpired: vi.fn().mockResolvedValue(0),
+      ...overrides?.deletedProfileTombstones,
+    },
     profiles: {
       findById: vi.fn(),
       findByHandle: vi.fn(),

@@ -1236,9 +1236,117 @@ describeIntegration("repository integration tests (real Postgres)", () => {
         "account_deletions",
       );
 
+      // S-06 (#161): a tombstone for the purged handle is written
+      // inside the same transaction so the public-profile route can
+      // answer `410 Gone` until the 60-day window elapses.
+      const tombstone =
+        await repos.deletedProfileTombstones.findByHandle(
+          "purge-target",
+          new Date(),
+        );
+      expect(tombstone).not.toBeNull();
+      expect(tombstone!.profileId).toBe(targetId);
+      expect(tombstone!.handle).toBe("purge-target");
+      // expiresAt is 60 days after deletedAt — guard against off-by-one.
+      const windowMs =
+        tombstone!.expiresAt.getTime() - tombstone!.deletedAt.getTime();
+      const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000;
+      expect(windowMs).toBe(sixtyDaysMs);
+
       // Sanity check — the OTHER profile is untouched.
       const other = await repos.profiles.findById(otherId);
       expect(other).not.toBeNull();
+    });
+  });
+
+  describe("DrizzleDeletedProfileTombstoneRepository (S-06, #161)", () => {
+    const tombProfileA = uid("bb0000000001");
+    const tombProfileB = uid("bb0000000002");
+    const tombProfileC = uid("bb0000000003");
+    const now = new Date("2026-06-01T00:00:00Z");
+    const future = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+    const past = new Date(now.getTime() - 1000);
+
+    beforeAll(async () => {
+      // Sweep any leftover rows so tests are idempotent across reruns.
+      await db.execute(
+        `DELETE FROM deleted_profiles_tombstone WHERE profile_id IN ('${tombProfileA}', '${tombProfileB}', '${tombProfileC}')`,
+      );
+      await repos.deletedProfileTombstones.create({
+        profileId: tombProfileA,
+        handle: "tomb-active",
+        deletedAt: now,
+        expiresAt: future,
+      });
+      await repos.deletedProfileTombstones.create({
+        profileId: tombProfileB,
+        handle: "tomb-expired",
+        deletedAt: now,
+        expiresAt: past,
+      });
+    });
+
+    it("findByHandle returns an active tombstone", async () => {
+      const found = await repos.deletedProfileTombstones.findByHandle(
+        "tomb-active",
+        now,
+      );
+      expect(found).not.toBeNull();
+      expect(found!.profileId).toBe(tombProfileA);
+    });
+
+    it("findByHandle returns null for expired tombstones", async () => {
+      const found = await repos.deletedProfileTombstones.findByHandle(
+        "tomb-expired",
+        now,
+      );
+      expect(found).toBeNull();
+    });
+
+    it("findByHandle returns null when no tombstone exists", async () => {
+      const found = await repos.deletedProfileTombstones.findByHandle(
+        "never-existed",
+        now,
+      );
+      expect(found).toBeNull();
+    });
+
+    it("create is idempotent — calling twice for the same profileId yields one row", async () => {
+      await repos.deletedProfileTombstones.create({
+        profileId: tombProfileC,
+        handle: "tomb-dupe",
+        deletedAt: now,
+        expiresAt: future,
+      });
+      const second = await repos.deletedProfileTombstones.create({
+        profileId: tombProfileC,
+        handle: "tomb-dupe",
+        deletedAt: now,
+        expiresAt: future,
+      });
+      expect(second.profileId).toBe(tombProfileC);
+      const result = await db.execute(
+        `SELECT count(*) FROM deleted_profiles_tombstone WHERE profile_id = '${tombProfileC}'`,
+      );
+      const rows = (result as unknown as { rows: Array<{ count: string }> }).rows;
+      expect(Number(rows[0]!.count)).toBe(1);
+    });
+
+    it("purgeExpired removes only expired tombstones and returns their count", async () => {
+      const purged = await repos.deletedProfileTombstones.purgeExpired(now);
+      expect(purged).toBeGreaterThanOrEqual(1);
+
+      // Active tombstone survives.
+      const stillActive =
+        await repos.deletedProfileTombstones.findByHandle("tomb-active", now);
+      expect(stillActive).not.toBeNull();
+
+      // Expired one is gone.
+      const result = await db.execute(
+        `SELECT count(*) FROM deleted_profiles_tombstone WHERE profile_id = '${tombProfileB}'`,
+      );
+      const rows = (result as unknown as { rows: Array<{ count: string }> }).rows;
+      expect(Number(rows[0]!.count)).toBe(0);
     });
   });
 });

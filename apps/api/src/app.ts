@@ -7,7 +7,7 @@ import { clearSentryUser, setSentryUser } from "@hone/observability";
 import type { Cache } from "@hone/cache";
 import { createTrpcContext } from "./trpc/context";
 import { appRouter } from "./trpc/router";
-import { requestIdMiddleware, accessLogMiddleware, otelHook, rateLimitMiddleware } from "./middleware";
+import { requestIdMiddleware, accessLogMiddleware, otelHook, rateLimitMiddleware, goneRewriteMiddleware } from "./middleware";
 
 const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
@@ -89,6 +89,11 @@ export function createApi(dependencies: ApiDependencies = {}) {
     app.use("/trpc/ranking.*", rateLimitMiddleware("write", cache));
     app.use("/shelves/*", rateLimitMiddleware("write", cache));
   }
+
+  // S-06 (#161): rewrite NOT_FOUND-with-GONE-payload responses on the
+  // public-profile route to HTTP 410 with an empty body. Must run
+  // BEFORE the tRPC handler so its `await next()` wraps the procedure.
+  app.use("/trpc/profile.byHandle*", goneRewriteMiddleware());
 
   app.get("/health", (c) =>
     c.json({

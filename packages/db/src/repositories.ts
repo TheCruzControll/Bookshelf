@@ -40,6 +40,8 @@ import type {
   BookRepository,
   ContactsHash,
   ContactsRepository,
+  DeletedProfileTombstone,
+  DeletedProfileTombstoneRepository,
   EmailIndex,
   EmailIndexRepository,
   EntityId,
@@ -75,6 +77,7 @@ import {
   blocks,
   books,
   contactsIndex,
+  deletedProfileTombstones,
   emailIndex,
   editions,
   follows,
@@ -99,6 +102,7 @@ import {
 import {
   toAccountDeletion,
   toActivityEvent,
+  toDeletedProfileTombstone,
   toBlock,
   toBook,
   toEdition,
@@ -122,6 +126,15 @@ import {
   toShelf,
   toShelfItem
 } from "./mappers";
+
+/**
+ * Window (ms) for the "410 Gone" response after a profile is hard-deleted.
+ *
+ * Spec (S-06, #161): the 30-day soft-delete grace is followed by a 60-day
+ * 410-Gone window — i.e. days 30–90 post-`requestDelete`. Once a profile
+ * is hard-deleted we therefore write a tombstone whose `expiresAt = now + 60d`.
+ */
+const TOMBSTONE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 
 export class DrizzleAccountDeletionRepository implements AccountDeletionRepository {
   constructor(private readonly db: HoneDb) {}
@@ -176,6 +189,30 @@ export class DrizzleAccountDeletionRepository implements AccountDeletionReposito
     // ON DELETE CASCADE in the schema — children must be deleted
     // before their parents.
     await this.db.transaction(async (tx) => {
+      // 0. Tombstone for the public-route 410 Gone window (S-06, #161).
+      //    Read the handle BEFORE we drop the profile row, then insert
+      //    the tombstone inside the same transaction so an aborted purge
+      //    leaves no orphan tombstone behind. `onConflictDoNothing`
+      //    keeps the call idempotent if a previous purge attempt
+      //    already wrote one.
+      const profileRow = await tx
+        .select({ handle: profiles.handle })
+        .from(profiles)
+        .where(eq(profiles.id, profileId))
+        .limit(1);
+      if (profileRow[0]) {
+        const now = new Date();
+        await tx
+          .insert(deletedProfileTombstones)
+          .values({
+            profileId,
+            handle: profileRow[0].handle,
+            deletedAt: now,
+            expiresAt: new Date(now.getTime() + TOMBSTONE_TTL_MS),
+          })
+          .onConflictDoNothing();
+      }
+
       // 1. Activity / feed events authored by the user. Activity events
       //    can reference reviews and shelves owned by the user, so they
       //    must be removed before those parents.
@@ -267,6 +304,61 @@ export class DrizzleAccountDeletionRepository implements AccountDeletionReposito
         .delete(accountDeletions)
         .where(eq(accountDeletions.profileId, profileId));
     });
+  }
+}
+
+export class DrizzleDeletedProfileTombstoneRepository
+  implements DeletedProfileTombstoneRepository
+{
+  constructor(private readonly db: HoneDb) {}
+
+  async create(input: {
+    profileId: EntityId;
+    handle: string;
+    deletedAt: Date;
+    expiresAt: Date;
+  }): Promise<DeletedProfileTombstone> {
+    const [row] = await this.db
+      .insert(deletedProfileTombstones)
+      .values({
+        profileId: input.profileId,
+        handle: input.handle,
+        deletedAt: input.deletedAt,
+        expiresAt: input.expiresAt,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (row) {
+      return toDeletedProfileTombstone(row);
+    }
+    const existing = await this.db.query.deletedProfileTombstones.findFirst({
+      where: eq(deletedProfileTombstones.profileId, input.profileId),
+    });
+    if (!existing) {
+      throw new Error("Failed to create deleted profile tombstone");
+    }
+    return toDeletedProfileTombstone(existing);
+  }
+
+  async findByHandle(
+    handle: string,
+    now: Date
+  ): Promise<DeletedProfileTombstone | null> {
+    const row = await this.db.query.deletedProfileTombstones.findFirst({
+      where: and(
+        eq(deletedProfileTombstones.handle, handle),
+        gt(deletedProfileTombstones.expiresAt, now)
+      ),
+    });
+    return row ? toDeletedProfileTombstone(row) : null;
+  }
+
+  async purgeExpired(now: Date): Promise<number> {
+    const rows = await this.db
+      .delete(deletedProfileTombstones)
+      .where(lte(deletedProfileTombstones.expiresAt, now))
+      .returning({ profileId: deletedProfileTombstones.profileId });
+    return rows.length;
   }
 }
 
@@ -2225,6 +2317,7 @@ class DrizzleSaltRepository implements SaltRepository {
 export function createDrizzleRepositories(db: HoneDb): AppRepositories {
   return {
     accountDeletions: new DrizzleAccountDeletionRepository(db),
+    deletedProfileTombstones: new DrizzleDeletedProfileTombstoneRepository(db),
     profiles: new DrizzleProfileRepository(db),
     books: new DrizzleBookRepository(db),
     shelves: new DrizzleShelfRepository(db),

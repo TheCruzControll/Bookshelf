@@ -1,7 +1,11 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { ZodError } from "zod";
 import { captureException, createLogger } from "@hone/observability";
-import { VersionConflictError } from "@hone/domain";
+import {
+  PROFILE_GONE_CODE,
+  ProfileGoneError,
+  VersionConflictError,
+} from "@hone/domain";
 import type { TrpcContext } from "./context";
 
 const trpcLogger = createLogger("hone-trpc");
@@ -51,6 +55,28 @@ const t = initTRPC.context<TrpcContext>().create({
           ...shape.data,
           stack: undefined,
           conflict: error.cause.toPayload()
+        }
+      };
+    }
+
+    // S-06 (#161): the public-profile route signals "gone" by throwing
+    // a NOT_FOUND whose cause is a `ProfileGoneError`. tRPC has no GONE
+    // code, so we tag the wire payload with `data.code = "GONE"` and
+    // let the Hono adapter (`goneRewriteMiddleware`) rewrite the
+    // response to HTTP 410 with an empty body. The message is dropped
+    // so the body is empty content-wise even before the rewrite.
+    if (
+      error instanceof TRPCError &&
+      error.code === "NOT_FOUND" &&
+      error.cause instanceof ProfileGoneError
+    ) {
+      return {
+        ...shape,
+        message: "",
+        data: {
+          ...shape.data,
+          stack: undefined,
+          code: PROFILE_GONE_CODE
         }
       };
     }

@@ -2,6 +2,7 @@ import type { CatalogMergeOutcome } from "./catalog-merge";
 import type {
   AccountDeletion,
   ActivityEvent,
+  DeletedProfileTombstone,
   Block,
   Book,
   BookSearchResult,
@@ -633,8 +634,42 @@ export interface AccountDeletionRepository {
   purgeProfile(profileId: EntityId): Promise<void>;
 }
 
+/**
+ * Persistence port for hard-deleted-profile tombstones (S-06, #161).
+ *
+ * Tombstones power the 30–90 day post-request window during which the
+ * public profile route returns `410 Gone` (after the 30-day grace, the
+ * profile row is gone but the handle is still claimed). After
+ * `expiresAt`, the row is reaped and the route falls back to `404`.
+ */
+export interface DeletedProfileTombstoneRepository {
+  /**
+   * Insert a tombstone for a profile that is about to be hard-deleted.
+   * Idempotent: if a tombstone already exists for `profileId`, returns
+   * the existing row unchanged.
+   */
+  create(input: {
+    profileId: EntityId;
+    handle: string;
+    deletedAt: Date;
+    expiresAt: Date;
+  }): Promise<DeletedProfileTombstone>;
+  /**
+   * Look up an active tombstone by handle. Returns the row only when
+   * `expiresAt > now` — expired tombstones are treated as absent so
+   * callers can render `404 Not Found` instead of `410 Gone`.
+   */
+  findByHandle(handle: string, now: Date): Promise<DeletedProfileTombstone | null>;
+  /**
+   * Remove tombstones whose 410 window has elapsed. Returns the number
+   * of rows reaped. Invoked daily by the hard-delete cron.
+   */
+  purgeExpired(now: Date): Promise<number>;
+}
+
 export interface AppRepositories {
   accountDeletions: AccountDeletionRepository;
+  deletedProfileTombstones: DeletedProfileTombstoneRepository;
   profiles: ProfileRepository;
   books: BookRepository;
   shelves: ShelfRepository;

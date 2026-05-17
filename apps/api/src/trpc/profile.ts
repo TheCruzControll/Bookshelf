@@ -6,6 +6,9 @@ import {
   CreateProfileInputSchema,
   CreateProfileOutputSchema,
   POSTURE_C_DEFAULTS,
+  ProfileByHandleInputSchema,
+  ProfileByHandleOutputSchema,
+  ProfileGoneError,
   ResolveOldHandleInputSchema,
   ResolveOldHandleOutputSchema,
   SetHandleInputSchema,
@@ -89,5 +92,45 @@ export const profileRouter = router({
         getCurrentIdentity: async () => null,
       });
       return services.handles.resolveOldHandle(input.handle);
+    }),
+
+  /**
+   * Public-profile lookup powering `/u/{handle}` (S-06, #161).
+   *
+   * Resolution order:
+   *   1. Live profile exists → return it.
+   *   2. No live profile, active tombstone → throw `NOT_FOUND` with a
+   *      `ProfileGoneError` cause. The Hono adapter rewrites this to
+   *      `HTTP 410 Gone` with an empty body.
+   *   3. No live profile, no (or expired) tombstone → plain `NOT_FOUND`
+   *      → `HTTP 404`.
+   */
+  byHandle: publicProcedure
+    .input(ProfileByHandleInputSchema)
+    .output(ProfileByHandleOutputSchema)
+    .query(async ({ input, ctx }) => {
+      if (!ctx.repositories) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Repositories not configured",
+        });
+      }
+      const handle = input.handle.toLowerCase();
+      const profile = await ctx.repositories.profiles.findByHandle(handle);
+      if (profile) {
+        return { profile };
+      }
+      const tombstone =
+        await ctx.repositories.deletedProfileTombstones.findByHandle(
+          handle,
+          new Date(),
+        );
+      if (tombstone) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          cause: new ProfileGoneError({ handle }),
+        });
+      }
+      throw new TRPCError({ code: "NOT_FOUND" });
     }),
 });

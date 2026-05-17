@@ -13,6 +13,7 @@ import type {
   BlockRepository,
   BookRepository,
   ContactsRepository,
+  DeletedProfileTombstoneRepository,
   EmailIndexRepository,
   EmailProvider,
   FollowRepository,
@@ -2463,6 +2464,7 @@ export class AccountDeletionService {
   constructor(
     private readonly accountDeletions: AccountDeletionRepository,
     private readonly sessions: SessionRepository,
+    private readonly tombstones?: DeletedProfileTombstoneRepository,
   ) {}
 
   async requestDelete(profileId: EntityId): Promise<AccountDeletion> {
@@ -2515,6 +2517,11 @@ export class AccountDeletionService {
    * via the `blocks_against_hash` table and is intentionally out of
    * scope here.
    *
+   * Tombstone reaping (S-06, #161): when a `DeletedProfileTombstoneRepository`
+   * is wired, this method also reaps expired tombstones at the end of
+   * the run so the public-profile route flips from `410 Gone` to
+   * `404 Not Found` once the 60-day post-purge window has elapsed.
+   *
    * @returns the number of accounts purged in this run.
    */
   async runHardDelete(now: Date = new Date()): Promise<number> {
@@ -2523,6 +2530,9 @@ export class AccountDeletionService {
     for (const deletion of expired) {
       await this.accountDeletions.purgeProfile(deletion.profileId);
       purged += 1;
+    }
+    if (this.tombstones) {
+      await this.tombstones.purgeExpired(now);
     }
     return purged;
   }
@@ -2718,6 +2728,7 @@ export class AppServices {
     this.accountDeletion = new AccountDeletionService(
       repositories.accountDeletions,
       repositories.sessions,
+      repositories.deletedProfileTombstones,
     );
     // The export service requires an object-storage adapter. Wire it
     // when one is supplied; otherwise leave it `null` so the API layer
