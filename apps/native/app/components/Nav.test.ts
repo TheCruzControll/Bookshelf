@@ -33,7 +33,21 @@ describe("Nav contract (P-07, #143)", () => {
   });
 
   it("matches the web Nav default items shape (parity)", () => {
-    expect(DEFAULT_NAV_ITEMS.map((i) => i.href)).toEqual(["/", "/discover"]);
-    expect(DEFAULT_NAV_ITEMS.map((i) => i.label)).toEqual(["Home", "Discover"]);
+    expect(DEFAULT_NAV_ITEMS.map((i) => i.href)).toEqual([
+      "/",
+      "/discover",
+      "/search",
+    ]);
+    expect(DEFAULT_NAV_ITEMS.map((i) => i.label)).toEqual([
+      "Home",
+      "Discover",
+      "Search",
+    ]);
+  });
+
+  it("ships a Search entry in the default items (G-03, #77)", () => {
+    const search = DEFAULT_NAV_ITEMS.find((item) => item.href === "/search");
+    expect(search).toBeDefined();
+    expect(search?.label).toBe("Search");
   });
 });

@@ -13,6 +13,7 @@ export interface NavItem {
 export const DEFAULT_NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/", label: "Home" },
   { href: "/discover", label: "Discover" },
+  { href: "/search", label: "Search" },
 ];
 
 export interface NavProps {
