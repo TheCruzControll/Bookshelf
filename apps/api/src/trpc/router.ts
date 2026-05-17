@@ -2,6 +2,8 @@ import { router, publicProcedure } from "./trpc";
 import { accountRouter } from "./account";
 import { authRouter } from "./auth";
 import { blockRouter } from "./block";
+import { booksRouter } from "./books";
+import { catalogRouter } from "./catalog";
 import { contactsRouter } from "./contacts";
 import { feedRouter } from "./feed";
 import { followRouter } from "./follow";
@@ -22,6 +24,8 @@ export const appRouter = router({
   account: accountRouter,
   auth: authRouter,
   block: blockRouter,
+  books: booksRouter,
+  catalog: catalogRouter,
   contacts: contactsRouter,
   feed: feedRouter,
   follow: followRouter,

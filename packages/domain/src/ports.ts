@@ -161,6 +161,22 @@ export interface BookRepository {
    * duplicate Book rows.
    */
   upsertFromCatalogResult(result: BookSearchResult): Promise<CatalogMergeOutcome>;
+  /**
+   * Create a Book + Edition pair from manually-entered metadata. Used by the
+   * `books.createManual` tRPC procedure (#75) when a viewer adds a book that
+   * doesn't appear in catalog search. The resulting Edition has
+   * `source: "manual"` and `sourceKey` is left undefined (the manual entry
+   * is not deduplicated against external catalogs). Implementations must
+   * perform both inserts atomically in a single transaction.
+   */
+  createManual(input: {
+    title: string;
+    authors: string[];
+    isbn13?: string | undefined;
+    isbn10?: string | undefined;
+    firstPublishedYear?: number | undefined;
+    coverUrl?: string | undefined;
+  }): Promise<{ book: Book; edition: Edition }>;
 }
 
 export interface ShelfRepository {

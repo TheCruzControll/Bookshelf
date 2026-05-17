@@ -500,6 +500,61 @@ export class DrizzleBookRepository implements BookRepository {
       .limit(1);
     return row[0] ? toBook(row[0].book) : null;
   }
+
+  /**
+   * Create a Book + Edition pair from manually-entered metadata. Both
+   * inserts run inside a single transaction so a half-written manual
+   * entry can never be observed.
+   *
+   * The Edition is written with `source: "manual"` and no `sourceKey` —
+   * manual entries are not deduplicated against external catalogs, so
+   * repeated calls produce distinct Book rows even for identical input.
+   * (The future Books library surface can fold duplicates after the fact
+   * via the existing edition-merge machinery if the viewer later attaches
+   * an ISBN that matches a known Book.)
+   *
+   * Note: until the authors table lands (#74), the supplied `authors`
+   * array is folded into the Book's `description` field as a comma list
+   * so the data isn't lost on the round-trip. This is a deliberate
+   * placeholder and is documented in the migration plan.
+   */
+  async createManual(input: Parameters<BookRepository["createManual"]>[0]) {
+    return this.db.transaction(async (tx) => {
+      const description = `By ${input.authors.join(", ")}`;
+      const [bookRow] = await tx
+        .insert(books)
+        .values({
+          canonicalTitle: input.title,
+          description,
+          coverUrl: input.coverUrl ?? null,
+          firstPublishedYear: input.firstPublishedYear ?? null,
+        })
+        .returning();
+      if (!bookRow) {
+        throw new Error("Failed to insert manual book row");
+      }
+
+      const [editionRow] = await tx
+        .insert(editions)
+        .values({
+          bookId: bookRow.id,
+          isbn10: input.isbn10 ?? null,
+          isbn13: input.isbn13 ?? null,
+          title: input.title,
+          source: "manual",
+          sourceKey: null,
+        })
+        .returning();
+      if (!editionRow) {
+        throw new Error("Failed to insert manual edition row");
+      }
+
+      return {
+        book: toBook(bookRow),
+        edition: toEdition(editionRow),
+      };
+    });
+  }
 }
 
 export class DrizzleShelfRepository implements ShelfRepository {
