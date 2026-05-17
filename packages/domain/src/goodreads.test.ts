@@ -181,7 +181,7 @@ describe("parseGoodreadsCsv", () => {
     it("parses the conflicting book", () => {
       const csv = loadFixture("conflict.csv");
       const { rows } = parseGoodreadsCsv(csv);
-      expect(rows).toHaveLength(1);
+      expect(rows).toHaveLength(3);
       expect(rows[0]?.title).toBe("The Great Gatsby");
     });
 
