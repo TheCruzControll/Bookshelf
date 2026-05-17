@@ -324,6 +324,29 @@ describe("ImportService", () => {
 
       expect(results[0]!.bucket).toBe("matched");
     });
+
+    it("passes the viewer-state lookup through to the matcher to produce duplicates (K-06)", async () => {
+      const repo = makeImportRepository();
+      const lookup = makeLookup({
+        findByIsbn13: vi.fn().mockResolvedValue(makeCandidate()),
+      });
+      const viewerState: ViewerShelfStateLookup = {
+        // Hone says `finished`; the row will say `finished` → duplicate (no-op).
+        getCurrentStatusForBook: vi.fn().mockResolvedValue("finished"),
+      };
+      const service = new ImportService(repo, lookup);
+
+      const rows = [
+        makeRow({ isbn13: "9780547928227", status: "finished" }),
+      ];
+      const results = await service.matchRows(rows, viewerState);
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.bucket).toBe("duplicate");
+      expect(viewerState.getCurrentStatusForBook).toHaveBeenCalledWith(
+        BOOK_ID,
+      );
+    });
   });
 
   describe("countConflicts", () => {
@@ -333,7 +356,7 @@ describe("ImportService", () => {
       expect(service.countConflicts([])).toBe(0);
     });
 
-    it("counts only `conflict`-bucket results", () => {
+    it("counts `conflict`- and `duplicate`-bucket results (K-06)", () => {
       const repo = makeImportRepository();
       const service = new ImportService(repo);
       const bookId = "00000000-0000-0000-0000-0000000000aa";
@@ -354,8 +377,59 @@ describe("ImportService", () => {
           currentHoneStatus: "reading",
           goodreadsStatus: "want_to_read",
         },
+        {
+          bucket: "duplicate",
+          confidence: 1,
+          bookId,
+          currentHoneStatus: "finished",
+          goodreadsStatus: "finished",
+        },
+      ];
+      expect(service.countConflicts(results)).toBe(3);
+    });
+
+    it("counts duplicates even when no conflicts are present (K-06)", () => {
+      const repo = makeImportRepository();
+      const service = new ImportService(repo);
+      const bookId = "00000000-0000-0000-0000-0000000000aa";
+      const results: MatchResult[] = [
+        { bucket: "matched", confidence: 1, bookId },
+        {
+          bucket: "duplicate",
+          confidence: 1,
+          bookId,
+          currentHoneStatus: "reading",
+          goodreadsStatus: "reading",
+        },
+        {
+          bucket: "duplicate",
+          confidence: 1,
+          bookId,
+          currentHoneStatus: "want_to_read",
+          goodreadsStatus: "want_to_read",
+        },
+        { bucket: "unmatched", confidence: 0 },
       ];
       expect(service.countConflicts(results)).toBe(2);
+    });
+
+    it("does not count `matched`, `needs_review`, or `unmatched` results", () => {
+      const repo = makeImportRepository();
+      const service = new ImportService(repo);
+      const bookId = "00000000-0000-0000-0000-0000000000aa";
+      const results: MatchResult[] = [
+        { bucket: "matched", confidence: 1, bookId },
+        {
+          bucket: "needs_review",
+          confidence: 0.5,
+          bookId,
+          candidate: { bookId, title: "T", author: "A" },
+          titleDistance: 1,
+          authorSurnameDistance: 0,
+        },
+        { bucket: "unmatched", confidence: 0 },
+      ];
+      expect(service.countConflicts(results)).toBe(0);
     });
   });
 });

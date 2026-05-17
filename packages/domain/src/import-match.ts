@@ -9,21 +9,27 @@ import {
 /**
  * Bucket assigned by the matcher.
  *  - `matched`       — definitive identification (ISBN-13 or fuzzy hit) AND the
- *                      viewer's current Hone shelf state agrees with the
- *                      Goodreads row's status (or the viewer has no existing
- *                      entry for the book).
+ *                      viewer has no existing Hone shelf entry for the book.
+ *                      The import committer will create a new shelf entry.
  *  - `needs_review`  — fuzzy title+author hit within tolerance; user must confirm.
  *  - `unmatched`     — no candidate within tolerance.
  *  - `conflict`      — definitive identification, but the viewer already has
  *                      the book on a Hone shelf with a DIFFERENT
  *                      `ReadingStatus` than the Goodreads row reports. The
  *                      caller decides how to resolve (default: keep Hone state).
+ *  - `duplicate`     — definitive identification AND the viewer already has the
+ *                      book on a Hone shelf with the SAME `ReadingStatus` as
+ *                      the Goodreads row. The row is a no-op: the import
+ *                      committer (#106) skips it. Counted alongside conflicts
+ *                      in `conflict_count` as "rows excluded from auto-apply"
+ *                      (K-06).
  */
 export type MatchBucket =
   | "matched"
   | "needs_review"
   | "unmatched"
-  | "conflict";
+  | "conflict"
+  | "duplicate";
 
 /**
  * A minimal book candidate exposed by the lookup port. Only the fields the
@@ -108,6 +114,22 @@ export type MatchResult =
       bookId: EntityId;
       currentHoneStatus: ReadingStatus;
       goodreadsStatus: ReadingStatus;
+    }
+  | {
+      /**
+       * The Goodreads row identifies a book that the viewer already has on a
+       * Hone shelf with the SAME `ReadingStatus` as the row reports — i.e. a
+       * no-op duplicate (K-06). The match still carries a `bookId`, but the
+       * import committer (#106) skips applying any change. Counted alongside
+       * conflicts in `conflict_count` because the row is excluded from
+       * auto-apply, matching the bookkeeping the UI uses to surface
+       * "rows that didn't auto-apply" to the user.
+       */
+      bucket: "duplicate";
+      confidence: 1;
+      bookId: EntityId;
+      currentHoneStatus: ReadingStatus;
+      goodreadsStatus: ReadingStatus;
     };
 
 /** PRD-mandated Levenshtein bounds. See `docs/prd-backlog.md` (K-02 entry). */
@@ -143,13 +165,18 @@ function fuzzyConfidence(
 
 /**
  * Bucket a definitive (ISBN-confidence) identification against the viewer's
- * existing Hone shelf state. If the viewer already has the book on a shelf
- * with a different `ReadingStatus` than the Goodreads row, return a
- * `conflict` result; otherwise return a plain `matched` result.
+ * existing Hone shelf state.
  *
- * If no `viewerState` port is wired, conflict detection is skipped and the
- * caller always sees a plain `matched` — this keeps the matcher backwards
- * compatible with call sites that pre-date #103.
+ * Three outcomes when a `viewerState` port is wired:
+ *  1. Viewer has no existing entry for `bookId` → `matched` (committer creates).
+ *  2. Viewer has an entry with the SAME `ReadingStatus` as the row → `duplicate`
+ *     (no-op; K-06). Committer skips, counted in `conflict_count`.
+ *  3. Viewer has an entry with a DIFFERENT `ReadingStatus` than the row →
+ *     `conflict` (K-04). Caller decides resolution; counted in `conflict_count`.
+ *
+ * If no `viewerState` port is wired, neither conflict nor duplicate detection
+ * runs and the caller always sees a plain `matched` — this keeps the matcher
+ * backwards compatible with call sites that pre-date #103/#105.
  */
 async function classifyDefinitiveMatch(
   bookId: EntityId,
@@ -160,27 +187,38 @@ async function classifyDefinitiveMatch(
     return { bucket: "matched", confidence: 1, bookId };
   }
   const currentHoneStatus = await viewerState.getCurrentStatusForBook(bookId);
-  if (currentHoneStatus !== null && currentHoneStatus !== goodreadsStatus) {
+  if (currentHoneStatus === null) {
+    return { bucket: "matched", confidence: 1, bookId };
+  }
+  if (currentHoneStatus === goodreadsStatus) {
     return {
-      bucket: "conflict",
+      bucket: "duplicate",
       confidence: 1,
       bookId,
       currentHoneStatus,
       goodreadsStatus,
     };
   }
-  return { bucket: "matched", confidence: 1, bookId };
+  return {
+    bucket: "conflict",
+    confidence: 1,
+    bookId,
+    currentHoneStatus,
+    goodreadsStatus,
+  };
 }
 
 /**
  * Match a parsed Goodreads row against the local catalog.
  *
- * Algorithm (per `docs/prd-backlog.md` K-02 + K-04):
+ * Algorithm (per `docs/prd-backlog.md` K-02 + K-04 + K-06):
  *   1. If the row has a valid ISBN-13 and the lookup returns a hit, classify
  *      as `matched` with confidence 1. If a `viewerState` port is supplied
- *      and the viewer already has the matched book on a Hone shelf with a
- *      DIFFERENT `ReadingStatus` than the row's status, downgrade to
- *      `conflict` instead (still confidence 1 — the identity is certain).
+ *      and the viewer already has the matched book on a Hone shelf, the
+ *      result is downgraded based on status agreement (still confidence 1 —
+ *      the identity is certain):
+ *        - same `ReadingStatus`      → `duplicate` (no-op; skipped by #106)
+ *        - different `ReadingStatus` → `conflict`  (caller resolves)
  *   2. Otherwise, query `findByTitleAuthor` and compute the bounded Levenshtein
  *      distance on the normalized title (≤ 2) and the normalized author
  *      surname (≤ 1). The best in-bound candidate (lowest composite distance)
