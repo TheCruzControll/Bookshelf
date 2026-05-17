@@ -127,6 +127,20 @@
       "when": 1748044800000,
       "tag": "0017_contacts_index_disabled_at",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1748131200000,
+      "tag": "0018_in_app_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1748217600000,
+      "tag": "0019_editions_isbn13_non_unique",
+      "breakpoints": true
     }
   ]
 }

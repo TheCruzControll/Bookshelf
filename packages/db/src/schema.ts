@@ -197,7 +197,11 @@ export const editions = pgTable(
   },
   (table) => ({
     isbn10Idx: uniqueIndex("editions_isbn_10_idx").on(table.isbn10),
-    isbn13Idx: uniqueIndex("editions_isbn_13_idx").on(table.isbn13),
+    // Non-unique by design: the F-06 (#72) edition merge rules explicitly
+    // allow multiple Editions (one per `source`) to share an ISBN-13 under
+    // a single Book row. Per-source dedup is enforced by `(source, source_key)`.
+    // See `planCatalogMerge` in `@hone/domain`.
+    isbn13Idx: index("editions_isbn_13_idx").on(table.isbn13),
     sourceIdx: index("editions_source_idx").on(table.source, table.sourceKey)
   })
 );
