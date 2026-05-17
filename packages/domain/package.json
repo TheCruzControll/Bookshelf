@@ -11,6 +11,7 @@
     "./affiliate": "./src/affiliate.ts",
     "./contact-hash": "./src/contact-hash.ts",
     "./goodreads": "./src/goodreads.ts",
+    "./isbn": "./src/isbn.ts",
     "./salt-rotation": "./src/salt-rotation.ts",
     "./salt-provider": "./src/salt-provider.ts"
   },
