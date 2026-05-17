@@ -806,6 +806,7 @@ describe("blocks table schema and mapper", () => {
 describe("blocks_against_hash table schema and mapper", () => {
   it("blocksAgainstHash schema includes required columns", () => {
     const cols = Object.keys(blocksAgainstHash);
+    expect(cols).toContain("blockerId");
     expect(cols).toContain("hash");
     expect(cols).toContain("expiresAt");
   });
@@ -813,11 +814,13 @@ describe("blocks_against_hash table schema and mapper", () => {
   it("toBlockAgainstHash maps a row to a BlockAgainstHash domain object", () => {
     const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
     const row = {
+      blockerId: "00000000-0000-0000-0000-000000000001",
       hash: "abc123def456",
       expiresAt
     };
 
     const bah = toBlockAgainstHash(row as Parameters<typeof toBlockAgainstHash>[0]);
+    expect(bah.blockerId).toBe("00000000-0000-0000-0000-000000000001");
     expect(bah.hash).toBe("abc123def456");
     expect(bah.expiresAt).toBe(expiresAt);
   });
@@ -826,7 +829,11 @@ describe("blocks_against_hash table schema and mapper", () => {
     const now = new Date();
     const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
     const expiresAt = new Date(now.getTime() + ninetyDaysMs);
-    const row = { hash: "somehash", expiresAt };
+    const row = {
+      blockerId: "00000000-0000-0000-0000-000000000002",
+      hash: "somehash",
+      expiresAt,
+    };
 
     const bah = toBlockAgainstHash(row as Parameters<typeof toBlockAgainstHash>[0]);
     const diffMs = bah.expiresAt.getTime() - now.getTime();

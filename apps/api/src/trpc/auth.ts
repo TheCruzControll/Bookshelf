@@ -170,6 +170,7 @@ export const authRouter = router({
         ctx.repositories.phoneVerifications,
         ctx.repositories.phoneNumbers,
         ctx.smsProvider,
+        ctx.repositories.blocks,
       );
 
       try {
@@ -207,6 +208,7 @@ export const authRouter = router({
         ctx.repositories.phoneVerifications,
         ctx.repositories.phoneNumbers,
         ctx.smsProvider,
+        ctx.repositories.blocks,
       );
 
       try {

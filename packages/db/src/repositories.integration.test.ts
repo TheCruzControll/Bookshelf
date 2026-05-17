@@ -487,6 +487,98 @@ describeIntegration("repository integration tests (real Postgres)", () => {
       const result = await repos.blocks.findBlock({ blockerId: blocker, blockedId: blocked });
       expect(result).toBeNull();
     });
+
+    describe("blocks_against_hash (#154)", () => {
+      const blockerHash = uid("600000000010");
+      const blockerHash2 = uid("600000000011");
+      const deletedUser = uid("600000000012");
+      const newSignup = uid("600000000013");
+      const hash = "deadbeef0011223344556677889900aabbccddeeff00112233445566778899aa";
+
+      beforeAll(async () => {
+        await Promise.all([
+          repos.profiles.create({ id: blockerHash, handle: "bhash1", displayName: "BHash1", defaultVisibility: POSTURE_C_DEFAULTS }),
+          repos.profiles.create({ id: blockerHash2, handle: "bhash2", displayName: "BHash2", defaultVisibility: POSTURE_C_DEFAULTS }),
+          repos.profiles.create({ id: deletedUser, handle: "delus", displayName: "DelUser", defaultVisibility: POSTURE_C_DEFAULTS }),
+          repos.profiles.create({ id: newSignup, handle: "newus", displayName: "NewUser", defaultVisibility: POSTURE_C_DEFAULTS }),
+        ]);
+        // Two blockers placed blocks against `deletedUser`.
+        await repos.blocks.block({ blockerId: blockerHash, blockedId: deletedUser });
+        await repos.blocks.block({ blockerId: blockerHash2, blockedId: deletedUser });
+      });
+
+      it("migrateBlocksAgainstToHash inserts one row per blocker", async () => {
+        const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+        const written = await repos.blocks.migrateBlocksAgainstToHash({
+          deletedUserId: deletedUser,
+          targetHash: hash,
+          expiresAt,
+        });
+        expect(written).toBe(2);
+
+        const entries = await repos.blocks.findAgainstHashEntries({
+          targetHash: hash,
+          now: new Date(),
+        });
+        const blockerIds = entries.map((e) => e.blockerId).sort();
+        expect(blockerIds).toEqual([blockerHash, blockerHash2].sort());
+      });
+
+      it("findAgainstHashEntries excludes expired rows", async () => {
+        const otherHash = "feedface00112233445566778899aabbccddeeff00112233445566778899aabb";
+        const pastExpiresAt = new Date(Date.now() - 1000);
+        // Insert another set of blocks against the deleted user, then
+        // migrate with an already-expired timestamp.
+        await repos.blocks.block({ blockerId: blockerHash, blockedId: newSignup });
+        await repos.blocks.migrateBlocksAgainstToHash({
+          deletedUserId: newSignup,
+          targetHash: otherHash,
+          expiresAt: pastExpiresAt,
+        });
+        const entries = await repos.blocks.findAgainstHashEntries({
+          targetHash: otherHash,
+          now: new Date(),
+        });
+        expect(entries).toHaveLength(0);
+        // Cleanup
+        await repos.blocks.unblock({ blockerId: blockerHash, blockedId: newSignup });
+      });
+
+      it("createMany fans new blocks across multiple blockers", async () => {
+        const inserted = await repos.blocks.createMany({
+          blockerIds: [blockerHash, blockerHash2],
+          blockedId: newSignup,
+        });
+        expect(inserted).toBe(2);
+
+        const isBlockedByA = await repos.blocks.findBlock({
+          blockerId: blockerHash,
+          blockedId: newSignup,
+        });
+        const isBlockedByB = await repos.blocks.findBlock({
+          blockerId: blockerHash2,
+          blockedId: newSignup,
+        });
+        expect(isBlockedByA).not.toBeNull();
+        expect(isBlockedByB).not.toBeNull();
+      });
+
+      it("createMany is idempotent (no duplicate inserts)", async () => {
+        const inserted = await repos.blocks.createMany({
+          blockerIds: [blockerHash, blockerHash2],
+          blockedId: newSignup,
+        });
+        expect(inserted).toBe(0);
+      });
+
+      it("createMany with empty blockerIds is a no-op", async () => {
+        const inserted = await repos.blocks.createMany({
+          blockerIds: [],
+          blockedId: newSignup,
+        });
+        expect(inserted).toBe(0);
+      });
+    });
   });
 
   describe("DrizzleRankingRepository", () => {
@@ -1066,9 +1158,9 @@ describeIntegration("repository integration tests (real Postgres)", () => {
         `INSERT INTO follows (follower_id, followee_id, created_at) VALUES ('${otherId}', '${targetId}', now())`
       );
 
-      // blocks placed BY the user (cleared) and AGAINST the user (also
-      // cleared from `blocks`; retention via blocks_against_hash is
-      // handled by #154 and is out of scope here).
+      // blocks placed BY the user (cleared) and AGAINST the user.
+      // Blocks AGAINST the user are migrated into `blocks_against_hash`
+      // before deletion (#154); see assertions below.
       await db.execute(
         `INSERT INTO blocks (blocker_id, blocked_id, created_at) VALUES ('${targetId}', '${otherId}', now())`
       );
@@ -1134,11 +1226,36 @@ describeIntegration("repository integration tests (real Postgres)", () => {
     });
 
     it("purgeProfile removes every user-scoped row and the deletion record", async () => {
+      // Snapshot the target's phone hash before purge so we can assert
+      // it migrated into `blocks_against_hash` (#154).
+      const phoneRow = await db.execute(
+        `SELECT e164_hash FROM phone_numbers WHERE profile_id = '${targetId}'`
+      );
+      const phoneRows = (phoneRow as unknown as { rows: Array<{ e164_hash: string }> }).rows;
+      const targetHash = phoneRows[0]?.e164_hash;
+      expect(targetHash).toBeDefined();
+
       await repos.accountDeletions.purgeProfile(targetId);
 
       // profile gone
       const profile = await repos.profiles.findById(targetId);
       expect(profile).toBeNull();
+
+      // #154: blocks placed AGAINST the deleted user were migrated to
+      // blocks_against_hash keyed on the deleted user's phone hash with
+      // a ~90-day expiry, before the source blocks rows were dropped.
+      const bahRes = await db.execute(
+        `SELECT blocker_id, hash, expires_at FROM blocks_against_hash WHERE hash = '${targetHash}'`
+      );
+      const bahRows = (bahRes as unknown as {
+        rows: Array<{ blocker_id: string; hash: string; expires_at: Date }>;
+      }).rows;
+      expect(bahRows.length).toBe(1);
+      expect(bahRows[0]!.blocker_id).toBe(otherId);
+      const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+      const diffMs = new Date(bahRows[0]!.expires_at).getTime() - Date.now();
+      expect(diffMs).toBeGreaterThan(ninetyDaysMs - 5 * 60 * 1000);
+      expect(diffMs).toBeLessThanOrEqual(ninetyDaysMs + 5 * 60 * 1000);
 
       // deletion record gone
       const deletion = await repos.accountDeletions.findByProfileId(targetId);

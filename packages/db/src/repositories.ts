@@ -36,6 +36,7 @@ import type {
   ActivityRepository,
   AppRepositories,
   AuthIdentityRepository,
+  BlockAgainstHash,
   BlockRepository,
   BookRepository,
   ContactsHash,
@@ -75,6 +76,7 @@ import {
   activityEvents,
   authIdentities,
   blocks,
+  blocksAgainstHash,
   books,
   contactsIndex,
   deletedProfileTombstones,
@@ -104,6 +106,7 @@ import {
   toActivityEvent,
   toDeletedProfileTombstone,
   toBlock,
+  toBlockAgainstHash,
   toBook,
   toEdition,
   toFollow,
@@ -135,6 +138,13 @@ import {
  * is hard-deleted we therefore write a tombstone whose `expiresAt = now + 60d`.
  */
 const TOMBSTONE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
+
+/**
+ * Retention window for `blocks_against_hash` rows written during hard
+ * delete. After 90 days the row is treated as expired and is not
+ * re-applied to a re-signup. (#154)
+ */
+const BLOCKS_AGAINST_HASH_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 export class DrizzleAccountDeletionRepository implements AccountDeletionRepository {
   constructor(private readonly db: HoneDb) {}
@@ -272,12 +282,43 @@ export class DrizzleAccountDeletionRepository implements AccountDeletionReposito
           ),
         );
 
-      // 10. Blocks the user PLACED. Blocks placed AGAINST the user are
-      //     retained via `blocks_against_hash` (#154) — leave those alone.
-      // TODO(#154): when the blocks-against-hash migration lands, surface
-      // the hashed phone for `blocks` rows where blockedId == profileId
-      // into `blocks_against_hash` before deleting the source rows.
+      // 10. Blocks the user PLACED — drop immediately.
       await tx.delete(blocks).where(eq(blocks.blockerId, profileId));
+
+      //     Blocks placed AGAINST the user are migrated into
+      //     `blocks_against_hash` keyed on the deleted user's hashed
+      //     phone (90-day retention) so a re-signup with the same
+      //     number re-applies the blocks (#154). If the user never
+      //     verified a phone there is nothing to retain — just drop
+      //     the incoming blocks.
+      const phoneRow = await tx
+        .select({ e164Hash: phoneNumbers.e164Hash })
+        .from(phoneNumbers)
+        .where(eq(phoneNumbers.profileId, profileId))
+        .limit(1);
+      const targetHash = phoneRow[0]?.e164Hash;
+      if (targetHash !== undefined) {
+        const incoming = await tx
+          .select({ blockerId: blocks.blockerId })
+          .from(blocks)
+          .where(eq(blocks.blockedId, profileId));
+        if (incoming.length > 0) {
+          const expiresAt = new Date(Date.now() + BLOCKS_AGAINST_HASH_TTL_MS);
+          await tx
+            .insert(blocksAgainstHash)
+            .values(
+              incoming.map((row) => ({
+                blockerId: row.blockerId,
+                hash: targetHash,
+                expiresAt,
+              }))
+            )
+            .onConflictDoUpdate({
+              target: [blocksAgainstHash.blockerId, blocksAgainstHash.hash],
+              set: { expiresAt },
+            });
+        }
+      }
       await tx.delete(blocks).where(eq(blocks.blockedId, profileId));
 
       // 11. Auth identities, phone number, contacts/email indexes,
@@ -1314,6 +1355,67 @@ class DrizzleBlockRepository implements BlockRepository {
       ),
     });
     return row !== undefined;
+  }
+
+  async migrateBlocksAgainstToHash(input: {
+    deletedUserId: EntityId;
+    targetHash: string;
+    expiresAt: Date;
+  }): Promise<number> {
+    const incoming = await this.db
+      .select({ blockerId: blocks.blockerId })
+      .from(blocks)
+      .where(eq(blocks.blockedId, input.deletedUserId));
+    if (incoming.length === 0) return 0;
+
+    const values = incoming.map((row) => ({
+      blockerId: row.blockerId,
+      hash: input.targetHash,
+      expiresAt: input.expiresAt,
+    }));
+
+    const inserted = await this.db
+      .insert(blocksAgainstHash)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [blocksAgainstHash.blockerId, blocksAgainstHash.hash],
+        set: { expiresAt: input.expiresAt },
+      })
+      .returning({ blockerId: blocksAgainstHash.blockerId });
+    return inserted.length;
+  }
+
+  async findAgainstHashEntries(input: {
+    targetHash: string;
+    now: Date;
+  }): Promise<BlockAgainstHash[]> {
+    const rows = await this.db
+      .select()
+      .from(blocksAgainstHash)
+      .where(
+        and(
+          eq(blocksAgainstHash.hash, input.targetHash),
+          gt(blocksAgainstHash.expiresAt, input.now)
+        )
+      );
+    return rows.map(toBlockAgainstHash);
+  }
+
+  async createMany(input: {
+    blockerIds: EntityId[];
+    blockedId: EntityId;
+  }): Promise<number> {
+    if (input.blockerIds.length === 0) return 0;
+    const values = input.blockerIds.map((blockerId) => ({
+      blockerId,
+      blockedId: input.blockedId,
+    }));
+    const inserted = await this.db
+      .insert(blocks)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({ blockerId: blocks.blockerId });
+    return inserted.length;
   }
 }
 

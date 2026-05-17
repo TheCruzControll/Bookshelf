@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PhoneVerifyService } from "./services";
-import type { PhoneVerificationRepository, PhoneNumberRepository, SmsProvider } from "./ports";
+import type {
+  BlockRepository,
+  PhoneVerificationRepository,
+  PhoneNumberRepository,
+  SmsProvider,
+} from "./ports";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -258,6 +263,82 @@ describe("PhoneVerifyService", () => {
       await expect(
         service.confirmVerification("invalid", "123456", PROFILE_ID)
       ).rejects.toThrow("Invalid phone number");
+    });
+  });
+
+  describe("confirmVerification — blocks_against_hash re-apply (#154)", () => {
+    function makeBlockRepo(overrides: Partial<BlockRepository> = {}): BlockRepository {
+      return {
+        block: vi.fn(),
+        unblock: vi.fn(),
+        findBlock: vi.fn(),
+        listBlockedByUser: vi.fn(),
+        listBlockingUser: vi.fn(),
+        isBlocked: vi.fn(),
+        migrateBlocksAgainstToHash: vi.fn(),
+        findAgainstHashEntries: vi.fn().mockResolvedValue([]),
+        createMany: vi.fn().mockResolvedValue(0),
+        ...overrides,
+      };
+    }
+
+    async function primeValidCode(): Promise<string> {
+      await service.startVerification("+12025551234");
+      const smsCall = (smsProvider.sendVerificationCode as ReturnType<typeof vi.fn>)
+        .mock.calls[0]![0];
+      const upsertCall = (phoneVerifRepo.upsert as ReturnType<typeof vi.fn>)
+        .mock.calls[0]![0];
+      (phoneVerifRepo.findByPhone as ReturnType<typeof vi.fn>).mockResolvedValue({
+        phoneE164: "+12025551234",
+        codeHash: upsertCall.codeHash,
+        attempts: 0,
+        expiresAt: new Date(Date.now() + 600_000),
+      });
+      return smsCall.code;
+    }
+
+    it("re-applies blocks when blocks_against_hash matches new phone hash", async () => {
+      const blockerA = "00000000-0000-0000-0000-0000000000aa";
+      const blockerB = "00000000-0000-0000-0000-0000000000bb";
+      const blocks = makeBlockRepo({
+        findAgainstHashEntries: vi.fn().mockResolvedValue([
+          { blockerId: blockerA, hash: "ignored", expiresAt: new Date(Date.now() + 1000) },
+          { blockerId: blockerB, hash: "ignored", expiresAt: new Date(Date.now() + 1000) },
+        ]),
+      });
+      service = new PhoneVerifyService(phoneVerifRepo, phoneNumRepo, smsProvider, blocks);
+
+      const code = await primeValidCode();
+      const result = await service.confirmVerification("+12025551234", code, PROFILE_ID);
+
+      expect(result.verified).toBe(true);
+      expect(blocks.findAgainstHashEntries).toHaveBeenCalledTimes(1);
+      const findArg = (blocks.findAgainstHashEntries as ReturnType<typeof vi.fn>)
+        .mock.calls[0]![0];
+      expect(typeof findArg.targetHash).toBe("string");
+      expect(findArg.targetHash.length).toBe(64); // sha256 hex
+      expect(blocks.createMany).toHaveBeenCalledWith({
+        blockerIds: [blockerA, blockerB],
+        blockedId: PROFILE_ID,
+      });
+    });
+
+    it("does NOT call createMany when no matching hash entries exist", async () => {
+      const blocks = makeBlockRepo();
+      service = new PhoneVerifyService(phoneVerifRepo, phoneNumRepo, smsProvider, blocks);
+
+      const code = await primeValidCode();
+      await service.confirmVerification("+12025551234", code, PROFILE_ID);
+
+      expect(blocks.findAgainstHashEntries).toHaveBeenCalledTimes(1);
+      expect(blocks.createMany).not.toHaveBeenCalled();
+    });
+
+    it("works without a BlockRepository (legacy callers)", async () => {
+      service = new PhoneVerifyService(phoneVerifRepo, phoneNumRepo, smsProvider);
+      const code = await primeValidCode();
+      const result = await service.confirmVerification("+12025551234", code, PROFILE_ID);
+      expect(result.verified).toBe(true);
     });
   });
 });

@@ -200,6 +200,7 @@ export interface Block {
 }
 
 export interface BlockAgainstHash {
+  blockerId: EntityId;
   hash: string;
   expiresAt: Date;
 }

@@ -143,6 +143,13 @@
       "breakpoints": true
     },
     {
+      "idx": 20,
+      "version": "7",
+      "when": 1748304000000,
+      "tag": "0020_blocks_against_hash_blocker_id",
+      "breakpoints": true
+    },
+    {
       "idx": 21,
       "version": "7",
       "when": 1748390400000,

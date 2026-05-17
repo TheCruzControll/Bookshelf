@@ -119,10 +119,18 @@ export const blocks = pgTable(
 export const blocksAgainstHash = pgTable(
   "blocks_against_hash",
   {
-    hash: text("hash").notNull().primaryKey(),
+    blockerId: uuid("blocker_id")
+      .notNull()
+      .references(() => profiles.id),
+    hash: text("hash").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
   },
   (table) => ({
+    pairIdx: uniqueIndex("blocks_against_hash_blocker_hash_idx").on(
+      table.blockerId,
+      table.hash
+    ),
+    hashIdx: index("blocks_against_hash_hash_idx").on(table.hash),
     expiresAtIdx: index("blocks_against_hash_expires_at_idx").on(table.expiresAt)
   })
 );

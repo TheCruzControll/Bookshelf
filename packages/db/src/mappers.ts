@@ -251,6 +251,7 @@ export function toBlock(row: BlockRow): Block {
 
 export function toBlockAgainstHash(row: BlockAgainstHashRow): BlockAgainstHash {
   return {
+    blockerId: row.blockerId,
     hash: row.hash,
     expiresAt: row.expiresAt
   };
