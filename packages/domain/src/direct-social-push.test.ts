@@ -55,6 +55,9 @@ function makeBlockRepo(overrides?: Partial<BlockRepository>): BlockRepository {
     listBlockedByUser: vi.fn().mockResolvedValue([]),
     listBlockingUser: vi.fn().mockResolvedValue([]),
     isBlocked: vi.fn().mockResolvedValue(false),
+    migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0),
+    findAgainstHashEntries: vi.fn().mockResolvedValue([]),
+    createMany: vi.fn().mockResolvedValue(0),
     ...overrides,
   };
 }

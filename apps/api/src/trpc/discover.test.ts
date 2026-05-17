@@ -77,7 +77,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       listMutualIds: vi.fn().mockResolvedValue([]),
       listFriendsOfFriends: vi.fn().mockResolvedValue([]),
     },
-    blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn() },
+    blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn(), migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0), findAgainstHashEntries: vi.fn().mockResolvedValue([]), createMany: vi.fn().mockResolvedValue(0) },
     rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
     imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },

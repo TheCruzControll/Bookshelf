@@ -2364,6 +2364,12 @@ export class PhoneVerifyService {
     private readonly phoneVerifications: PhoneVerificationRepository,
     private readonly phoneNumbers: PhoneNumberRepository,
     private readonly smsProvider: SmsProvider,
+    /**
+     * Optional. When supplied, `confirmVerification` re-applies any
+     * non-expired `blocks_against_hash` entries that match the newly
+     * registered phone hash so re-signups inherit prior blocks (#154).
+     */
+    private readonly blocks?: BlockRepository,
   ) {}
 
   /**
@@ -2453,6 +2459,24 @@ export class PhoneVerifyService {
     const e164Hash = createHash("sha256").update(phoneE164, "utf8").digest("hex");
     await this.phoneNumbers.upsert({ profileId, e164Hash });
     await this.phoneVerifications.deleteByPhone(phoneE164);
+
+    // Re-apply any retained blocks-against-hash entries matching this
+    // hash. A user who blocked a now-deleted profile keeps the block
+    // for 90 days post-delete; a re-signup with the same number
+    // re-inherits the original blocks. (#154)
+    if (this.blocks) {
+      const now = new Date();
+      const pending = await this.blocks.findAgainstHashEntries({
+        targetHash: e164Hash,
+        now,
+      });
+      if (pending.length > 0) {
+        await this.blocks.createMany({
+          blockerIds: pending.map((entry) => entry.blockerId),
+          blockedId: profileId,
+        });
+      }
+    }
 
     return { verified: true };
   }

@@ -166,6 +166,9 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       listBlockedByUser: vi.fn(),
       listBlockingUser: vi.fn(),
       isBlocked: vi.fn(),
+      migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0),
+      findAgainstHashEntries: vi.fn().mockResolvedValue([]),
+      createMany: vi.fn().mockResolvedValue(0),
     },
     rankings: {
       upsert: vi.fn(),

@@ -4,6 +4,7 @@ import type {
   ActivityEvent,
   DeletedProfileTombstone,
   Block,
+  BlockAgainstHash,
   Book,
   BookSearchResult,
   ContentType,
@@ -337,6 +338,36 @@ export interface BlockRepository {
   listBlockedByUser(blockerId: EntityId): Promise<Block[]>;
   listBlockingUser(blockedId: EntityId): Promise<Block[]>;
   isBlocked(input: { viewerId: EntityId; targetId: EntityId }): Promise<boolean>;
+  /**
+   * Insert hash-retention rows for every existing `blocks` row where
+   * `blocked_id == deletedUserId`. Each row carries the original blocker
+   * so a re-signup with the same hashed phone can re-apply the block.
+   * Idempotent: re-inserting an existing `(blockerId, hash)` pair refreshes
+   * the `expiresAt`. Returns the number of rows written. (#154)
+   */
+  migrateBlocksAgainstToHash(input: {
+    deletedUserId: EntityId;
+    targetHash: string;
+    expiresAt: Date;
+  }): Promise<number>;
+  /**
+   * Return non-expired `blocks_against_hash` rows that match `targetHash`.
+   * Called on signup when a new profile registers a phone whose hash may
+   * have outstanding pending re-application blocks. (#154)
+   */
+  findAgainstHashEntries(input: {
+    targetHash: string;
+    now: Date;
+  }): Promise<BlockAgainstHash[]>;
+  /**
+   * Bulk-create `blocks` rows fanning `blockedId` out across the supplied
+   * `blockerIds`. Existing `(blocker, blocked)` pairs are left as-is.
+   * Returns the number of newly inserted rows. (#154)
+   */
+  createMany(input: {
+    blockerIds: EntityId[];
+    blockedId: EntityId;
+  }): Promise<number>;
 }
 
 export interface RankingRepository {
@@ -626,10 +657,10 @@ export interface AccountDeletionRepository {
    * phone numbers, contacts index, email index, handle history, sessions,
    * imports, the profile row, and finally the account_deletions row.
    *
-   * Note: retention of `blocks` placed AGAINST the user (so re-signups
-   * with the same hashed phone re-trigger blocks) is handled by issue
-   * #154 via the `blocks_against_hash` table; this method leaves those
-   * rows untouched.
+   * Note: blocks placed AGAINST the user are migrated into
+   * `blocks_against_hash` keyed on the deleted user's hashed E.164 phone
+   * (90-day retention) BEFORE the source `blocks` rows are deleted, so
+   * a re-signup with the same number re-applies the blocks. (#154)
    */
   purgeProfile(profileId: EntityId): Promise<void>;
 }

@@ -89,7 +89,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     recommendations: { getForUser: vi.fn() },
     follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]),
       listFriendsOfFriends: vi.fn().mockResolvedValue([]) },
-    blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn() },
+    blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn(), migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0), findAgainstHashEntries: vi.fn().mockResolvedValue([]), createMany: vi.fn().mockResolvedValue(0) },
     rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
     imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
@@ -466,7 +466,7 @@ describe("feed.list visibility + block filter", () => {
       listByActor: vi.fn().mockResolvedValue([]),
       },
       // UUID2 is blocked by viewer
-      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([{ blockerId: UUID1, blockedId: UUID2, createdAt: NOW }]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn() },
+      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([{ blockerId: UUID1, blockedId: UUID2, createdAt: NOW }]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn(), migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0), findAgainstHashEntries: vi.fn().mockResolvedValue([]), createMany: vi.fn().mockResolvedValue(0) },
       // UUID3 is not mutual → mutuals-visibility item hidden
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]),
       listFriendsOfFriends: vi.fn().mockResolvedValue([]) },

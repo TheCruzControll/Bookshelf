@@ -302,7 +302,7 @@ describe("AppServices", () => {
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0), listMutualIds: vi.fn().mockResolvedValue([]),
       listFriendsOfFriends: vi.fn().mockResolvedValue([]) },
-      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
+      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn(), migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0), findAgainstHashEntries: vi.fn().mockResolvedValue([]), createMany: vi.fn().mockResolvedValue(0) },
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
       imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },
@@ -1801,6 +1801,9 @@ function makeBlockRepo(outgoing: Block[] = [], incoming: Block[] = []): BlockRep
     listBlockedByUser: vi.fn().mockResolvedValue(outgoing),
     listBlockingUser: vi.fn().mockResolvedValue(incoming),
     isBlocked: vi.fn(),
+    migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0),
+    findAgainstHashEntries: vi.fn().mockResolvedValue([]),
+    createMany: vi.fn().mockResolvedValue(0),
   };
 }
 
@@ -2313,6 +2316,9 @@ describe("FollowService", () => {
       listBlockedByUser: vi.fn().mockResolvedValue([]),
       listBlockingUser: vi.fn().mockResolvedValue([]),
       isBlocked: vi.fn().mockResolvedValue(false),
+      migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0),
+      findAgainstHashEntries: vi.fn().mockResolvedValue([]),
+      createMany: vi.fn().mockResolvedValue(0),
       ...overrides,
     };
   }
@@ -2727,6 +2733,9 @@ describe("FollowService.getMutualCount", () => {
       listBlockedByUser: vi.fn().mockResolvedValue([]),
       listBlockingUser: vi.fn().mockResolvedValue([]),
       isBlocked: vi.fn().mockResolvedValue(false),
+      migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0),
+      findAgainstHashEntries: vi.fn().mockResolvedValue([]),
+      createMany: vi.fn().mockResolvedValue(0),
     };
   }
 
@@ -3135,7 +3144,7 @@ describe("AppServices includes notifications", () => {
       recommendations: { getForUser: vi.fn() },
       follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0), listMutualIds: vi.fn().mockResolvedValue([]),
       listFriendsOfFriends: vi.fn().mockResolvedValue([]) },
-      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
+      blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn(), migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0), findAgainstHashEntries: vi.fn().mockResolvedValue([]), createMany: vi.fn().mockResolvedValue(0) },
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
       imports: { create: vi.fn(), findById: vi.fn(), findByOwnerAndHash: vi.fn(), listByOwner: vi.fn(), updateStatus: vi.fn() },

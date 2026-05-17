@@ -59,6 +59,9 @@ function makeBlockRepo(outgoing: Block[] = [], incoming: Block[] = []): BlockRep
     listBlockedByUser: vi.fn().mockResolvedValue(outgoing),
     listBlockingUser: vi.fn().mockResolvedValue(incoming),
     isBlocked: vi.fn().mockResolvedValue(false),
+    migrateBlocksAgainstToHash: vi.fn().mockResolvedValue(0),
+    findAgainstHashEntries: vi.fn().mockResolvedValue([]),
+    createMany: vi.fn().mockResolvedValue(0),
   };
 }
 
