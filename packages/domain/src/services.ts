@@ -11,6 +11,7 @@ import type {
   AuthProvider,
   BlockFilter,
   BlockRepository,
+  BookRepository,
   ContactsRepository,
   EmailIndexRepository,
   EmailProvider,
@@ -35,7 +36,8 @@ import type {
   SmsProvider,
   StorageProvider,
 } from "./ports";
-import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, ContactsHash, ContentType, EmailIndex, EntityId, FeedItem, Follow, Import, InAppNotification, List, NotificationSetting, NotificationToken, OAuthIdentity, PhoneNumber, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
+import type { AccountDeletion, ActivityEvent, ActivityVerb, Block, Book, ContactsHash, ContentType, Edition, EmailIndex, EntityId, FeedItem, Follow, Import, InAppNotification, List, NotificationSetting, NotificationToken, OAuthIdentity, PhoneNumber, Profile, Ranking, Recommendation, Review, Shelf, ShelfAuthorType, ShelfItem, Visibility } from "./types";
+import { normalizeIsbn } from "./isbn";
 import type { ReuploadStrategy } from "./schemas/imports";
 import { matchImportRow } from "./import-match";
 import type { BookLookup, MatchResult } from "./import-match";
@@ -385,6 +387,69 @@ export class ShelfService {
     await this.shelves.deleteShelfItem({
       shelfId: input.shelfId,
       bookId: input.bookId,
+    });
+  }
+}
+
+/**
+ * Input to {@link BookService.createManual}. Mirrors the shape of the
+ * `books.createManual` tRPC procedure (#75): the viewer supplies a title,
+ * one or more authors, and optionally an ISBN, publish year, and cover URL.
+ *
+ * `isbn` accepts either ISBN-10 or ISBN-13; the service normalizes to
+ * ISBN-13 (see `normalizeIsbn`). Authors are currently flattened into the
+ * Book's `description` placeholder — a future migration (#74 / authors
+ * table) will replace this with a proper join.
+ */
+export interface CreateManualBookInput {
+  title: string;
+  authors: string[];
+  isbn?: string;
+  year?: number;
+  coverUrl?: string;
+}
+
+export class BookService {
+  constructor(private readonly books: BookRepository) {}
+
+  /**
+   * Create a Book + Edition pair from manually-entered metadata. The
+   * resulting Edition has `source: "manual"` to mark it as user-provided
+   * (vs. coming from an external catalog like Open Library or Google Books).
+   *
+   * Validation:
+   *  - `title` must be non-empty after trimming.
+   *  - `authors` must contain at least one non-empty entry.
+   *  - `isbn`, when provided, must be a valid ISBN-10 or ISBN-13 (checksum
+   *    verified); we store the normalized ISBN-13 form so the resulting
+   *    Edition can later be matched against catalog hits.
+   */
+  async createManual(input: CreateManualBookInput): Promise<{ book: Book; edition: Edition }> {
+    const title = input.title.trim();
+    if (title.length === 0) {
+      throw Object.assign(new Error("Title is required"), { code: "INVALID_INPUT" });
+    }
+    const authors = input.authors.map((a) => a.trim()).filter((a) => a.length > 0);
+    if (authors.length === 0) {
+      throw Object.assign(new Error("At least one author is required"), { code: "INVALID_INPUT" });
+    }
+
+    let isbn13: string | undefined;
+    if (input.isbn !== undefined && input.isbn.trim().length > 0) {
+      try {
+        isbn13 = normalizeIsbn(input.isbn);
+      } catch (err) {
+        const cause = err instanceof Error ? err.message : String(err);
+        throw Object.assign(new Error(`Invalid ISBN: ${cause}`), { code: "INVALID_INPUT" });
+      }
+    }
+
+    return this.books.createManual({
+      title,
+      authors,
+      isbn13,
+      firstPublishedYear: input.year,
+      coverUrl: input.coverUrl,
     });
   }
 }
@@ -2450,6 +2515,7 @@ export class AccountExportService {
 export class AppServices {
   readonly accountDeletion: AccountDeletionService;
   readonly accountExport: AccountExportService | null;
+  readonly books: BookService;
   readonly shelves: ShelfService;
   readonly handles: HandleService;
   readonly profiles: ProfileService;
@@ -2481,6 +2547,7 @@ export class AppServices {
     this.accountExport = options?.storage
       ? new AccountExportService(repositories, options.storage)
       : null;
+    this.books = new BookService(repositories.books);
     this.shelves = new ShelfService(
       repositories.shelves,
       repositories.activity,

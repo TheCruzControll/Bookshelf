@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { trpcServer } from "@hono/trpc-server";
 import { z } from "zod";
-import type { AppRepositories, AppleJwk, AppleJwksProvider, GoogleJwk, GoogleJwksProvider, AuthProvider, StorageProvider } from "@hone/domain";
+import type { AppRepositories, AppleJwk, AppleJwksProvider, CatalogProvider, GoogleJwk, GoogleJwksProvider, AuthProvider, StorageProvider } from "@hone/domain";
 import { AppServices } from "@hone/domain";
 import { clearSentryUser, setSentryUser } from "@hone/observability";
 import type { Cache } from "@hone/cache";
@@ -43,6 +43,12 @@ export interface ApiDependencies {
   googleJwksProvider?: GoogleJwksProvider;
   googleAudience?: string;
   storage?: StorageProvider;
+  /**
+   * Composite catalog provider backing the `catalog.*` tRPC procedures
+   * (#75). In production this is the `CatalogService` from `@hone/catalog`
+   * wired with Open Library + Google Books adapters and the shared cache.
+   */
+  catalogProvider?: CatalogProvider;
 }
 
 const addBookSchema = z.object({

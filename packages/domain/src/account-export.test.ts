@@ -85,6 +85,7 @@ function makeEmptyRepos(): AppRepositories {
       findBookByIsbn13: vi.fn().mockResolvedValue(null),
       search: vi.fn(),
       upsertFromCatalogResult: vi.fn(),
+      createManual: vi.fn(),
     },
     shelves: {
       listShelves: vi.fn().mockResolvedValue([]),

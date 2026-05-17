@@ -19,6 +19,13 @@
 **Shelf:**
 - `shelf.update(id, version, name?, visibility?, description?)` — update shelf metadata with optimistic locking (version must match current; stale version returns 409)
 
+**Catalog:**
+- `catalog.search(query, limit?)` — search catalog by title/author via the wired `CatalogProvider` (Open Library primary, Google Books fallback). Forwards the viewer's `Accept-Language` locale for F-07 re-ranking. Returns `BookSearchResult[]`. Pure catalog read — no visibility filter applied.
+- `catalog.byIsbn(isbn)` — lookup a single book by ISBN-10 or ISBN-13. Returns `BookSearchResult | null`.
+
+**Books:**
+- `books.createManual({ title, authors, isbn?, year?, coverUrl? })` — create a Book + Edition pair for user-supplied metadata when the book isn't in the external catalog. Authenticated. Edition `source` is set to `"manual"`. ISBN (when supplied) is validated and normalized to ISBN-13 via `normalizeIsbn`; invalid ISBNs return 400.
+
 **Account:**
 - `account.requestDelete()` — soft-delete: insert an `account_deletions` row with 30-day grace, revoke all sessions, return the deletion record. Idempotent.
 - `account.cancelDelete()` — remove the `account_deletions` row if it exists and the grace period has not yet expired.

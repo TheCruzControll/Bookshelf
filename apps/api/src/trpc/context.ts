@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { AuthIdentity, AuthProvider, AppRepositories, AppleJwksProvider, GoogleJwksProvider, EmailProvider, SmsProvider, Profile, StorageProvider } from "@hone/domain";
+import type { AuthIdentity, AuthProvider, AppRepositories, AppleJwksProvider, CatalogProvider, GoogleJwksProvider, EmailProvider, SmsProvider, Profile, StorageProvider } from "@hone/domain";
 import type { Cache } from "@hone/cache";
 
 export interface TrpcContextDeps {
@@ -16,6 +16,14 @@ export interface TrpcContextDeps {
   emailProvider?: EmailProvider;
   smsProvider?: SmsProvider;
   storage?: StorageProvider;
+  /**
+   * Catalog provider used by the `catalog.*` tRPC procedures (#75) to
+   * back search and ISBN-lookup. In production this is wired to the
+   * composite `CatalogService` from `@hone/catalog` (Open Library primary
+   * + Google Books fallback, with cache and locale re-ranking); tests
+   * inject mock providers.
+   */
+  catalogProvider?: CatalogProvider;
 }
 
 export type TrpcContext = {
@@ -39,6 +47,7 @@ export type TrpcContext = {
    */
   locale: string | undefined;
   storage: StorageProvider | undefined;
+  catalogProvider: CatalogProvider | undefined;
   [key: string]: unknown;
 };
 
@@ -116,6 +125,7 @@ export function createTrpcContext(deps: TrpcContextDeps) {
       smsProvider: deps.smsProvider,
       locale,
       storage: deps.storage,
+      catalogProvider: deps.catalogProvider,
     };
   };
 }
