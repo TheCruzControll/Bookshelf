@@ -6,8 +6,9 @@ import {
   MAX_AUTHOR_SURNAME_DISTANCE,
   type BookLookup,
   type MatchCandidate,
+  type ViewerShelfStateLookup,
 } from "./import-match";
-import type { GoodreadsRow } from "./types";
+import type { GoodreadsRow, ReadingStatus } from "./types";
 
 const BOOK_ID_A = "00000000-0000-0000-0000-0000000000aa";
 const BOOK_ID_B = "00000000-0000-0000-0000-0000000000bb";
@@ -422,6 +423,200 @@ describe("matchImportRow — property tests", () => {
           );
           expect(result.confidence).toBeGreaterThanOrEqual(0);
           expect(result.confidence).toBeLessThanOrEqual(1);
+        },
+      ),
+    );
+  });
+});
+
+describe("matchImportRow — conflict bucket (K-04)", () => {
+  function makeViewerState(
+    overrides: Partial<ViewerShelfStateLookup> = {},
+  ): ViewerShelfStateLookup {
+    return {
+      getCurrentStatusForBook: vi.fn().mockResolvedValue(null),
+      ...overrides,
+    };
+  }
+
+  it("returns `conflict` when ISBN identifies a book the viewer already has with a different status", async () => {
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+    // Goodreads row says `finished`; Hone says `dropped` — classic K-04 case.
+    const viewerState = makeViewerState({
+      getCurrentStatusForBook: vi.fn().mockResolvedValue("dropped"),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn13: HOBBIT_ISBN13, status: "finished" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("conflict");
+    expect(result.confidence).toBe(1);
+    if (result.bucket === "conflict") {
+      expect(result.bookId).toBe(BOOK_ID_A);
+      expect(result.currentHoneStatus).toBe("dropped");
+      expect(result.goodreadsStatus).toBe("finished");
+    }
+    expect(viewerState.getCurrentStatusForBook).toHaveBeenCalledWith(
+      BOOK_ID_A,
+    );
+  });
+
+  it("returns `matched` when ISBN hits and the viewer's Hone status agrees with the row", async () => {
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+    const viewerState = makeViewerState({
+      getCurrentStatusForBook: vi.fn().mockResolvedValue("finished"),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn13: HOBBIT_ISBN13, status: "finished" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("matched");
+    expect(result.confidence).toBe(1);
+  });
+
+  it("returns `matched` when ISBN hits and the viewer has no existing shelf entry", async () => {
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+    const viewerState = makeViewerState({
+      getCurrentStatusForBook: vi.fn().mockResolvedValue(null),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn13: HOBBIT_ISBN13, status: "finished" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("matched");
+  });
+
+  it("skips conflict detection when no viewer-state port is supplied (backwards compatible)", async () => {
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn13: HOBBIT_ISBN13, status: "finished" }),
+      lookup,
+    );
+
+    expect(result.bucket).toBe("matched");
+  });
+
+  it("does not consult viewer-state for fuzzy `needs_review` matches", async () => {
+    // Fuzzy matches stay in `needs_review` because the user has to confirm
+    // identity first — conflict detection only applies to definitive
+    // (ISBN-confidence) identifications.
+    const candidate: MatchCandidate = {
+      bookId: BOOK_ID_A,
+      title: "The Hobit",
+      author: "J.R.R. Tolkien",
+    };
+    const lookup = makeLookup({
+      findByTitleAuthor: vi.fn().mockResolvedValue([candidate]),
+    });
+    const getCurrentStatusForBook = vi.fn().mockResolvedValue("dropped");
+    const viewerState = makeViewerState({ getCurrentStatusForBook });
+
+    const result = await matchImportRow(
+      makeRow({ status: "finished" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("needs_review");
+    expect(getCurrentStatusForBook).not.toHaveBeenCalled();
+  });
+
+  it("does not consult viewer-state for `unmatched` rows", async () => {
+    const lookup = makeLookup();
+    const getCurrentStatusForBook = vi.fn().mockResolvedValue("finished");
+    const viewerState = makeViewerState({ getCurrentStatusForBook });
+
+    const result = await matchImportRow(
+      makeRow({ title: "Nothing", author: "Nobody" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("unmatched");
+    expect(getCurrentStatusForBook).not.toHaveBeenCalled();
+  });
+
+  it("uses the ISBN-10 derived match for conflict detection", async () => {
+    const isbn10 = "054792822X"; // → 9780547928227
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+    const viewerState = makeViewerState({
+      getCurrentStatusForBook: vi.fn().mockResolvedValue("reading"),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn10, status: "finished" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("conflict");
+    if (result.bucket === "conflict") {
+      expect(result.currentHoneStatus).toBe("reading");
+      expect(result.goodreadsStatus).toBe("finished");
+    }
+  });
+
+  // Property test: across all (honStatus, goodreadsStatus) pairs, the
+  // matcher MUST bucket equal pairs as `matched` and unequal pairs as
+  // `conflict` — and the result bucket set is mutually exclusive (never
+  // both, never neither when ISBN hits and a viewer entry exists).
+  it("buckets every (hone, goodreads) status pair correctly", async () => {
+    const statusArb: fc.Arbitrary<ReadingStatus> = fc.constantFrom(
+      "want_to_read",
+      "reading",
+      "finished",
+      "dropped",
+    );
+
+    await fc.assert(
+      fc.asyncProperty(
+        statusArb,
+        statusArb,
+        async (honeStatus, goodreadsStatus) => {
+          const lookup = makeLookup({
+            findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+          });
+          const viewerState = makeViewerState({
+            getCurrentStatusForBook: vi.fn().mockResolvedValue(honeStatus),
+          });
+
+          const result = await matchImportRow(
+            makeRow({ isbn13: HOBBIT_ISBN13, status: goodreadsStatus }),
+            lookup,
+            viewerState,
+          );
+
+          if (honeStatus === goodreadsStatus) {
+            expect(result.bucket).toBe("matched");
+          } else {
+            expect(result.bucket).toBe("conflict");
+            if (result.bucket === "conflict") {
+              expect(result.currentHoneStatus).toBe(honeStatus);
+              expect(result.goodreadsStatus).toBe(goodreadsStatus);
+              // `bookId` is always the matched book's id, never the row's.
+              expect(result.bookId).toBe(BOOK_ID_A);
+            }
+          }
         },
       ),
     );
