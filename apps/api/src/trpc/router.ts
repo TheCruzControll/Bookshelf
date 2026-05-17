@@ -5,6 +5,7 @@ import { blockRouter } from "./block";
 import { booksRouter } from "./books";
 import { catalogRouter } from "./catalog";
 import { contactsRouter } from "./contacts";
+import { discoverRouter } from "./discover";
 import { feedRouter } from "./feed";
 import { followRouter } from "./follow";
 import { importRouter } from "./import";
@@ -27,6 +28,7 @@ export const appRouter = router({
   books: booksRouter,
   catalog: catalogRouter,
   contacts: contactsRouter,
+  discover: discoverRouter,
   feed: feedRouter,
   follow: followRouter,
   import: importRouter,

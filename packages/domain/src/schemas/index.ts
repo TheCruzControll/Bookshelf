@@ -4,6 +4,7 @@ export * from "./blocks";
 export * from "./books";
 export * from "./catalog";
 export * from "./contacts";
+export * from "./discover";
 export * from "./feed";
 export * from "./follows";
 export * from "./imports";

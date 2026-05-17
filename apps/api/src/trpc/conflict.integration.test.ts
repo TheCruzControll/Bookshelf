@@ -152,6 +152,7 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
       isMutual: vi.fn(),
       countMutuals: vi.fn().mockResolvedValue(0),
       listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
     },
     blocks: {
       block: vi.fn(),

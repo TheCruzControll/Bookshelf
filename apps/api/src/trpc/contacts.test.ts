@@ -49,7 +49,8 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
     reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
     activity: { append: vi.fn(), getFriendFeed: vi.fn(), deleteByReviewId: vi.fn(), listByActor: vi.fn().mockResolvedValue([]) },
     recommendations: { getForUser: vi.fn() },
-    follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]) },
+    follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn(), listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]) },
     blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn().mockResolvedValue([]), listBlockingUser: vi.fn().mockResolvedValue([]), isBlocked: vi.fn() },
     rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
     notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
@@ -372,6 +373,7 @@ describe("contacts.match", () => {
         isMutual: vi.fn().mockResolvedValue(false),
         countMutuals: vi.fn().mockResolvedValue(2),
         listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity(), repos);
@@ -435,6 +437,7 @@ describe("contacts.match", () => {
         isMutual: vi.fn().mockResolvedValue(false),
         countMutuals: vi.fn().mockResolvedValue(0),
         listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
       },
     });
     const app = buildApp(makeIdentity(), repos);

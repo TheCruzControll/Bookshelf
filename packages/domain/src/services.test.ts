@@ -299,7 +299,8 @@ describe("AppServices", () => {
       reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
       activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn(), listByActor: vi.fn().mockResolvedValue([]) },
       recommendations: { getForUser: vi.fn() },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0), listMutualIds: vi.fn().mockResolvedValue([]) },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0), listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]) },
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },
@@ -1967,6 +1968,7 @@ describe("BlockService", () => {
       isMutual: vi.fn(),
       countMutuals: vi.fn().mockResolvedValue(0),
       listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
     };
     const service = new BlockService(blockRepo, followRepo);
     const result = await service.createBlock({ blockerId: "blocker", blockedId: "blocked" });
@@ -1990,6 +1992,7 @@ describe("BlockService", () => {
       isMutual: vi.fn(),
       countMutuals: vi.fn().mockResolvedValue(0),
       listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
     };
     const service = new BlockService(blockRepo, followRepo);
     const result = await service.createBlock({ blockerId: "blocker", blockedId: "blocked" });
@@ -2020,6 +2023,7 @@ describe("BlockService", () => {
       isMutual: vi.fn(),
       countMutuals: vi.fn().mockResolvedValue(0),
       listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
     };
     const service = new BlockService(blockRepo, followRepo);
     await service.deleteBlock({ blockerId: "blocker", blockedId: "blocked" });
@@ -2049,6 +2053,7 @@ describe("SocialService", () => {
       listFollowing: vi.fn().mockResolvedValue(following),
       isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0),
       listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
     };
   }
 
@@ -2294,6 +2299,7 @@ describe("FollowService", () => {
       listFollowing: vi.fn().mockResolvedValue([]),
       isMutual: vi.fn().mockResolvedValue(false), countMutuals: vi.fn().mockResolvedValue(0),
       listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
       ...overrides,
     };
   }
@@ -2707,6 +2713,7 @@ describe("FollowService.getMutualCount", () => {
       isMutual: vi.fn().mockResolvedValue(false),
       countMutuals: vi.fn().mockResolvedValue(0),
       listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]),
       ...overrides,
     };
   }
@@ -3124,7 +3131,8 @@ describe("AppServices includes notifications", () => {
       reviews: { findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), listByAuthor: vi.fn().mockResolvedValue([]) },
       activity: { append: vi.fn(), getFriendFeed: vi.fn(), getFriendFeedGrouped: vi.fn(), deleteByReviewId: vi.fn(), listByActor: vi.fn().mockResolvedValue([]) },
       recommendations: { getForUser: vi.fn() },
-      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0), listMutualIds: vi.fn().mockResolvedValue([]) },
+      follows: { follow: vi.fn(), unfollow: vi.fn(), findFollow: vi.fn(), listFollowers: vi.fn(), listFollowing: vi.fn(), isMutual: vi.fn(), countMutuals: vi.fn().mockResolvedValue(0), listMutualIds: vi.fn().mockResolvedValue([]),
+      listFriendsOfFriends: vi.fn().mockResolvedValue([]) },
       blocks: { block: vi.fn(), unblock: vi.fn(), findBlock: vi.fn(), listBlockedByUser: vi.fn(), listBlockingUser: vi.fn(), isBlocked: vi.fn() },
       rankings: { upsert: vi.fn(), findById: vi.fn(), findByOwnerAndBook: vi.fn(), listByOwner: vi.fn(), delete: vi.fn(), startBucket: vi.fn() },
       notifications: { registerToken: vi.fn(), removeToken: vi.fn(), listTokensForProfile: vi.fn(), getSetting: vi.fn(), setSetting: vi.fn(), listSettings: vi.fn() },

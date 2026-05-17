@@ -1118,6 +1118,41 @@ class DrizzleFollowRepository implements FollowRepository {
       .where(eq(follows.followerId, userId));
     return rows.map((r) => r.mutualId);
   }
+
+  async listFriendsOfFriends(viewerId: EntityId): Promise<Array<{ profileId: EntityId; count: number }>> {
+    // Friend-of-friend (FoF) candidates for the People-You-May-Know surface
+    // (#144, P-08). Self-join `follows` so that `f1` is the viewer's direct
+    // follows and `f2` is what those people follow. Group by the second-hop
+    // followee and count the distinct first-hop intermediaries — that count
+    // is the number of "shared friends" the viewer has with each candidate.
+    //
+    // Exclusions performed in-SQL (cheaper than filtering in JS):
+    //   1. The viewer themselves (f2.followee_id != viewerId).
+    //   2. Anyone the viewer already directly follows (NOT EXISTS subquery
+    //      against `follows` keyed by (viewerId, candidate)). This is the
+    //      "but the viewer doesn't follow yet" rule from the PRD.
+    //
+    // Block and mutual exclusions live in `SocialService.getPeopleYouMayKnow`
+    // so we don't have to fan a Set of blocked IDs through SQL parameters.
+    const rows = await this.db
+      .select({
+        profileId: sql<string>`f2.followee_id`,
+        count: sql<number>`count(distinct f1.followee_id)::int`,
+      })
+      .from(sql`${follows} AS f1`)
+      .innerJoin(sql`${follows} AS f2`, sql`f1.followee_id = f2.follower_id`)
+      .where(
+        sql`f1.follower_id = ${viewerId}
+            AND f2.followee_id <> ${viewerId}
+            AND NOT EXISTS (
+              SELECT 1 FROM ${follows} AS direct
+              WHERE direct.follower_id = ${viewerId}
+                AND direct.followee_id = f2.followee_id
+            )`,
+      )
+      .groupBy(sql`f2.followee_id`);
+    return rows.map((r) => ({ profileId: r.profileId, count: r.count }));
+  }
 }
 
 class DrizzleBlockRepository implements BlockRepository {
