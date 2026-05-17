@@ -29,6 +29,11 @@ function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories
   };
   return {
     accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
+    deletedProfileTombstones: {
+      create: vi.fn(),
+      findByHandle: vi.fn().mockResolvedValue(null),
+      purgeExpired: vi.fn().mockResolvedValue(0),
+    },
     profiles: {
       findById: vi.fn(),
       findByHandle: vi.fn(),
@@ -343,5 +348,145 @@ describe("profile.createProfile", () => {
       body: JSON.stringify({ handle: "bookworm42", displayName: "Book Worm" }),
     });
     expect(repos.shelves.createSystemShelves).toHaveBeenCalledWith(baseProfile.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// profile.byHandle — public-profile lookup (S-06, #161)
+// ---------------------------------------------------------------------------
+
+describe("profile.byHandle", () => {
+  const now = new Date("2026-05-01T00:00:00Z");
+  const baseProfile = {
+    id: "00000000-0000-0000-0000-000000000099",
+    handle: "alive",
+    displayName: "Alive User",
+    verified: false,
+    defaultVisibility: POSTURE_C_DEFAULTS,
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the profile when the handle resolves to a live row", async () => {
+    const repos = makeRepositories({
+      profiles: {
+        findById: vi.fn(),
+        findByHandle: vi.fn().mockResolvedValue(baseProfile),
+        create: vi.fn(),
+        isHandleTaken: vi.fn(),
+        setHandle: vi.fn(),
+      },
+    });
+    const app = buildApp(null, repos);
+    const res = await app.request(
+      "/trpc/profile.byHandle?input=" +
+        encodeURIComponent(JSON.stringify({ handle: "alive" })),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result.data.profile.handle).toBe("alive");
+    expect(repos.deletedProfileTombstones.findByHandle).not.toHaveBeenCalled();
+  });
+
+  it("returns 410 with empty body when an active tombstone exists", async () => {
+    const repos = makeRepositories({
+      profiles: {
+        findById: vi.fn(),
+        findByHandle: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+        isHandleTaken: vi.fn(),
+        setHandle: vi.fn(),
+      },
+      deletedProfileTombstones: {
+        create: vi.fn(),
+        findByHandle: vi.fn().mockResolvedValue({
+          profileId: "00000000-0000-0000-0000-0000000000aa",
+          handle: "deceased",
+          deletedAt: now,
+          expiresAt: new Date(now.getTime() + 1_000_000),
+        }),
+        purgeExpired: vi.fn().mockResolvedValue(0),
+      },
+    });
+
+    // The goneRewriteMiddleware lives in app.ts — build the full app
+    // so we exercise the 404→410 rewrite end-to-end.
+    const { createApi } = await import("../app");
+    const auth = { getCurrentIdentity: async () => null };
+    const app = createApi({ repositories: repos, auth });
+    const res = await app.request(
+      "/trpc/profile.byHandle?input=" +
+        encodeURIComponent(JSON.stringify({ handle: "deceased" })),
+    );
+    expect(res.status).toBe(410);
+    const body = await res.text();
+    expect(body).toBe("");
+  });
+
+  it("returns 404 when no profile and no tombstone exist", async () => {
+    const repos = makeRepositories({
+      profiles: {
+        findById: vi.fn(),
+        findByHandle: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+        isHandleTaken: vi.fn(),
+        setHandle: vi.fn(),
+      },
+    });
+    const app = buildApp(null, repos);
+    const res = await app.request(
+      "/trpc/profile.byHandle?input=" +
+        encodeURIComponent(JSON.stringify({ handle: "nobody" })),
+    );
+    expect(res.status).toBe(404);
+    expect(repos.deletedProfileTombstones.findByHandle).toHaveBeenCalled();
+  });
+
+  it("returns 404 when the tombstone has already expired", async () => {
+    const repos = makeRepositories({
+      profiles: {
+        findById: vi.fn(),
+        findByHandle: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+        isHandleTaken: vi.fn(),
+        setHandle: vi.fn(),
+      },
+      deletedProfileTombstones: {
+        create: vi.fn(),
+        // The repo contract already filters expired rows — simulate
+        // that here by returning null.
+        findByHandle: vi.fn().mockResolvedValue(null),
+        purgeExpired: vi.fn().mockResolvedValue(0),
+      },
+    });
+    const app = buildApp(null, repos);
+    const res = await app.request(
+      "/trpc/profile.byHandle?input=" +
+        encodeURIComponent(JSON.stringify({ handle: "longgone" })),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("normalizes the handle to lowercase before lookup", async () => {
+    const repos = makeRepositories({
+      profiles: {
+        findById: vi.fn(),
+        findByHandle: vi.fn().mockResolvedValue(baseProfile),
+        create: vi.fn(),
+        isHandleTaken: vi.fn(),
+        setHandle: vi.fn(),
+      },
+    });
+    const app = buildApp(null, repos);
+    await app.request(
+      "/trpc/profile.byHandle?input=" +
+        encodeURIComponent(JSON.stringify({ handle: "Alive" })),
+    );
+    expect(repos.profiles.findByHandle).toHaveBeenCalledWith("alive");
   });
 });

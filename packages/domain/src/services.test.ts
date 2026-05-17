@@ -293,6 +293,7 @@ describe("AppServices", () => {
   it("exposes shelves, handles, and profiles services", () => {
     const repositories: AppRepositories = {
       accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
+    deletedProfileTombstones: { create: vi.fn(), findByHandle: vi.fn().mockResolvedValue(null), purgeExpired: vi.fn().mockResolvedValue(0) },
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), findBookByIsbn13: vi.fn().mockResolvedValue(null), search: vi.fn(), upsertFromCatalogResult: vi.fn(), createManual: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn(), listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]), listShelfItemsByOwner: vi.fn().mockResolvedValue([]) },
@@ -3125,6 +3126,7 @@ describe("AppServices includes notifications", () => {
   it("exposes notifications service", () => {
     const repositories: AppRepositories = {
       accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
+    deletedProfileTombstones: { create: vi.fn(), findByHandle: vi.fn().mockResolvedValue(null), purgeExpired: vi.fn().mockResolvedValue(0) },
       profiles: { findById: vi.fn(), findByHandle: vi.fn(), create: vi.fn(), isHandleTaken: vi.fn(), setHandle: vi.fn() },
       books: { findBookById: vi.fn(), findEditionByIsbn: vi.fn(), findBookByIsbn13: vi.fn().mockResolvedValue(null), search: vi.fn(), upsertFromCatalogResult: vi.fn(), createManual: vi.fn() },
       shelves: { listShelves: vi.fn(), findById: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), addBook: vi.fn(), rankShelfItem: vi.fn(), createSystemShelves: vi.fn(), findShelfItem: vi.fn(), upsertShelfItem: vi.fn(), deleteShelfItem: vi.fn(), getMaxPosition: vi.fn().mockResolvedValue(0), moveShelfItem: vi.fn(), listOwnersWithBookOnSystemShelf: vi.fn().mockResolvedValue([]), listShelfItemsByOwner: vi.fn().mockResolvedValue([]) },
@@ -3710,6 +3712,78 @@ describe("AccountDeletionService", () => {
       const service = new AccountDeletionService(deletionRepo, makeSessionRepo());
 
       await expect(service.runHardDelete(NOW)).rejects.toThrow("db down");
+    });
+
+    // ---------------------------------------------------------------
+    // Tombstone reaping (S-06, #161)
+    // ---------------------------------------------------------------
+
+    it("reaps expired tombstones when a tombstone repo is wired", async () => {
+      const deletionRepo = {
+        create: vi.fn(),
+        findByProfileId: vi.fn(),
+        delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
+      };
+      const tombstoneRepo = {
+        create: vi.fn(),
+        findByHandle: vi.fn(),
+        purgeExpired: vi.fn().mockResolvedValue(7),
+      };
+      const service = new AccountDeletionService(
+        deletionRepo,
+        makeSessionRepo(),
+        tombstoneRepo,
+      );
+
+      await service.runHardDelete(NOW);
+
+      expect(tombstoneRepo.purgeExpired).toHaveBeenCalledWith(NOW);
+    });
+
+    it("skips tombstone reaping when no tombstone repo is wired", async () => {
+      const deletionRepo = {
+        create: vi.fn(),
+        findByProfileId: vi.fn(),
+        delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue([]),
+        purgeProfile: vi.fn(),
+      };
+      const service = new AccountDeletionService(deletionRepo, makeSessionRepo());
+
+      // Just assert it doesn't throw; the absence of a tombstones field
+      // means there is nothing to call.
+      await expect(service.runHardDelete(NOW)).resolves.toBe(0);
+    });
+
+    it("still purges profiles when the tombstone repo is wired", async () => {
+      const expired = [
+        { profileId: UUID1, requestedAt: NOW, hardDeleteAfter: new Date(NOW.getTime() - 1000) },
+      ];
+      const deletionRepo = {
+        create: vi.fn(),
+        findByProfileId: vi.fn(),
+        delete: vi.fn(),
+        listExpired: vi.fn().mockResolvedValue(expired),
+        purgeProfile: vi.fn().mockResolvedValue(undefined),
+      };
+      const tombstoneRepo = {
+        create: vi.fn(),
+        findByHandle: vi.fn(),
+        purgeExpired: vi.fn().mockResolvedValue(0),
+      };
+      const service = new AccountDeletionService(
+        deletionRepo,
+        makeSessionRepo(),
+        tombstoneRepo,
+      );
+
+      const purged = await service.runHardDelete(NOW);
+
+      expect(purged).toBe(1);
+      expect(deletionRepo.purgeProfile).toHaveBeenCalledWith(UUID1);
+      expect(tombstoneRepo.purgeExpired).toHaveBeenCalledWith(NOW);
     });
   });
 });

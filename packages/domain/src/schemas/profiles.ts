@@ -136,3 +136,20 @@ export const ResolveOldHandleOutputSchema = z
 
 export type ResolveOldHandleInput = z.infer<typeof ResolveOldHandleInputSchema>;
 export type ResolveOldHandleOutput = z.infer<typeof ResolveOldHandleOutputSchema>;
+
+/**
+ * Public-profile lookup by handle (S-06, #161). Anonymous-friendly; the
+ * procedure throws `NOT_FOUND` for unknown handles and `NOT_FOUND` with
+ * a `ProfileGoneError` cause (rewritten to HTTP 410 by the Hono adapter)
+ * for tombstoned ones.
+ */
+export const ProfileByHandleInputSchema = z.object({
+  handle: HandleSchema,
+});
+
+export const ProfileByHandleOutputSchema = z.object({
+  profile: ProfileSchema,
+});
+
+export type ProfileByHandleInput = z.infer<typeof ProfileByHandleInputSchema>;
+export type ProfileByHandleOutput = z.infer<typeof ProfileByHandleOutputSchema>;

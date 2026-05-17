@@ -6,6 +6,7 @@ export * from "./candidate";
 export * from "./candidate-query";
 export * from "./catalog-merge";
 export * from "./cold-start";
+export * from "./deletion-errors";
 export * from "./editorial";
 export * from "./heuristic-scorer";
 export * from "./push";

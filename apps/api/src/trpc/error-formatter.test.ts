@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { ProfileGoneError } from "@hone/domain";
 
 vi.mock("@hone/observability", () => ({
   captureException: vi.fn(),
@@ -120,5 +121,37 @@ describe("tRPC error formatter — HTTP transport", () => {
     const res = await app.request("/trpc/test");
     const body = await res.json();
     expect(body.error.data?.stack).toBeUndefined();
+  });
+
+  // S-06 (#161): NOT_FOUND with a ProfileGoneError cause is tagged with
+  // `data.code = "GONE"` on the wire so the Hono adapter can rewrite
+  // the response to HTTP 410. The base HTTP status from tRPC remains
+  // 404 — the rewrite happens at the Hono layer, not here.
+  it("NOT_FOUND + ProfileGoneError — payload is tagged with data.code = 'GONE'", async () => {
+    const app = await buildApp(() => {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        cause: new ProfileGoneError({ handle: "deceased" }),
+      });
+    });
+
+    const res = await app.request("/trpc/test");
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.data?.code).toBe("GONE");
+    // The message is stripped so the body carries no content the
+    // Hono-level rewrite needs to remove.
+    expect(body.error.message).toBe("");
+  });
+
+  it("plain NOT_FOUND — payload is NOT tagged with data.code = 'GONE'", async () => {
+    const app = await buildApp(() => {
+      throw new TRPCError({ code: "NOT_FOUND", message: "nope" });
+    });
+
+    const res = await app.request("/trpc/test");
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.data?.code).not.toBe("GONE");
   });
 });

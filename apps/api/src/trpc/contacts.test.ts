@@ -21,6 +21,7 @@ const EXPIRES_AT = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 function makeRepositories(overrides?: Partial<AppRepositories>): AppRepositories {
   return {
     accountDeletions: { create: vi.fn(), findByProfileId: vi.fn().mockResolvedValue(null), delete: vi.fn(), listExpired: vi.fn().mockResolvedValue([]), purgeProfile: vi.fn() },
+    deletedProfileTombstones: { create: vi.fn(), findByHandle: vi.fn().mockResolvedValue(null), purgeExpired: vi.fn().mockResolvedValue(0) },
     profiles: {
       findById: vi.fn(),
       findByHandle: vi.fn(),

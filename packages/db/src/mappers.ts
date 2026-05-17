@@ -1,6 +1,7 @@
 import type {
   AccountDeletion,
   ActivityEvent,
+  DeletedProfileTombstone,
   Block,
   BlockAgainstHash,
   Book,
@@ -32,6 +33,7 @@ import type {
 import type {
   accountDeletions,
   activityEvents,
+  deletedProfileTombstones,
   authIdentities,
   blocks,
   blocksAgainstHash,
@@ -58,6 +60,7 @@ import type {
 } from "./schema";
 
 type AccountDeletionRow = typeof accountDeletions.$inferSelect;
+type DeletedProfileTombstoneRow = typeof deletedProfileTombstones.$inferSelect;
 type FollowRow = typeof follows.$inferSelect;
 type ContactIndexRow = typeof contactsIndex.$inferSelect;
 type EmailIndexRow = typeof emailIndex.$inferSelect;
@@ -87,6 +90,17 @@ export function toAccountDeletion(row: AccountDeletionRow): AccountDeletion {
     requestedAt: row.requestedAt,
     hardDeleteAfter: row.hardDeleteAfter,
     exportedAt: row.exportedAt ?? undefined
+  };
+}
+
+export function toDeletedProfileTombstone(
+  row: DeletedProfileTombstoneRow
+): DeletedProfileTombstone {
+  return {
+    profileId: row.profileId,
+    handle: row.handle,
+    deletedAt: row.deletedAt,
+    expiresAt: row.expiresAt
   };
 }
 

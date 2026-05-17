@@ -312,6 +312,19 @@ export interface AccountDeletion {
   exportedAt?: Date | undefined;
 }
 
+/**
+ * Tombstone record for a profile whose data has been hard-deleted but
+ * whose handle is still in the post-deletion "410 Gone" window (S-06,
+ * #161). Written by the hard-delete cron immediately before the
+ * underlying profile row is removed; reaped after `expiresAt`.
+ */
+export interface DeletedProfileTombstone {
+  profileId: EntityId;
+  handle: string;
+  deletedAt: Date;
+  expiresAt: Date;
+}
+
 export interface PhoneVerification {
   phoneE164: string;
   codeHash: string;

@@ -72,6 +72,11 @@ function makeEmptyRepos(): AppRepositories {
       listExpired: vi.fn().mockResolvedValue([]),
       purgeProfile: vi.fn(),
     },
+    deletedProfileTombstones: {
+      create: vi.fn(),
+      findByHandle: vi.fn().mockResolvedValue(null),
+      purgeExpired: vi.fn().mockResolvedValue(0),
+    },
     profiles: {
       findById: vi.fn().mockResolvedValue(null),
       findByHandle: vi.fn(),

@@ -27,6 +27,7 @@ export async function runHardDeleteJob(): Promise<number> {
   const service = new AccountDeletionService(
     repos.accountDeletions,
     repos.sessions,
+    repos.deletedProfileTombstones,
   );
   return service.runHardDelete();
 }

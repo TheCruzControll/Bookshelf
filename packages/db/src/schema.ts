@@ -381,6 +381,34 @@ export const accountDeletions = pgTable("account_deletions", {
   exportedAt: timestamp("exported_at", { withTimezone: true })
 });
 
+/**
+ * Tombstones for hard-deleted profiles (S-06, #161).
+ *
+ * Written by `DrizzleAccountDeletionRepository.purgeProfile` inside the
+ * hard-delete transaction so the public-route middleware can answer
+ * `410 Gone` for handles that have been purged but are still within the
+ * 30–90 day post-request window. After `expires_at` the row is reaped
+ * by the daily hard-delete cron and the public route returns 404.
+ *
+ * Foreign keys are intentionally NOT declared — the row outlives the
+ * profile it points to, by design.
+ */
+export const deletedProfileTombstones = pgTable(
+  "deleted_profiles_tombstone",
+  {
+    profileId: uuid("profile_id").primaryKey().notNull(),
+    handle: text("handle").notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    handleIdx: index("deleted_profiles_tombstone_handle_idx").on(table.handle),
+    expiresAtIdx: index("deleted_profiles_tombstone_expires_at_idx").on(
+      table.expiresAt
+    )
+  })
+);
+
 export const recommendationScores = pgTable(
   "recommendation_scores",
   {
