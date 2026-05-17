@@ -429,6 +429,110 @@ describe("matchImportRow — property tests", () => {
   });
 });
 
+describe("matchImportRow — duplicate bucket (K-06)", () => {
+  function makeViewerState(
+    overrides: Partial<ViewerShelfStateLookup> = {},
+  ): ViewerShelfStateLookup {
+    return {
+      getCurrentStatusForBook: vi.fn().mockResolvedValue(null),
+      ...overrides,
+    };
+  }
+
+  it("returns `duplicate` when ISBN identifies a book the viewer already has with the same status", async () => {
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+    const viewerState = makeViewerState({
+      getCurrentStatusForBook: vi.fn().mockResolvedValue("reading"),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn13: HOBBIT_ISBN13, status: "reading" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("duplicate");
+    expect(result.confidence).toBe(1);
+    if (result.bucket === "duplicate") {
+      expect(result.bookId).toBe(BOOK_ID_A);
+      expect(result.currentHoneStatus).toBe("reading");
+      expect(result.goodreadsStatus).toBe("reading");
+    }
+  });
+
+  it("uses the ISBN-10 derived match for duplicate detection", async () => {
+    const isbn10 = "054792822X"; // → 9780547928227
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+    const viewerState = makeViewerState({
+      getCurrentStatusForBook: vi.fn().mockResolvedValue("want_to_read"),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn10, status: "want_to_read" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("duplicate");
+  });
+
+  it("does not return `duplicate` when the viewer has no existing shelf entry (stays `matched`)", async () => {
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+    const viewerState = makeViewerState({
+      getCurrentStatusForBook: vi.fn().mockResolvedValue(null),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn13: HOBBIT_ISBN13, status: "finished" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("matched");
+  });
+
+  it("does not consult viewer-state for fuzzy `needs_review` matches (no duplicate downgrade)", async () => {
+    const candidate: MatchCandidate = {
+      bookId: BOOK_ID_A,
+      title: "The Hobit",
+      author: "J.R.R. Tolkien",
+    };
+    const lookup = makeLookup({
+      findByTitleAuthor: vi.fn().mockResolvedValue([candidate]),
+    });
+    const getCurrentStatusForBook = vi.fn().mockResolvedValue("finished");
+    const viewerState = makeViewerState({ getCurrentStatusForBook });
+
+    const result = await matchImportRow(
+      makeRow({ status: "finished" }),
+      lookup,
+      viewerState,
+    );
+
+    expect(result.bucket).toBe("needs_review");
+    expect(getCurrentStatusForBook).not.toHaveBeenCalled();
+  });
+
+  it("skips duplicate detection when no viewer-state port is supplied (backwards compatible)", async () => {
+    const lookup = makeLookup({
+      findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
+    });
+
+    const result = await matchImportRow(
+      makeRow({ isbn13: HOBBIT_ISBN13, status: "finished" }),
+      lookup,
+    );
+
+    expect(result.bucket).toBe("matched");
+  });
+});
+
 describe("matchImportRow — conflict bucket (K-04)", () => {
   function makeViewerState(
     overrides: Partial<ViewerShelfStateLookup> = {},
@@ -466,7 +570,7 @@ describe("matchImportRow — conflict bucket (K-04)", () => {
     );
   });
 
-  it("returns `matched` when ISBN hits and the viewer's Hone status agrees with the row", async () => {
+  it("returns `duplicate` when ISBN hits and the viewer's Hone status agrees with the row (K-06)", async () => {
     const lookup = makeLookup({
       findByIsbn13: vi.fn().mockResolvedValue(HOBBIT_CANDIDATE),
     });
@@ -480,8 +584,13 @@ describe("matchImportRow — conflict bucket (K-04)", () => {
       viewerState,
     );
 
-    expect(result.bucket).toBe("matched");
+    expect(result.bucket).toBe("duplicate");
     expect(result.confidence).toBe(1);
+    if (result.bucket === "duplicate") {
+      expect(result.bookId).toBe(BOOK_ID_A);
+      expect(result.currentHoneStatus).toBe("finished");
+      expect(result.goodreadsStatus).toBe("finished");
+    }
   });
 
   it("returns `matched` when ISBN hits and the viewer has no existing shelf entry", async () => {
@@ -607,7 +716,12 @@ describe("matchImportRow — conflict bucket (K-04)", () => {
           );
 
           if (honeStatus === goodreadsStatus) {
-            expect(result.bucket).toBe("matched");
+            expect(result.bucket).toBe("duplicate");
+            if (result.bucket === "duplicate") {
+              expect(result.currentHoneStatus).toBe(honeStatus);
+              expect(result.goodreadsStatus).toBe(goodreadsStatus);
+              expect(result.bookId).toBe(BOOK_ID_A);
+            }
           } else {
             expect(result.bucket).toBe("conflict");
             if (result.bucket === "conflict") {

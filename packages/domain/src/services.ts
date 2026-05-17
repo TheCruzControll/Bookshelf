@@ -1764,14 +1764,17 @@ export class ImportService {
   /**
    * Match each parsed Goodreads row against the catalog and return a parallel
    * array of `MatchResult`s, one per input row. Used by the import pipeline to
-   * bucket rows into Matched / Needs review / Unmatched / Conflict. See
-   * `import-match.ts` for the underlying algorithm.
+   * bucket rows into Matched / Needs review / Unmatched / Conflict / Duplicate.
+   * See `import-match.ts` for the underlying algorithm.
    *
-   * `viewerState` is optional but required for conflict detection (#103):
-   * when supplied, definitive (ISBN) matches whose viewer shelf status
-   * differs from the row's Goodreads status are bucketed as `conflict`
-   * instead of `matched`. Without `viewerState`, no conflict detection
-   * happens — backwards-compatible with pre-#103 call sites.
+   * `viewerState` is optional but required for conflict and duplicate
+   * detection (#103, #105). When supplied, definitive (ISBN) matches are
+   * compared against the viewer's current Hone shelf entry:
+   *   - same status      → `duplicate` (no-op; skipped by #106; K-06)
+   *   - different status → `conflict`  (caller resolves; K-04)
+   *   - no Hone entry    → `matched`   (committer creates)
+   * Without `viewerState`, neither detection runs — backwards-compatible
+   * with pre-#103 call sites.
    *
    * Throws when no book lookup port has been wired — this happens when
    * `AppServices` is constructed without the optional bookLookup dependency.
@@ -1793,16 +1796,22 @@ export class ImportService {
   }
 
   /**
-   * Count how many `MatchResult`s in a parallel array landed in the
-   * `conflict` bucket. Persisted on the `imports` row's `conflict_count`
-   * column by the import committer (#106). Exposed as a small pure helper
-   * here so the import pipeline can keep the count in sync without
-   * re-implementing the bucket check.
+   * Count how many `MatchResult`s in a parallel array are excluded from
+   * auto-apply — i.e. landed in either the `conflict` bucket (state
+   * mismatch; K-04) or the `duplicate` bucket (state match no-op; K-06).
+   * Persisted on the `imports` row's `conflict_count` column by the
+   * import committer (#106). Despite the column name, the count covers
+   * both buckets: per the K-06 acceptance criteria, dedup-skipped rows
+   * are counted in `conflict_count` so the UI can surface a single
+   * "rows that didn't auto-apply" tally to the user.
+   *
+   * Exposed as a small pure helper so the import pipeline can keep the
+   * count in sync without re-implementing the bucket check.
    */
   countConflicts(results: readonly MatchResult[]): number {
     let n = 0;
     for (const r of results) {
-      if (r.bucket === "conflict") n += 1;
+      if (r.bucket === "conflict" || r.bucket === "duplicate") n += 1;
     }
     return n;
   }
