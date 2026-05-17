@@ -41,6 +41,7 @@ import { matchImportRow } from "./import-match";
 import type { BookLookup, MatchResult } from "./import-match";
 import type { GoodreadsRow } from "./types";
 import type { ContactsMatchProfile } from "./schemas/contacts";
+import type { PeopleYouMayKnowProfile, PeopleYouMayKnowSource } from "./schemas/discover";
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
   NOTIFICATION_CAP_PER_ACTOR_DAY,
@@ -1528,6 +1529,157 @@ export class SocialService {
   async discoverLists(ownerId: EntityId, viewerId: EntityId): Promise<List[]> {
     const all = await this.lists.listByOwner(ownerId, viewerId);
     return this.blockService.removeBlockedLists(viewerId, all);
+  }
+
+  /**
+   * People-You-May-Know surface for the Discover tab (#144, P-08).
+   *
+   * Combines two candidate sources:
+   *   1. **Contacts match** — profiles whose hashed phone number overlaps with
+   *      the viewer's uploaded contacts (#96).
+   *   2. **Friend-of-friend (FoF)** — profiles followed by users the viewer
+   *      follows but that the viewer does not yet follow themselves. The FoF
+   *      candidate count (number of shared follows) is used to rank.
+   *
+   * Excludes, in order:
+   *   - The viewer themselves.
+   *   - Soft-deleted profiles (missing from `profiles.findById`).
+   *   - Blocked users in either direction (`BlockService.removeBlockedIds`).
+   *   - Mutuals (the viewer's `listMutualIds`) — they are already connected
+   *     and would be noise on a discovery surface.
+   *   - Profiles whose `defaultVisibility.identity` is not visible to the
+   *     viewer's relationship under `applyVisibilityFilter`.
+   *
+   * Source attribution is `"contacts"`, `"fof"`, or `"both"` when the
+   * candidate is surfaced by both queries. Results are deduped on
+   * `profileId`, ranked by (mutualCount desc, FoF count desc) so candidates
+   * with more shared social fabric float to the top.
+   *
+   * Per Q4 lock this is a purely passive surface — no push, no email.
+   */
+  async getPeopleYouMayKnow(input: {
+    viewerId: EntityId;
+    limit: number;
+  }): Promise<PeopleYouMayKnowProfile[]> {
+    const { viewerId, limit } = input;
+
+    const [contactsMatches, fofRows, mutualIds] = await Promise.all([
+      this.contacts.findMatchingProfilesByPhone(viewerId),
+      this.follows.listFriendsOfFriends(viewerId),
+      this.follows.listMutualIds(viewerId),
+    ]);
+
+    const mutualSet = new Set<EntityId>(mutualIds);
+
+    // Source attribution per candidate id.
+    const contactsSet = new Set<EntityId>(contactsMatches);
+    const fofCountByCandidate = new Map<EntityId, number>();
+    for (const row of fofRows) {
+      fofCountByCandidate.set(row.profileId, row.count);
+    }
+
+    // Union of candidate ids from both sources, with self + mutuals excluded
+    // up-front so we don't waste profile lookups on definite drops.
+    const candidateIds = new Set<EntityId>();
+    for (const id of contactsSet) {
+      if (id !== viewerId && !mutualSet.has(id)) candidateIds.add(id);
+    }
+    for (const id of fofCountByCandidate.keys()) {
+      if (id !== viewerId && !mutualSet.has(id)) candidateIds.add(id);
+    }
+
+    if (candidateIds.size === 0) return [];
+
+    // Block filter (both directions). A single batched call is cheaper than
+    // calling per-candidate inside the visibility loop.
+    const allowedIds = await this.blockService.removeBlockedIds(
+      viewerId,
+      Array.from(candidateIds),
+    );
+    if (allowedIds.length === 0) return [];
+
+    // Load profiles. Soft-deleted profiles return null from `findById` and
+    // are dropped here — keeps PYMK in sync with account deletion (#150/#153).
+    const loadedProfiles = await Promise.all(
+      allowedIds.map((id) => this.profiles.findById(id)),
+    );
+    const profiles: Profile[] = loadedProfiles.filter((p): p is Profile => p !== null);
+    if (profiles.length === 0) return [];
+
+    // Resolve viewer's relationship with each candidate for the visibility
+    // filter. PYMK is by definition "not yet mutual," but a candidate may
+    // still be a one-way follower of the viewer (or the viewer of them) —
+    // which changes which visibility tiers they pass.
+    const relationships = new Map<EntityId, ViewerRelationship>();
+    await Promise.all(
+      profiles.map(async (p) => {
+        if (p.id === viewerId) {
+          relationships.set(p.id, "self");
+          return;
+        }
+        // Mutuals are already excluded above; the only remaining tiers are
+        // "follower" (viewer follows them) or "none".
+        const viewerFollows = await this.follows.findFollow({
+          followerId: viewerId,
+          followeeId: p.id,
+        });
+        relationships.set(p.id, viewerFollows ? "follower" : "none");
+      }),
+    );
+
+    // Apply identity-visibility filter per candidate. Posture C defaults
+    // identity to `public`, so most profiles survive; we still run the check
+    // so users who lock identity to `followers`/`mutuals`/`private` are
+    // hidden from strangers, matching `contacts.match` semantics.
+    type Annotated = { ownerId: EntityId; visibility: Visibility; profile: Profile };
+    const visible: Profile[] = [];
+    for (const p of profiles) {
+      const annotated: Annotated = {
+        ownerId: p.id,
+        visibility: p.defaultVisibility.identity,
+        profile: p,
+      };
+      const relationship = relationships.get(p.id) ?? "none";
+      const viewerCtx: ViewerCtx = { viewerId, relationship };
+      const survivors = applyVisibilityFilter(viewerCtx, [annotated]);
+      if (survivors.length > 0) visible.push(p);
+    }
+
+    // Hydrate the wire shape: source attribution + mutual count for ranking.
+    const hydrated = await Promise.all(
+      visible.map(async (profile): Promise<{
+        shape: PeopleYouMayKnowProfile;
+        fofCount: number;
+      }> => {
+        const inContacts = contactsSet.has(profile.id);
+        const fofCount = fofCountByCandidate.get(profile.id) ?? 0;
+        const inFof = fofCount > 0;
+        const source: PeopleYouMayKnowSource =
+          inContacts && inFof ? "both" : inContacts ? "contacts" : "fof";
+        const mutualCount = await this.follows.countMutuals(profile.id);
+        const shape: PeopleYouMayKnowProfile = {
+          profileId: profile.id,
+          handle: profile.handle,
+          displayName: profile.displayName,
+          source,
+        };
+        if (profile.avatarUrl !== undefined) shape.avatarUrl = profile.avatarUrl;
+        shape.mutualCount = mutualCount;
+        return { shape, fofCount };
+      }),
+    );
+
+    // Rank: candidates with higher mutual counts first, breaking ties by FoF
+    // shared-friend count. Both signals matter — mutualCount reflects social
+    // weight in the wider graph, fofCount the viewer's specific overlap.
+    hydrated.sort((a, b) => {
+      const am = a.shape.mutualCount ?? 0;
+      const bm = b.shape.mutualCount ?? 0;
+      if (am !== bm) return bm - am;
+      return b.fofCount - a.fofCount;
+    });
+
+    return hydrated.slice(0, limit).map((h) => h.shape);
   }
 }
 

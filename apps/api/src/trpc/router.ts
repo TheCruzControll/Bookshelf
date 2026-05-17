@@ -3,6 +3,7 @@ import { accountRouter } from "./account";
 import { authRouter } from "./auth";
 import { blockRouter } from "./block";
 import { contactsRouter } from "./contacts";
+import { discoverRouter } from "./discover";
 import { feedRouter } from "./feed";
 import { followRouter } from "./follow";
 import { importRouter } from "./import";
@@ -23,6 +24,7 @@ export const appRouter = router({
   auth: authRouter,
   block: blockRouter,
   contacts: contactsRouter,
+  discover: discoverRouter,
   feed: feedRouter,
   follow: followRouter,
   import: importRouter,

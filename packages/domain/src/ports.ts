@@ -297,6 +297,20 @@ export interface FollowRepository {
    * (#148) so the caller can enqueue per-recipient pushes.
    */
   listMutualIds(userId: EntityId): Promise<EntityId[]>;
+  /**
+   * Friend-of-friend lookup for the People-You-May-Know surface (#144, P-08).
+   *
+   * Returns profile IDs that are followed by users whom `viewerId` follows,
+   * **excluding** the viewer themselves and anyone the viewer already follows.
+   * The accompanying `count` is the number of the viewer's follows that reach
+   * the candidate (a higher count means more "shared friends" and is used to
+   * rank PYMK candidates).
+   *
+   * The query is `follows f1 JOIN follows f2 ON f1.followee_id = f2.follower_id
+   * WHERE f1.follower_id = viewerId AND f2.followee_id != viewerId AND
+   * f2.followee_id NOT IN (viewer's direct follows)`, grouped by `f2.followee_id`.
+   */
+  listFriendsOfFriends(viewerId: EntityId): Promise<Array<{ profileId: EntityId; count: number }>>;
 }
 
 export interface BlockRepository {

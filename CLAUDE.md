@@ -24,6 +24,9 @@
 - `account.cancelDelete()` — remove the `account_deletions` row if it exists and the grace period has not yet expired.
 - `account.requestExport()` — build a gzipped JSON archive of every user-scoped row owned by the viewer and return `{ url, expiresAt }`. Signed URL lifetime defaults to 24h; archive layout documented in `docs/runbook.md`. Returns 501 if no `StorageProvider` is wired.
 
+**Discover:**
+- `discover.peopleYouMayKnow(limit?)` — passive People-You-May-Know surface (P-08, Q4-locked: no push, no email). Returns a ranked list of suggested profiles for the viewer, combining contacts-match (phone-hash overlap) and friend-of-friend (FoF) candidate sources. Excludes the viewer, mutuals, blocked users in both directions, and soft-deleted profiles. Each suggestion carries `source: "contacts" | "fof" | "both"` for client-side chrome. Limit defaults to 20, capped at 50.
+
 ### Domain Ports
 
 **Catalog:**

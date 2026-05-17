@@ -2,6 +2,7 @@ export * from "./account";
 export * from "./auth";
 export * from "./blocks";
 export * from "./contacts";
+export * from "./discover";
 export * from "./feed";
 export * from "./follows";
 export * from "./imports";
