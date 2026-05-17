@@ -17,6 +17,8 @@
     "@hone/domain": "workspace:*",
     "@hone/observability": "workspace:*",
     "expo": "^53.0.0",
+    "expo-barcode-scanner": "^13.0.1",
+    "expo-camera": "^16.1.11",
     "expo-router": "^5.0.0",
     "react": "^19.0.0",
     "react-native": "0.79.6",

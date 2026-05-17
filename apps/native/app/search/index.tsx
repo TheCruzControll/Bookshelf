@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  CameraView,
+  Camera as ExpoCamera,
+  type BarcodeType,
+} from "expo-camera";
 import type { BookSearchResultInput, EntityId } from "@hone/domain";
 import { Nav } from "../components/Nav";
-import { SearchPanel } from "./SearchPanel";
+import { SearchPanel, type ScanCameraIntegration } from "./SearchPanel";
 import { fetchSearchResults } from "./fetchSearchResults";
 import type { ShelfOption } from "./AddSheet";
+import type { CameraComponentProps } from "./CameraScanner";
+import type { ScanPermissionStatus } from "./useScanCamera";
 
 /**
  * Shelves the AddSheet picker shows to the viewer.
@@ -38,7 +45,61 @@ const SAMPLE_SHELVES: ShelfOption[] = [
 ];
 
 /**
- * Native Search screen (G-03, #77).
+ * App-shell wiring for the ISBN-scan integration (G-04, #78).
+ *
+ * Lives at the screen boundary so `SearchPanel`, `ScanButton`, and
+ * `CameraScanner` stay free of `expo-camera` imports — the vitest Node
+ * environment can't load native modules. The render-prop shim
+ * normalizes the prop shape we depend on so the typecheck stays
+ * narrow even though `CameraView` accepts a much wider surface.
+ *
+ * `ALLOWED_BARCODE_TYPES` is the whitelist of `expo-camera`'s
+ * `BarcodeType` values we forward verbatim. Anything outside it
+ * (everything but `ean13` / `upc_a` today) is silently dropped so the
+ * native `CameraView` typecheck stays sound.
+ */
+const ALLOWED_BARCODE_TYPES = new Set<BarcodeType>(["ean13", "upc_a"]);
+
+function narrowBarcodeTypes(
+  input: ReadonlyArray<string>,
+): BarcodeType[] {
+  const out: BarcodeType[] = [];
+  for (const value of input) {
+    if (ALLOWED_BARCODE_TYPES.has(value as BarcodeType)) {
+      out.push(value as BarcodeType);
+    }
+  }
+  return out;
+}
+
+const NativeCameraView = (props: CameraComponentProps) => {
+  const settings = props.barcodeScannerSettings
+    ? { barcodeTypes: narrowBarcodeTypes(props.barcodeScannerSettings.barcodeTypes) }
+    : undefined;
+  return (
+    <CameraView
+      style={props.style}
+      facing={props.facing ?? "back"}
+      {...(settings ? { barcodeScannerSettings: settings } : {})}
+      {...(props.onBarcodeScanned
+        ? { onBarcodeScanned: props.onBarcodeScanned }
+        : {})}
+    />
+  );
+};
+
+const SCAN_CAMERA: ScanCameraIntegration = {
+  requestPermission: async (): Promise<ScanPermissionStatus> => {
+    const { status } = await ExpoCamera.requestCameraPermissionsAsync();
+    if (status === "granted") return "granted";
+    if (status === "denied") return "denied";
+    return "undetermined";
+  },
+  cameraComponent: NativeCameraView,
+};
+
+/**
+ * Native Search screen (G-03, #77; G-04, #78).
  *
  * Mirrors `apps/web/app/search/page.tsx`: a hero block + a SearchPanel.
  * The panel owns query parsing (ISBN vs. text), result selection, and
@@ -80,6 +141,7 @@ export default function SearchScreen() {
         <SearchPanel
           initialResults={initialResults}
           shelves={SAMPLE_SHELVES}
+          scanCamera={SCAN_CAMERA}
         />
       </ScrollView>
     </View>

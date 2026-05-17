@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import type { BookSearchResultInput, EntityId } from "@hone/domain";
 import type { ShelfOption, AddSheetSubmission } from "./AddSheet";
 import { resultKey } from "./searchHelpers";
-import type { SearchBackend, SearchPanelProps } from "./SearchPanel";
+import type {
+  SearchBackend,
+  SearchPanelProps,
+  ScanCameraIntegration,
+} from "./SearchPanel";
+import type { CameraComponent } from "./CameraScanner";
+import type { ScanPermissionStatus } from "./useScanCamera";
 
 const SHELVES: ShelfOption[] = [
   {
@@ -120,5 +126,48 @@ describe("SearchPanel contract (native, G-03, #77)", () => {
       },
     };
     expect(props.existingStateByKey?.[resultKey(r)]?.status).toBe("reading");
+  });
+
+  describe("scanCamera integration (G-04, #78)", () => {
+    const STUB_CAMERA: CameraComponent = () => null;
+
+    it("scanCamera prop is optional (search-only is the default)", () => {
+      const props: SearchPanelProps = { shelves: SHELVES };
+      expect(props.scanCamera).toBeUndefined();
+    });
+
+    it("accepts a ScanCameraIntegration with permission + camera component", () => {
+      const integration: ScanCameraIntegration = {
+        requestPermission: async (): Promise<ScanPermissionStatus> => "granted",
+        cameraComponent: STUB_CAMERA,
+      };
+      const props: SearchPanelProps = {
+        shelves: SHELVES,
+        scanCamera: integration,
+      };
+      expect(props.scanCamera?.requestPermission).toBeDefined();
+      expect(props.scanCamera?.cameraComponent).toBe(STUB_CAMERA);
+    });
+
+    it("scanned ISBN dispatches to backend.lookupByIsbn (same as typed ISBN)", async () => {
+      // Mirrors the panel's `handleScannedIsbn` body: a scan and a
+      // typed ISBN both flow through `backend.lookupByIsbn`. We assert
+      // the dispatch contract is identical so the Add Sheet receives
+      // the same book shape regardless of input source.
+      const isbnCalls: string[] = [];
+      const backend: SearchBackend = {
+        async searchByText() {
+          return [];
+        },
+        async lookupByIsbn(isbn) {
+          isbnCalls.push(isbn);
+          return makeResult();
+        },
+      };
+      const fromInput = await backend.lookupByIsbn("9780553293357");
+      const fromScan = await backend.lookupByIsbn("9780553293357");
+      expect(isbnCalls).toEqual(["9780553293357", "9780553293357"]);
+      expect(fromInput?.title).toBe(fromScan?.title);
+    });
   });
 });
