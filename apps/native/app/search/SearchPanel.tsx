@@ -6,6 +6,8 @@ import {
   type AddSheetSubmission,
   type ShelfOption,
 } from "./AddSheet";
+import type { CameraComponent } from "./CameraScanner";
+import { ScanButton } from "./ScanButton";
 import { SearchInput } from "./SearchInput";
 import {
   SearchResultCard,
@@ -13,6 +15,7 @@ import {
 } from "./SearchResultCard";
 import type { ParsedQuery } from "./isbnQuery";
 import { resultKey } from "./searchHelpers";
+import type { UseScanCameraDeps } from "./useScanCamera";
 
 export { resultKey };
 
@@ -40,6 +43,20 @@ export interface SearchBackend {
   }): Promise<void>;
 }
 
+/**
+ * Camera + permission seams used by the optional ISBN-scan affordance
+ * (G-04, #78). When omitted, the scan button is hidden and the panel
+ * falls back to the manual SearchInput. The app shell injects the
+ * real `expo-camera` `CameraView` + `requestCameraPermissionsAsync`
+ * implementations; tests wire stubs.
+ */
+export interface ScanCameraIntegration {
+  requestPermission: UseScanCameraDeps["requestPermission"];
+  cameraComponent: CameraComponent;
+  /** Optional override of the ISBN normalizer, mainly for tests. */
+  normalize?: UseScanCameraDeps["normalize"];
+}
+
 export interface SearchPanelProps {
   /** Initial results to render before the viewer types anything. */
   initialResults?: ReadonlyArray<BookSearchResultInput>;
@@ -49,6 +66,13 @@ export interface SearchPanelProps {
   existingStateByKey?: Readonly<Record<string, ExistingUserState>>;
   /** Backend bound to the eventual tRPC client; defaults to a no-op. */
   backend?: SearchBackend;
+  /**
+   * When provided, renders a "Scan" button next to the search input
+   * that opens a full-screen camera. Decoded ISBN-13 barcodes are
+   * dispatched to `backend.lookupByIsbn` exactly the same way a typed
+   * ISBN is — the result feeds the existing Add Sheet.
+   */
+  scanCamera?: ScanCameraIntegration;
 }
 
 const NOOP_BACKEND: SearchBackend = {
@@ -76,6 +100,7 @@ export function SearchPanel({
   shelves,
   existingStateByKey,
   backend = NOOP_BACKEND,
+  scanCamera,
 }: SearchPanelProps) {
   const [results, setResults] = useState<ReadonlyArray<BookSearchResultInput>>(
     initialResults,
@@ -106,6 +131,28 @@ export function SearchPanel({
     [backend],
   );
 
+  const handleScannedIsbn = useCallback(
+    async (isbn: string) => {
+      setLoadingError(null);
+      try {
+        const r = await backend.lookupByIsbn(isbn);
+        setResults(r ? [r] : []);
+        if (r) {
+          // Auto-open the Add Sheet so the scan completes the flow.
+          setSelected(r);
+        } else {
+          setLoadingError(
+            `We couldn't find a book for ${isbn}. Try the search box instead.`,
+          );
+        }
+      } catch {
+        setResults([]);
+        setLoadingError("Couldn't reach the catalog. Try again in a moment.");
+      }
+    },
+    [backend],
+  );
+
   const handleSelect = useCallback((book: BookSearchResultInput) => {
     setSelected(book);
   }, []);
@@ -127,7 +174,21 @@ export function SearchPanel({
 
   return (
     <View style={styles.panel} testID="search-panel">
-      <SearchInput onQueryChange={handleQueryChange} />
+      <View style={styles.searchRow}>
+        <View style={styles.searchInputWrapper}>
+          <SearchInput onQueryChange={handleQueryChange} />
+        </View>
+        {scanCamera ? (
+          <ScanButton
+            onScan={(isbn) => {
+              void handleScannedIsbn(isbn);
+            }}
+            requestPermission={scanCamera.requestPermission}
+            cameraComponent={scanCamera.cameraComponent}
+            normalize={scanCamera.normalize}
+          />
+        ) : null}
+      </View>
       {loadingError ? (
         <Text style={styles.error} accessibilityRole="alert">
           {loadingError}
@@ -175,6 +236,14 @@ export function SearchPanel({
 const styles = StyleSheet.create({
   panel: {
     gap: 14,
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  searchInputWrapper: {
+    flex: 1,
   },
   error: {
     color: "#B9472D",
