@@ -3612,10 +3612,17 @@ describe("AccountDeletionService", () => {
     // cancelDelete removes the row, any surface that queries deletion state
     // (here: isSoftDeleted) sees the user as live.
     const store = new Map<string, { profileId: string; requestedAt: Date; hardDeleteAfter: Date }>();
+    // hardDeleteAfter must be relative to the real wall clock, not a fixed
+    // NOW: cancelDelete() compares it against `new Date()`, so a hardcoded
+    // date (NOW + 30d = 2026-06-10) makes the grace period read as expired
+    // once that day passes, turning the cancel into a no-op and failing this
+    // test forever after. Mirror the sibling "within grace period" test and
+    // pin the window 30 days into the real future so it stays deterministic.
+    const requestedAt = new Date();
     store.set(UUID1, {
       profileId: UUID1,
-      requestedAt: NOW,
-      hardDeleteAfter: new Date(NOW.getTime() + THIRTY_DAYS),
+      requestedAt,
+      hardDeleteAfter: new Date(requestedAt.getTime() + THIRTY_DAYS),
     });
     const deletionRepo = {
       create: vi.fn(),
