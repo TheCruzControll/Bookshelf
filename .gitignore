@@ -9,6 +9,8 @@ coverage
 .expo-shared
 *.log
 *.tsbuildinfo
+playwright-report
+test-results
 .env
 .env.local
 .env.*.local
