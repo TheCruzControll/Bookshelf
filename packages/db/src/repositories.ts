@@ -337,13 +337,19 @@ export class DrizzleAccountDeletionRepository implements AccountDeletionReposito
       await tx.delete(sessions).where(eq(sessions.profileId, profileId));
       await tx.delete(imports).where(eq(imports.ownerId, profileId));
 
-      // 12. Profile row itself.
-      await tx.delete(profiles).where(eq(profiles.id, profileId));
-
-      // 13. Finally, the account_deletions row.
+      // 12. The account_deletions row — removed BEFORE the profile it
+      //     references. `account_deletions.profile_id` carries a FK to
+      //     `profiles.id` with no ON DELETE CASCADE, so this child must
+      //     be deleted first; otherwise dropping the profile raises a
+      //     23503 foreign-key violation (account_deletions is still
+      //     pointing at it). This mirrors the "children before parents"
+      //     ordering used for every other table above.
       await tx
         .delete(accountDeletions)
         .where(eq(accountDeletions.profileId, profileId));
+
+      // 13. Finally, the profile row itself.
+      await tx.delete(profiles).where(eq(profiles.id, profileId));
     });
   }
 }
